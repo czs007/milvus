@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/milvus-io/milvus/internal/metrics"
 	"os"
 	"strconv"
 
@@ -1330,7 +1331,9 @@ func (node *Proxy) Insert(ctx context.Context, request *milvuspb.InsertRequest) 
 	}
 
 	err = it.WaitToFinish()
+	metrics.ProxyInsertCounter.WithLabelValues(metricLabelTotal).Inc()
 	if err != nil {
+		metrics.ProxyInsertCounter.WithLabelValues(metricLabelFail).Inc()
 		result.Status.ErrorCode = commonpb.ErrorCode_UnexpectedError
 		result.Status.Reason = err.Error()
 		numRows := it.req.NumRows
@@ -1349,6 +1352,7 @@ func (node *Proxy) Insert(ctx context.Context, request *milvuspb.InsertRequest) 
 		}
 		it.result.ErrIndex = errIndex
 	}
+	metrics.ProxyInsertCounter.WithLabelValues(metricLabelSuccess).Inc()
 	it.result.InsertCnt = int64(it.req.NumRows)
 	return it.result, nil
 }
@@ -1510,8 +1514,9 @@ func (node *Proxy) Search(ctx context.Context, request *milvuspb.SearchRequest) 
 		zap.Any("partitions", request.PartitionNames),
 		zap.Any("dsl", request.Dsl),
 		zap.Any("len(PlaceholderGroup)", len(request.PlaceholderGroup)))
-
+	metrics.ProxySearchCounter.WithLabelValues(metricLabelTotal).Inc()
 	if err != nil {
+		metrics.ProxySearchCounter.WithLabelValues(metricLabelFail).Inc()
 		return &milvuspb.SearchResults{
 			Status: &commonpb.Status{
 				ErrorCode: commonpb.ErrorCode_UnexpectedError,
@@ -1519,7 +1524,7 @@ func (node *Proxy) Search(ctx context.Context, request *milvuspb.SearchRequest) 
 			},
 		}, nil
 	}
-
+	metrics.ProxySearchCounter.WithLabelValues(metricLabelSuccess).Inc()
 	return qt.result, nil
 }
 
@@ -1642,7 +1647,9 @@ func (node *Proxy) Query(ctx context.Context, request *milvuspb.QueryRequest) (*
 	}()
 
 	err = qt.WaitToFinish()
+	metrics.ProxyRetrieveCounter.WithLabelValues(metricLabelTotal).Inc()
 	if err != nil {
+		metrics.ProxyRetrieveCounter.WithLabelValues(metricLabelFail).Inc()
 		return &milvuspb.QueryResults{
 			Status: &commonpb.Status{
 				ErrorCode: commonpb.ErrorCode_UnexpectedError,
@@ -1650,7 +1657,7 @@ func (node *Proxy) Query(ctx context.Context, request *milvuspb.QueryRequest) (*
 			},
 		}, nil
 	}
-
+	metrics.ProxyRetrieveCounter.WithLabelValues(metricLabelSuccess).Inc()
 	return &milvuspb.QueryResults{
 		Status:     qt.result.Status,
 		FieldsData: qt.result.FieldsData,

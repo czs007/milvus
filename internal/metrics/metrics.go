@@ -11,11 +11,15 @@ import (
 )
 
 const (
-	milvusNamespace    = "milvus"
-	subSystemRootCoord = "rootcoord"
-	subSystemDataCoord = "dataCoord"
-	subSystemDataNode  = "dataNode"
-	subSystemProxy     = "proxy"
+	milvusNamespace     = "milvus"
+	subSystemRootCoord  = "rootcoord"
+	subSystemDataCoord  = "dataCoord"
+	subSystemDataNode   = "dataNode"
+	subSystemProxy      = "proxy"
+	subSystemQueryNode  = "queryNode"
+	subSystemQueryCoord = "queryCoord"
+	subSystemIndexNode  = "indexNode"
+	subSystemIndexCoord = "indexCoord"
 )
 
 var (
@@ -409,8 +413,8 @@ var (
 		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
 			Subsystem: subSystemProxy,
-			Name:      "retrieve_total",
-			Help:      "Counter of retrieve",
+			Name:      "query_total",
+			Help:      "Counter of query",
 		}, []string{"status"})
 
 	// ProxyFlushCounter counts the num of calls of Flush
