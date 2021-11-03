@@ -49,10 +49,6 @@ const channelMgrTickerInterval = 100 * time.Millisecond
 // make sure Proxy implements types.Proxy
 var _ types.Proxy = (*Proxy)(nil)
 
-const metricLabelTotal = "total"
-const metricLabelSuccess = "success"
-const metricLabelFail = "fail"
-
 type Proxy struct {
 	ctx    context.Context
 	cancel func()

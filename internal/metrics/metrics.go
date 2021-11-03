@@ -53,6 +53,7 @@ var (
 			Help:      "Counter of drop collection",
 		}, []string{"client_id", "type"})
 
+	// czs
 	// RootCoordHasCollectionCounter counts the num of calls of HasCollection
 	RootCoordHasCollectionCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -206,261 +207,33 @@ func RegisterRootCoord() {
 	// for time tick
 	prometheus.MustRegister(RootCoordInsertChannelTimeTick)
 	prometheus.MustRegister(RootCoordDDChannelTimeTick)
-	//prometheus.MustRegister(PanicCounter)
 }
 
 var (
-	// ProxyCreateCollectionCounter counts the num of calls of CreateCollection
-	ProxyCreateCollectionCounter = prometheus.NewCounterVec(
+	ProxyDDLCounterTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
 			Subsystem: subSystemProxy,
-			Name:      "create_collection_total",
-			Help:      "Counter of create collection",
-		}, []string{"status"})
+			Name:      "ddl_total",
+			Help:      "Counter of ddl operation",
+		}, []string{"node_id", "status", "type"})
 
-	// ProxyDropCollectionCounter counts the num of calls of DropCollection
-	ProxyDropCollectionCounter = prometheus.NewCounterVec(
+	ProxyDQLCounterTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
 			Subsystem: subSystemProxy,
-			Name:      "drop_collection_total",
-			Help:      "Counter of drop collection",
-		}, []string{"status"})
+			Name:      "dql_total",
+			Help:      "Counter of dql operation",
+		}, []string{"node_id", "status", "type"})
 
-	// ProxyHasCollectionCounter counts the num of calls of HasCollection
-	ProxyHasCollectionCounter = prometheus.NewCounterVec(
+	ProxyDMLCounterTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
 			Subsystem: subSystemProxy,
-			Name:      "has_collection_total",
-			Help:      "Counter of has collection",
-		}, []string{"status"})
+			Name:      "dml_total",
+			Help:      "Counter of dml operation",
+		}, []string{"node_id", "status", "type"})
 
-	// ProxyLoadCollectionCounter counts the num of calls of LoadCollection
-	ProxyLoadCollectionCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "load_collection_total",
-			Help:      "Counter of load collection",
-		}, []string{"status"})
-
-	// ProxyReleaseCollectionCounter counts the num of calls of ReleaseCollection
-	ProxyReleaseCollectionCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "release_collection_total",
-			Help:      "Counter of release collection",
-		}, []string{"status"})
-
-	// ProxyDescribeCollectionCounter counts the num of calls of DescribeCollection
-	ProxyDescribeCollectionCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "describe_collection_total",
-			Help:      "Counter of describe collection",
-		}, []string{"status"})
-
-	// ProxyGetCollectionStatisticsCounter counts the num of calls of GetCollectionStatistics
-	ProxyGetCollectionStatisticsCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "get_collection_statistics_total",
-			Help:      "Counter of get collection statistics",
-		}, []string{"status"})
-
-	// ProxyShowCollectionsCounter counts the num of calls of ShowCollections
-	ProxyShowCollectionsCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "show_collections_total",
-			Help:      "Counter of show collections",
-		}, []string{"status"})
-
-	// ProxyCreatePartitionCounter counts the num of calls of CreatePartition
-	ProxyCreatePartitionCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "create_partition_total",
-			Help:      "Counter of create partition",
-		}, []string{"status"})
-
-	// ProxyDropPartitionCounter counts the num of calls of DropPartition
-	ProxyDropPartitionCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "drop_partition_total",
-			Help:      "Counter of drop partition",
-		}, []string{"status"})
-
-	// ProxyHasPartitionCounter counts the num of calls of HasPartition
-	ProxyHasPartitionCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "has_partition_total",
-			Help:      "Counter of has partition",
-		}, []string{"status"})
-
-	// ProxyLoadPartitionsCounter counts the num of calls of LoadPartitions
-	ProxyLoadPartitionsCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "load_partitions_total",
-			Help:      "Counter of load partitions",
-		}, []string{"status"})
-
-	// ProxyReleasePartitionsCounter counts the num of calls of ReleasePartitions
-	ProxyReleasePartitionsCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "release_partitions_total",
-			Help:      "Counter of release partitions",
-		}, []string{"status"})
-
-	// ProxyGetPartitionStatisticsCounter counts the num of calls of GetPartitionStatistics
-	ProxyGetPartitionStatisticsCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "get_partition_statistics_total",
-			Help:      "Counter of get partition statistics",
-		}, []string{"status"})
-
-	// ProxyShowPartitionsCounter counts the num of calls of ShowPartitions
-	ProxyShowPartitionsCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "show_partitions_total",
-			Help:      "Counter of show partitions",
-		}, []string{"status"})
-
-	// ProxyCreateIndexCounter counts the num of calls of CreateIndex
-	ProxyCreateIndexCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "create_index_counter",
-			Help:      "Counter of create index",
-		}, []string{"status"})
-
-	// ProxyDescribeIndexCounter counts the num of calls of DescribeIndex
-	ProxyDescribeIndexCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "describe_index_counter",
-			Help:      "Counter of describe index",
-		}, []string{"status"})
-
-	// ProxyGetIndexStateCounter counts the num of calls of GetIndexState
-	ProxyGetIndexStateCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "get_index_state_counter",
-			Help:      "Counter of get index state",
-		}, []string{"status"})
-
-	// ProxyGetIndexBuildProgressCounter counts the num of calls of GetIndexBuildProgress
-	ProxyGetIndexBuildProgressCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "get_index_build_progress_total",
-			Help:      "Counter of get index build progress",
-		}, []string{"status"})
-
-	// ProxyDropIndexCounter counts the num of calls of DropIndex
-	ProxyDropIndexCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "drop_index_total",
-			Help:      "Counter of drop index",
-		}, []string{"status"})
-
-	// ProxyInsertCounter counts the num of calls of Insert
-	ProxyInsertCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "insert_total",
-			Help:      "Counter of insert",
-		}, []string{"status"})
-
-	// ProxySearchCounter counts the num of calls of Search
-	ProxySearchCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "search_total",
-			Help:      "Counter of search",
-		}, []string{"status"})
-
-	// ProxyRetrieveCounter counts the num of calls of Retrieve
-	ProxyRetrieveCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "query_total",
-			Help:      "Counter of query",
-		}, []string{"status"})
-
-	// ProxyFlushCounter counts the num of calls of Flush
-	ProxyFlushCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "flush_total",
-			Help:      "Counter of flush",
-		}, []string{"status"})
-
-	// ProxyQueryCounter counts the num of calls of Query
-	ProxyQueryCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "query_total",
-			Help:      "Counter of query",
-		}, []string{"status"})
-
-	// ProxyGetPersistentSegmentInfoCounter counts the num of calls of GetPersistentSegmentInfo
-	ProxyGetPersistentSegmentInfoCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "get_persistent_segment_info_total",
-			Help:      "Counter of get persistent segment info",
-		}, []string{"status"})
-
-	// ProxyGetQuerySegmentInfoCounter counts the num of calls of GetQuerySegmentInfo
-	ProxyGetQuerySegmentInfoCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "get_query_segment_info_total",
-			Help:      "Counter of get query segment info",
-		}, []string{"status"})
-
-	// ProxyDummyCounter counts the num of calls of Dummy
-	ProxyDummyCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: milvusNamespace,
-			Subsystem: subSystemProxy,
-			Name:      "dummy_total",
-			Help:      "Counter of dummy",
-		}, []string{"status"})
 
 	// ProxyRegisterLinkCounter counts the num of calls of RegisterLink
 	ProxyRegisterLinkCounter = prometheus.NewCounterVec(
@@ -469,7 +242,7 @@ var (
 			Subsystem: subSystemProxy,
 			Name:      "register_link_total",
 			Help:      "Counter of register link",
-		}, []string{"status"})
+		}, []string{"node_id", "status"})
 
 	// ProxyGetComponentStatesCounter counts the num of calls of GetComponentStates
 	ProxyGetComponentStatesCounter = prometheus.NewCounterVec(
@@ -478,7 +251,7 @@ var (
 			Subsystem: subSystemProxy,
 			Name:      "get_component_states_total",
 			Help:      "Counter of get component states",
-		}, []string{"status"})
+		}, []string{"node_id", "status"})
 
 	// ProxyGetStatisticsChannelCounter counts the num of calls of GetStatisticsChannel
 	ProxyGetStatisticsChannelCounter = prometheus.NewCounterVec(
@@ -487,7 +260,7 @@ var (
 			Subsystem: subSystemProxy,
 			Name:      "get_statistics_channel_total",
 			Help:      "Counter of get statistics channel",
-		}, []string{"status"})
+		}, []string{"node_id", "status"})
 
 	// ProxyInvalidateCollectionMetaCacheCounter counts the num of calls of InvalidateCollectionMetaCache
 	ProxyInvalidateCollectionMetaCacheCounter = prometheus.NewCounterVec(
@@ -496,16 +269,25 @@ var (
 			Subsystem: subSystemProxy,
 			Name:      "invalidate_collection_meta_cache_total",
 			Help:      "Counter of invalidate collection meta cache",
-		}, []string{"status"})
+		}, []string{"node_id", "status"})
 
-	// ProxyGetDdChannelCounter counts the num of calls of GetDdChannel
-	ProxyGetDdChannelCounter = prometheus.NewCounterVec(
+	// ProxyGetDmlChannelCounter counts the num of calls of GetDmlChannel
+	ProxyGetDmlChannelCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: milvusNamespace,
 			Subsystem: subSystemProxy,
-			Name:      "get_dd_channel_total",
-			Help:      "Counter of get dd channel",
-		}, []string{"status"})
+			Name:      "get_dml_channel_total",
+			Help:      "Counter of get dml channel",
+		}, []string{"node_id", "status"})
+
+	// ProxyGetDqlChannelCounter counts the num of calls of GetDqlChannel
+	ProxyGetDqlChannelCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: milvusNamespace,
+			Subsystem: subSystemProxy,
+			Name:      "get_dql_channel_total",
+			Help:      "Counter of get dql channel",
+		}, []string{"node_id", "status"})
 
 	// ProxyReleaseDQLMessageStreamCounter counts the num of calls of ReleaseDQLMessageStream
 	ProxyReleaseDQLMessageStreamCounter = prometheus.NewCounterVec(
@@ -514,7 +296,7 @@ var (
 			Subsystem: subSystemProxy,
 			Name:      "release_dql_message_stream_total",
 			Help:      "Counter of release dql message stream",
-		}, []string{"status"})
+		}, []string{"node_id", "status"})
 
 	// ProxyDmlChannelTimeTick counts the time tick value of dml channels
 	ProxyDmlChannelTimeTick = prometheus.NewGaugeVec(
@@ -523,44 +305,14 @@ var (
 			Subsystem: subSystemProxy,
 			Name:      "dml_channels_time_tick",
 			Help:      "Time tick of dml channels",
-		}, []string{"pchan"})
+		}, []string{"node_id", "channel_name"})
 )
 
 //RegisterProxy registers Proxy metrics
 func RegisterProxy() {
-	prometheus.MustRegister(ProxyCreateCollectionCounter)
-	prometheus.MustRegister(ProxyDropCollectionCounter)
-	prometheus.MustRegister(ProxyHasCollectionCounter)
-	prometheus.MustRegister(ProxyLoadCollectionCounter)
-	prometheus.MustRegister(ProxyReleaseCollectionCounter)
-	prometheus.MustRegister(ProxyDescribeCollectionCounter)
-	prometheus.MustRegister(ProxyGetCollectionStatisticsCounter)
-	prometheus.MustRegister(ProxyShowCollectionsCounter)
-
-	prometheus.MustRegister(ProxyCreatePartitionCounter)
-	prometheus.MustRegister(ProxyDropPartitionCounter)
-	prometheus.MustRegister(ProxyHasPartitionCounter)
-	prometheus.MustRegister(ProxyLoadPartitionsCounter)
-	prometheus.MustRegister(ProxyReleasePartitionsCounter)
-	prometheus.MustRegister(ProxyGetPartitionStatisticsCounter)
-	prometheus.MustRegister(ProxyShowPartitionsCounter)
-
-	prometheus.MustRegister(ProxyCreateIndexCounter)
-	prometheus.MustRegister(ProxyDescribeIndexCounter)
-	prometheus.MustRegister(ProxyGetIndexStateCounter)
-	prometheus.MustRegister(ProxyGetIndexBuildProgressCounter)
-	prometheus.MustRegister(ProxyDropIndexCounter)
-
-	prometheus.MustRegister(ProxyInsertCounter)
-	prometheus.MustRegister(ProxySearchCounter)
-	prometheus.MustRegister(ProxyRetrieveCounter)
-	prometheus.MustRegister(ProxyFlushCounter)
-	prometheus.MustRegister(ProxyQueryCounter)
-
-	prometheus.MustRegister(ProxyGetPersistentSegmentInfoCounter)
-	prometheus.MustRegister(ProxyGetQuerySegmentInfoCounter)
-
-	prometheus.MustRegister(ProxyDummyCounter)
+	prometheus.MustRegister(ProxyDDLCounterTotal)
+	prometheus.MustRegister(ProxyDQLCounterTotal)
+	prometheus.MustRegister(ProxyDMLCounterTotal)
 
 	prometheus.MustRegister(ProxyRegisterLinkCounter)
 
@@ -568,7 +320,8 @@ func RegisterProxy() {
 	prometheus.MustRegister(ProxyGetStatisticsChannelCounter)
 
 	prometheus.MustRegister(ProxyInvalidateCollectionMetaCacheCounter)
-	prometheus.MustRegister(ProxyGetDdChannelCounter)
+	prometheus.MustRegister(ProxyGetDmlChannelCounter)
+	prometheus.MustRegister(ProxyGetDqlChannelCounter)
 
 	prometheus.MustRegister(ProxyReleaseDQLMessageStreamCounter)
 

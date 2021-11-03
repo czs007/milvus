@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/milvus-io/milvus/internal/util/typeutil"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -184,4 +185,8 @@ func GetAttrByKeyFromRepeatedKV(key string, kvs []*commonpb.KeyValuePair) (strin
 	}
 
 	return "", errors.New("key " + key + " not found")
+}
+
+func GenMetricNodeID(role string, ID typeutil.UniqueID) string {
+	return fmt.Sprintf("%s_%d", role, ID)
 }

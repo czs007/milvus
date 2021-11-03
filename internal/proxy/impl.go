@@ -40,6 +40,10 @@ import (
 	"github.com/milvus-io/milvus/internal/util/typeutil"
 )
 
+const metricLabelTotal = "total"
+const metricLabelSuccess = "success"
+const metricLabelFail = "fail"
+
 // UpdateStateCode updates the state code of Proxy.
 func (node *Proxy) UpdateStateCode(code internalpb.StateCode) {
 	node.stateCode.Store(code)
@@ -51,8 +55,12 @@ func (node *Proxy) GetComponentStates(ctx context.Context) (*internalpb.Componen
 			ErrorCode: commonpb.ErrorCode_Success,
 		},
 	}
+	nodeIDLabel := funcutil.GenMetricNodeID(typeutil.ProxyRole, Params.ProxyID)
+	metrics.ProxyGetComponentStatesCounter.WithLabelValues(nodeIDLabel, metricLabelTotal).Inc()
+
 	code, ok := node.stateCode.Load().(internalpb.StateCode)
 	if !ok {
+		metrics.ProxyGetComponentStatesCounter.WithLabelValues(nodeIDLabel, metricLabelFail).Inc()
 		errMsg := "unexpected error in type assertion"
 		stats.Status = &commonpb.Status{
 			ErrorCode: commonpb.ErrorCode_UnexpectedError,
@@ -60,6 +68,7 @@ func (node *Proxy) GetComponentStates(ctx context.Context) (*internalpb.Componen
 		}
 		return stats, errors.New(errMsg)
 	}
+	metrics.ProxyGetComponentStatesCounter.WithLabelValues(nodeIDLabel, metricLabelSuccess).Inc()
 	info := &internalpb.ComponentInfo{
 		NodeID:    Params.ProxyID,
 		Role:      typeutil.ProxyRole,
@@ -70,6 +79,9 @@ func (node *Proxy) GetComponentStates(ctx context.Context) (*internalpb.Componen
 }
 
 func (node *Proxy) GetStatisticsChannel(ctx context.Context) (*milvuspb.StringResponse, error) {
+	nodeIDLabel := funcutil.GenMetricNodeID(typeutil.ProxyRole, Params.ProxyID)
+	metrics.ProxyGetStatisticsChannelCounter.WithLabelValues(nodeIDLabel, metricLabelTotal).Inc()
+	metrics.ProxyGetStatisticsChannelCounter.WithLabelValues(nodeIDLabel, metricLabelSuccess).Inc()
 	return &milvuspb.StringResponse{
 		Status: &commonpb.Status{
 			ErrorCode: commonpb.ErrorCode_Success,
@@ -85,6 +97,9 @@ func (node *Proxy) InvalidateCollectionMetaCache(ctx context.Context, request *p
 		zap.String("db", request.DbName),
 		zap.String("collection", request.CollectionName))
 
+	nodeIDLabel := funcutil.GenMetricNodeID(typeutil.ProxyRole, Params.ProxyID)
+	metrics.ProxyInvalidateCollectionMetaCacheCounter.WithLabelValues(nodeIDLabel, metricLabelTotal).Inc()
+	metrics.ProxyInvalidateCollectionMetaCacheCounter.WithLabelValues(nodeIDLabel, metricLabelSuccess).Inc()
 	collectionName := request.CollectionName
 	if globalMetaCache != nil {
 		globalMetaCache.RemoveCollection(ctx, collectionName) // no need to return error, though collection may be not cached
@@ -106,11 +121,15 @@ func (node *Proxy) ReleaseDQLMessageStream(ctx context.Context, request *proxypb
 		zap.Any("db", request.DbID),
 		zap.Any("collection", request.CollectionID))
 
+	nodeIDLabel := funcutil.GenMetricNodeID(typeutil.ProxyRole, Params.ProxyID)
+	metrics.ProxyReleaseDQLMessageStreamCounter.WithLabelValues(nodeIDLabel, metricLabelTotal).Inc()
 	if !node.checkHealthy() {
+		metrics.ProxyInvalidateCollectionMetaCacheCounter.WithLabelValues(nodeIDLabel, metricLabelSuccess).Inc()
 		return unhealthyStatus(), nil
 	}
 
 	_ = node.chMgr.removeDQLStream(request.CollectionID)
+	metrics.ProxyInvalidateCollectionMetaCacheCounter.WithLabelValues(nodeIDLabel, metricLabelSuccess).Inc()
 
 	log.Debug("ReleaseDQLMessageStream Done",
 		zap.Any("role", Params.RoleName),
@@ -1331,9 +1350,10 @@ func (node *Proxy) Insert(ctx context.Context, request *milvuspb.InsertRequest) 
 	}
 
 	err = it.WaitToFinish()
-	metrics.ProxyInsertCounter.WithLabelValues(metricLabelTotal).Inc()
+	nodeIDLabel := funcutil.GenMetricNodeID(typeutil.ProxyRole, Params.ProxyID)
+	metrics.ProxyDMLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelTotal, InsertTaskName).Inc()
 	if err != nil {
-		metrics.ProxyInsertCounter.WithLabelValues(metricLabelFail).Inc()
+		metrics.ProxyDMLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelFail, InsertTaskName).Inc()
 		result.Status.ErrorCode = commonpb.ErrorCode_UnexpectedError
 		result.Status.Reason = err.Error()
 		numRows := it.req.NumRows
@@ -1352,7 +1372,7 @@ func (node *Proxy) Insert(ctx context.Context, request *milvuspb.InsertRequest) 
 		}
 		it.result.ErrIndex = errIndex
 	}
-	metrics.ProxyInsertCounter.WithLabelValues(metricLabelSuccess).Inc()
+	metrics.ProxyDMLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelSuccess, InsertTaskName).Inc()
 	it.result.InsertCnt = int64(it.req.NumRows)
 	return it.result, nil
 }
@@ -1514,9 +1534,10 @@ func (node *Proxy) Search(ctx context.Context, request *milvuspb.SearchRequest) 
 		zap.Any("partitions", request.PartitionNames),
 		zap.Any("dsl", request.Dsl),
 		zap.Any("len(PlaceholderGroup)", len(request.PlaceholderGroup)))
-	metrics.ProxySearchCounter.WithLabelValues(metricLabelTotal).Inc()
+	nodeIDLabel := funcutil.GenMetricNodeID(typeutil.ProxyRole, Params.ProxyID)
+	metrics.ProxyDQLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelTotal, SearchTaskName).Inc()
 	if err != nil {
-		metrics.ProxySearchCounter.WithLabelValues(metricLabelFail).Inc()
+		metrics.ProxyDQLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelFail, SearchTaskName).Inc()
 		return &milvuspb.SearchResults{
 			Status: &commonpb.Status{
 				ErrorCode: commonpb.ErrorCode_UnexpectedError,
@@ -1524,7 +1545,7 @@ func (node *Proxy) Search(ctx context.Context, request *milvuspb.SearchRequest) 
 			},
 		}, nil
 	}
-	metrics.ProxySearchCounter.WithLabelValues(metricLabelSuccess).Inc()
+	metrics.ProxyDQLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelSuccess, SearchTaskName).Inc()
 	return qt.result, nil
 }
 
@@ -1647,9 +1668,10 @@ func (node *Proxy) Query(ctx context.Context, request *milvuspb.QueryRequest) (*
 	}()
 
 	err = qt.WaitToFinish()
-	metrics.ProxyRetrieveCounter.WithLabelValues(metricLabelTotal).Inc()
+	nodeIDLabel := funcutil.GenMetricNodeID(typeutil.ProxyRole, Params.ProxyID)
+	metrics.ProxyDQLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelTotal, RetrieveTaskName).Inc()
 	if err != nil {
-		metrics.ProxyRetrieveCounter.WithLabelValues(metricLabelFail).Inc()
+		metrics.ProxyDQLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelFail, RetrieveTaskName).Inc()
 		return &milvuspb.QueryResults{
 			Status: &commonpb.Status{
 				ErrorCode: commonpb.ErrorCode_UnexpectedError,
@@ -1657,7 +1679,7 @@ func (node *Proxy) Query(ctx context.Context, request *milvuspb.QueryRequest) (*
 			},
 		}, nil
 	}
-	metrics.ProxyRetrieveCounter.WithLabelValues(metricLabelSuccess).Inc()
+	metrics.ProxyDQLCounterTotal.WithLabelValues(nodeIDLabel, metricLabelSuccess, RetrieveTaskName).Inc()
 	return &milvuspb.QueryResults{
 		Status:     qt.result.Status,
 		FieldsData: qt.result.FieldsData,
