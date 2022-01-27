@@ -132,14 +132,19 @@ test-datanode:
 	@echo "Running go unittests..."
 	go test -race -coverpkg=./... -coverprofile=profile.out -covermode=atomic -timeout 5m github.com/milvus-io/milvus/internal/datanode -v
 
+test-querynode:
+	@echo "Running go unittests..."
+	go test -race -coverpkg=./... -coverprofile=profile.out -covermode=atomic -timeout 5m github.com/milvus-io/milvus/internal/querynode	-v
+
 test-querycoord:
 	@echo "Running go unittests..."
 	go test -race -coverpkg=./... -coverprofile=profile.out -covermode=atomic -timeout 5m github.com/milvus-io/milvus/internal/querycoord	-v
 
 
-test-go: build-cpp-with-unittest
+test-go: build-cpp-with-unittest failpoint-enable
 	@echo "Running go unittests..."
 	@(env bash $(PWD)/scripts/run_go_unittest.sh)
+	@$(FAILPOINT_DISABLE)
 
 test-cpp: build-cpp-with-unittest
 	@echo "Running cpp unittests..."
@@ -170,13 +175,31 @@ install: all
 	@mkdir -p $(LIBRARY_PATH) && cp -P $(PWD)/internal/core/output/lib/* $(LIBRARY_PATH)
 	@echo "Installation successful."
 
-clean:
+clean: failpoint-disable
 	@echo "Cleaning up all the generated files"
 	@find . -name '*.test' | xargs rm -fv
 	@find . -name '*~' | xargs rm -fv
 	@rm -rf bin/
 	@rm -rf lib/
 	@rm -rf $(GOPATH)/bin/milvus
+
+FAILPOINT_ENABLE  := find $(PWD)/internal/ -type d | grep -vE "(\.git|tools|core|output|proto)" | xargs tools/bin/failpoint-ctl enable
+FAILPOINT_DISABLE := find $(PWD)/internal/ -type d | grep -vE "(\.git|tools|core|output|proto)" | xargs tools/bin/failpoint-ctl disable
+
+failpoint-enable: tools/bin/failpoint-ctl
+	@echo Enable failpiont
+	@($(FAILPOINT_ENABLE))
+
+failpoint-disable: tools/bin/failpoint-ctl
+	@echo Disable failpiont
+	@($(FAILPOINT_DISABLE))
+
+
+tools/bin/failpoint-ctl: tools/check/go.mod
+	cd tools/check; \
+	$(GO) build -o ../bin/failpoint-ctl github.com/pingcap/failpoint/failpoint-ctl
+
+
 
 milvus-tools: print-build-info
 	@echo "Building tools ..."

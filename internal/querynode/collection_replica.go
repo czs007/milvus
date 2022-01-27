@@ -43,6 +43,7 @@ import (
 	"github.com/milvus-io/milvus/internal/proto/internalpb"
 	"github.com/milvus-io/milvus/internal/proto/querypb"
 	"github.com/milvus-io/milvus/internal/proto/schemapb"
+	"github.com/pingcap/failpoint"
 )
 
 // ReplicaInterface specifies all the methods that the Collection object needs to implement in QueryNode.
@@ -509,6 +510,12 @@ func (colReplica *collectionReplica) addSegment(segmentID UniqueID, partitionID 
 	colReplica.mu.Lock()
 	defer colReplica.mu.Unlock()
 	collection, err := colReplica.getCollectionByIDPrivate(collectionID)
+	failpoint.Inject("colReplicaCollectionNotExist", func(val failpoint.Value) {
+			if val.(bool) {
+				err = fmt.Errorf("inject error colReplica getCollectionByIDPrivate failed")
+			}
+		})
+
 	if err != nil {
 		return err
 	}

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/pingcap/failpoint"
 )
 
 //----------------------------------------------------------------------------------------------------- collection
@@ -185,6 +186,20 @@ func TestCollectionReplica_addSegment(t *testing.T) {
 	}
 
 	err := node.Stop()
+	assert.NoError(t, err)
+}
+
+func TestCollectionReplica_addSegmentFailed(t *testing.T) {
+	node := newQueryNodeMock()
+	collectionID := UniqueID(0)
+	initTestMeta(t, node, collectionID, 0)
+
+	failpoint.Enable("github.com/milvus-io/milvus/internal/querynode/colReplicaCollectionNotExist", `return(true)`)
+	defer failpoint.Disable("github.com/milvus-io/milvus/internal/querynode/colReplicaCollectionNotExist")
+	err := node.historical.replica.addSegment(UniqueID(0), defaultPartitionID, collectionID, "", segmentTypeGrowing, true)
+	assert.Error(t, err)
+
+	err = node.Stop()
 	assert.NoError(t, err)
 }
 
