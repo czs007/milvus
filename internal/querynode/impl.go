@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/milvus-io/milvus/internal/mq/msgstream"
+
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/internal/common"
@@ -148,49 +150,6 @@ func (node *QueryNode) AddQueryChannel(ctx context.Context, in *queryPb.AddQuery
 
 // RemoveQueryChannel remove queryChannel of the collection to stop receiving query message
 func (node *QueryNode) RemoveQueryChannel(ctx context.Context, in *queryPb.RemoveQueryChannelRequest) (*commonpb.Status, error) {
-	// if node.searchService == nil || node.searchService.searchMsgStream == nil {
-	// 	errMsg := "null search service or null search result message stream"
-	// 	status := &commonpb.Status{
-	// 		ErrorCode: commonpb.ErrorCode_UnexpectedError,
-	// 		Reason:    errMsg,
-	// 	}
-
-	// 	return status, errors.New(errMsg)
-	// }
-
-	// searchStream, ok := node.searchService.searchMsgStream.(*pulsarms.PulsarMsgStream)
-	// if !ok {
-	// 	errMsg := "type assertion failed for search message stream"
-	// 	status := &commonpb.Status{
-	// 		ErrorCode: commonpb.ErrorCode_UnexpectedError,
-	// 		Reason:    errMsg,
-	// 	}
-
-	// 	return status, errors.New(errMsg)
-	// }
-
-	// resultStream, ok := node.searchService.searchResultMsgStream.(*pulsarms.PulsarMsgStream)
-	// if !ok {
-	// 	errMsg := "type assertion failed for search result message stream"
-	// 	status := &commonpb.Status{
-	// 		ErrorCode: commonpb.ErrorCode_UnexpectedError,
-	// 		Reason:    errMsg,
-	// 	}
-
-	// 	return status, errors.New(errMsg)
-	// }
-
-	// // remove request channel
-	// consumeChannels := []string{in.RequestChannelID}
-	// consumeSubName := Params.MsgChannelSubName
-	// // TODO: searchStream.RemovePulsarConsumers(producerChannels)
-	// searchStream.AsConsumer(consumeChannels, consumeSubName)
-
-	// // remove result channel
-	// producerChannels := []string{in.ResultChannelID}
-	// // TODO: resultStream.RemovePulsarProducer(producerChannels)
-	// resultStream.AsProducer(producerChannels)
-
 	status := &commonpb.Status{
 		ErrorCode: commonpb.ErrorCode_Success,
 	}
@@ -613,4 +572,32 @@ func (node *QueryNode) GetMetrics(ctx context.Context, req *milvuspb.GetMetricsR
 		},
 		Response: "",
 	}, nil
+}
+
+func (node *QueryNode) Search(ctx context.Context, req *queryPb.SearchRequest) (*commonpb.Status, error) {
+	log.Info("QueryNode receive a search request")
+	tsMsg := &msgstream.SearchMsg{
+		SearchRequest: *req.Request,
+		BaseMsg: msgstream.BaseMsg{
+			Ctx:            ctx,
+			HashValues:     []uint32{uint32(Params.ProxyCfg.ProxyID)},
+			BeginTimestamp: req.BeginTimestamp,
+			EndTimestamp:   req.EndTimestamp,
+		},
+	}
+	status := &commonpb.Status{
+		ErrorCode: commonpb.ErrorCode_Success,
+	}
+	qc, err := node.queryService.getQueryCollection(req.CollectionID)
+	if err != nil {
+		return status, err
+	}
+	newMsg := convertSearchMsg(tsMsg)
+	err = qc.receiveQueryMsg(newMsg)
+	if err != nil {
+		status.ErrorCode = commonpb.ErrorCode_UnexpectedError
+		status.Reason = err.Error()
+	}
+
+	return status, nil
 }

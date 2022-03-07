@@ -214,6 +214,76 @@ var (
 		}, []string{
 			nodeIDLabelName,
 		})
+
+	QueryNodeSearchNQ = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.QueryNodeRole,
+			Name:      "nq_for_merged_req",
+			Help:      "Number of NQ after merging reqs",
+		}, []string{
+			nodeIDLabelName,
+		})
+
+	QueryNodeWaitForExecuteReqs = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.QueryNodeRole,
+			Name:      "reqs_wait_for_execute",
+			Help:      "the number of requests waiting for execute",
+		}, []string{
+			nodeIDLabelName,
+		})
+
+	QueryNodeWaitForMergeReqs = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.QueryNodeRole,
+			Name:      "reqs_wait_for_merge",
+			Help:      "the number of requests waiting for merge",
+		}, []string{
+			nodeIDLabelName,
+		})
+
+	QueryNodeReceiveReqs = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.QueryNodeRole,
+			Name:      "receive_reqs",
+			Help:      "the number of requests querynode receive",
+		}, []string{
+			nodeIDLabelName,
+		})
+
+	QueryNodeExecuteReqs = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.QueryNodeRole,
+			Name:      "executed_reqs",
+			Help:      "the number of requests querynode executed",
+		}, []string{
+			nodeIDLabelName,
+		})
+	QueryNodeSearch = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.QueryNodeRole,
+			Name:      "query_node_search",
+		}, []string{nodeIDLabelName})
+
+	QueryNodeSearchHistorical = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.QueryNodeRole,
+			Name:      "query_node_search_historical",
+		}, []string{nodeIDLabelName})
+
+	QueryNodeSearchReduce = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: milvusNamespace,
+			Subsystem: typeutil.QueryNodeRole,
+			Name:      "query_node_search_reduce",
+		}, []string{nodeIDLabelName})
 )
 
 //RegisterQueryNode registers QueryNode metrics
@@ -235,4 +305,13 @@ func RegisterQueryNode() {
 	prometheus.MustRegister(QueryNodeLoadSegmentLatency)
 	prometheus.MustRegister(QueryNodeServiceTime)
 	prometheus.MustRegister(QueryNodeNumFlowGraphs)
+	prometheus.MustRegister(QueryNodeSearchNQ)
+	prometheus.MustRegister(QueryNodeWaitForExecuteReqs)
+	prometheus.MustRegister(QueryNodeWaitForMergeReqs)
+	prometheus.MustRegister(QueryNodeReceiveReqs)
+	prometheus.MustRegister(QueryNodeExecuteReqs)
+
+	prometheus.MustRegister(QueryNodeSearch)
+	prometheus.MustRegister(QueryNodeSearchHistorical)
+	prometheus.MustRegister(QueryNodeSearchReduce)
 }

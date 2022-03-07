@@ -17,6 +17,7 @@
 package querynode
 
 import (
+	"context"
 	"log"
 	"math"
 	"testing"
@@ -29,35 +30,36 @@ import (
 )
 
 func TestReduce_AllFunc(t *testing.T) {
-	collectionID := UniqueID(0)
-	segmentID := UniqueID(0)
-	collectionMeta := genTestCollectionMeta(collectionID, false)
+	nq := int64(10)
 
-	collection := newCollection(collectionMeta.ID, collectionMeta.Schema)
-	segment, err := newSegment(collection, segmentID, defaultPartitionID, collectionID, "", segmentTypeGrowing, true)
-	assert.Nil(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	node, err := genSimpleQueryNode(ctx)
+	assert.NoError(t, err)
 
-	const DIM = 16
-	var vec = [DIM]float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	collection, err := node.historical.replica.getCollectionByID(defaultCollectionID)
+	assert.NoError(t, err)
 
-	// start search service
-	dslString := "{\"bool\": { \n\"vector\": {\n \"vec\": {\n \"metric_type\": \"L2\", \n \"params\": {\n \"nprobe\": 10 \n},\n \"query\": \"$0\",\n \"topk\": 10 \n,\"round_decimal\": 6\n } \n } \n } \n }"
-	var searchRawData1 []byte
-	var searchRawData2 []byte
+	segment, err := node.historical.replica.getSegmentByID(defaultSegmentID)
+	assert.NoError(t, err)
+
+	// TODO: replace below by genPlaceholderGroup(nq)
+	vec := genSimpleFloatVectors()
+	var searchRawData []byte
 	for i, ele := range vec {
 		buf := make([]byte, 4)
 		common.Endian.PutUint32(buf, math.Float32bits(ele+float32(i*2)))
-		searchRawData1 = append(searchRawData1, buf...)
+		searchRawData = append(searchRawData, buf...)
 	}
-	for i, ele := range vec {
-		buf := make([]byte, 4)
-		common.Endian.PutUint32(buf, math.Float32bits(ele+float32(i*4)))
-		searchRawData2 = append(searchRawData2, buf...)
-	}
+
 	placeholderValue := milvuspb.PlaceholderValue{
 		Tag:    "$0",
 		Type:   milvuspb.PlaceholderType_FloatVector,
-		Values: [][]byte{searchRawData1, searchRawData2},
+		Values: [][]byte{},
+	}
+
+	for i := 0; i < int(nq); i++ {
+		placeholderValue.Values = append(placeholderValue.Values, searchRawData)
 	}
 
 	placeholderGroup := milvuspb.PlaceholderGroup{
@@ -69,48 +71,58 @@ func TestReduce_AllFunc(t *testing.T) {
 		log.Print("marshal placeholderGroup failed")
 	}
 
+	dslString, err := genSimpleDSL()
+	assert.NoError(t, err)
+
 	plan, err := createSearchPlan(collection, dslString)
 	assert.NoError(t, err)
 	holder, err := parseSearchRequest(plan, placeGroupByte)
 	assert.NoError(t, err)
-	placeholderGroups := make([]*searchRequest, 0)
-	placeholderGroups = append(placeholderGroups, holder)
 
-	searchResults := make([]*SearchResult, 0)
-	searchResult, err := segment.search(plan, placeholderGroups, []Timestamp{0})
-	assert.Nil(t, err)
-	searchResults = append(searchResults, searchResult)
+	searchResult, err := segment.search(plan, holder, []Timestamp{0})
+	assert.NoError(t, err)
 
-	err = reduceSearchResultsAndFillData(plan, searchResults, 1)
-	assert.Nil(t, err)
-
-	marshaledHits, err := reorganizeSearchResults(searchResults, 1)
-	assert.NotNil(t, marshaledHits)
-	assert.Nil(t, err)
-
-	hitsBlob, err := marshaledHits.getHitsBlob()
-	assert.Nil(t, err)
-
-	var offset int64
-	for index := range placeholderGroups {
-		hitBolbSizePeerQuery, err := marshaledHits.hitBlobSizeInGroup(int64(index))
-		assert.Nil(t, err)
-		for _, len := range hitBolbSizePeerQuery {
-			marshaledHit := hitsBlob[offset : offset+len]
-			unMarshaledHit := milvuspb.Hits{}
-			err = proto.Unmarshal(marshaledHit, &unMarshaledHit)
-			assert.Nil(t, err)
-			log.Println("hits msg  = ", unMarshaledHit)
-			offset += len
-		}
-	}
+	err = checkSearchResult(nq, plan, searchResult)
+	assert.NoError(t, err)
 
 	plan.delete()
 	holder.delete()
-	deleteSearchResults(searchResults)
-	deleteMarshaledHits(marshaledHits)
 	deleteSegment(segment)
 	deleteCollection(collection)
+}
+
+func TestSliceInfo(t *testing.T) {
+	originNQs := []int64{3, 2, 3}
+	nq := int64(2)
+	originReqIDs := []UniqueID{100, 200, 300}
+	sourceIDs := []UniqueID{1, 2, 3}
+	sInfo := parseSliceInfo(originNQs, nq, originReqIDs, sourceIDs)
+
+	expectedSlices := []int32{2, 1, 2, 2, 1}
+	expectedReqIDs := []UniqueID{100, 100, 200, 300, 300}
+	expectedReqNum := map[UniqueID]int64{100: 2, 200: 1, 300: 2}
+	expectedSourceIDs := []UniqueID{1, 1, 2, 3, 3}
+
+	assert.Equal(t, len(expectedSlices), len(sInfo.slices))
+	assert.Equal(t, len(expectedReqIDs), len(sInfo.reqIDs))
+	for i := 0; i < len(expectedSlices); i++ {
+		assert.Equal(t, expectedSlices[i], sInfo.slices[i])
+		assert.Equal(t, expectedReqIDs[i], sInfo.reqIDs[i])
+		assert.Equal(t, expectedSourceIDs[i], sInfo.sourceIDs[i])
+	}
+	assert.Equal(t, len(expectedReqNum), len(sInfo.reqNum))
+	for id, num := range expectedReqNum {
+		assert.Equal(t, num, sInfo.reqNum[id])
+	}
+
+	expectedSliceOffset := make(map[UniqueID]int64)
+	for i := 0; i < len(expectedSlices); i++ {
+		num := sInfo.getSliceNum(i)
+		reqID := sInfo.reqIDs[i]
+		expectedSliceOffset[reqID]++
+		assert.Equal(t, expectedReqNum[reqID], num)
+		assert.Equal(t, expectedSliceOffset[reqID], sInfo.getSliceOffset(i))
+	}
 }
 
 func TestReduce_nilPlan(t *testing.T) {

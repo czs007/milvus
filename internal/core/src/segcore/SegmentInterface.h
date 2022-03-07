@@ -22,6 +22,7 @@
 #include "common/Span.h"
 #include "common/SystemProperty.h"
 #include "common/Types.h"
+#include "common/QueryResult.h"
 #include "knowhere/index/vector_index/VecIndex.h"
 #include "query/Plan.h"
 #include "query/PlanNode.h"
@@ -42,7 +43,7 @@ class SegmentInterface {
     FillTargetEntry(const query::Plan* plan, SearchResult& results) const = 0;
 
     virtual std::unique_ptr<SearchResult>
-    Search(const query::Plan* Plan, const query::PlaceholderGroup& placeholder_group, Timestamp timestamp) const = 0;
+    Search(const query::Plan* Plan, const query::PlaceholderGroup* placeholder_group, Timestamp timestamp) const = 0;
 
     virtual std::unique_ptr<proto::segcore::RetrieveResults>
     Retrieve(const query::RetrievePlan* Plan, Timestamp timestamp) const = 0;
@@ -86,7 +87,7 @@ class SegmentInternalInterface : public SegmentInterface {
 
     std::unique_ptr<SearchResult>
     Search(const query::Plan* Plan,
-           const query::PlaceholderGroup& placeholder_group,
+           const query::PlaceholderGroup* placeholder_group,
            Timestamp timestamp) const override;
 
     void
@@ -170,5 +171,11 @@ class SegmentInternalInterface : public SegmentInterface {
  protected:
     mutable std::shared_mutex mutex_;
 };
+
+static std::unique_ptr<ScalarArray>
+CreateScalarArrayFrom(const void* data_raw, int64_t count, DataType data_type);
+
+std::unique_ptr<DataArray>
+CreateDataArrayFrom(const void* data_raw, int64_t count, const FieldMeta& field_meta);
 
 }  // namespace milvus::segcore

@@ -22,7 +22,7 @@ etcd:
   metaSubPath: meta # metaRootPath = rootPath + '/' + metaSubPath
   kvSubPath: kv # kvRootPath = rootPath + '/' + kvSubPath
   log:
-    level: info # Only supports debug, info, warn, error, panic, or fatal. Default 'info'.
+    level: debug # Only supports debug, info, warn, error, panic, or fatal. Default 'info'.
   use:
     embed: false # Whether to enable embedded Etcd (an in-process EtcdServer).
 
@@ -135,6 +135,8 @@ queryNode:
   # Segcore will divide a segment into multiple chunks.
   segcore:
     chunkRows: 32768 # The number of vectors in a chunk.
+  merge:
+    mergeSearchReqs: false # enable query merging
 
 
 indexCoord:
@@ -207,7 +209,7 @@ localStorage:
 
 # Configures the system log output.
 log:
-  level: info # Only supports debug, info, warn, error, panic, or fatal. Default 'info'.
+  level: debug # Only supports debug, info, warn, error, panic, or fatal. Default 'info'.
   file:
     rootPath: "" # default to stdout, stderr
     maxSize: 300 # MB

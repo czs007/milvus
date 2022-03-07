@@ -29,6 +29,8 @@ import (
 	"time"
 	"unsafe"
 
+	grpcquerynodeclient "github.com/milvus-io/milvus/internal/distributed/querynode/client"
+
 	"github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
 
@@ -832,8 +834,8 @@ func (it *insertTask) Execute(ctx context.Context) error {
 		it.result.Status.Reason = err.Error()
 		return err
 	}
-	metrics.ProxySendInsertReqLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), collectionName).Observe(float64(tr.RecordSpan().Milliseconds()))
-	tr.Record("send insert request to message stream")
+	sendMsgDur := tr.Record("send insert request to message stream")
+	metrics.ProxySendInsertReqLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), collectionName).Observe(float64(sendMsgDur.Milliseconds()))
 
 	return nil
 }
@@ -1133,7 +1135,10 @@ type searchTask struct {
 	collectionName string
 
 	tr           *timerecord.TimeRecorder
+	perfTR       *timerecord.TimeRecorder
 	collectionID UniqueID
+
+	qnClients []*grpcquerynodeclient.Client
 }
 
 func (st *searchTask) TraceCtx() context.Context {
@@ -1214,6 +1219,11 @@ func (st *searchTask) getVChannels() ([]vChan, error) {
 }
 
 func (st *searchTask) PreExecute(ctx context.Context) error {
+	log.Debug(log.BenchmarkRoot, zap.String(log.BenchmarkRole, typeutil.ProxyRole), zap.String(log.BenchmarkStep, "InQueue"),
+		zap.Int64(log.BenchmarkCollectionID, st.CollectionID),
+		zap.Int64(log.BenchmarkMsgID, st.ID()), zap.Int64(log.BenchmarkDuration, st.tr.ElapseSpan().Microseconds()))
+	metrics.ProxyInQueue.WithLabelValues(fmt.Sprint(Params.ProxyCfg.ProxyID)).Set(float64(st.tr.ElapseSpan().Microseconds()))
+	preTr := timerecord.NewTimeRecorder("preExecute")
 	sp, ctx := trace.StartSpanFromContextWithOperationName(st.TraceCtx(), "Proxy-Search-PreExecute")
 	defer sp.Finish()
 	st.Base.MsgType = commonpb.MsgType_Search
@@ -1268,6 +1278,12 @@ func (st *searchTask) PreExecute(ctx context.Context) error {
 		return fmt.Errorf("collection %v was not loaded into memory", collectionName)
 	}
 
+	validateDur := preTr.RecordSpan()
+	log.Debug(log.BenchmarkRoot, zap.String(log.BenchmarkRole, typeutil.ProxyRole), zap.String(log.BenchmarkStep, "PreExecuteValidateAndShowCol"),
+		zap.Int64(log.BenchmarkCollectionID, st.CollectionID),
+		zap.Int64(log.BenchmarkMsgID, st.ID()), zap.Int64(log.BenchmarkDuration, validateDur.Microseconds()))
+	metrics.ProxySearchValidateAndShowCollection.WithLabelValues(fmt.Sprint(Params.ProxyCfg.ProxyID)).Set(float64(validateDur.Microseconds()))
+
 	// TODO(dragondriver): necessary to check if partition was loaded into query node?
 
 	st.Base.MsgType = commonpb.MsgType_Search
@@ -1295,11 +1311,13 @@ func (st *searchTask) PreExecute(ctx context.Context) error {
 		if err != nil {
 			return errors.New(TopKKey + " " + topKStr + " is not invalid")
 		}
+		st.SearchRequest.Topk = int64(topK)
 
 		metricType, err := funcutil.GetAttrByKeyFromRepeatedKV(MetricTypeKey, st.query.SearchParams)
 		if err != nil {
 			return errors.New(MetricTypeKey + " not found in search_params")
 		}
+		st.SearchRequest.MetricType = metricType
 
 		searchParams, err := funcutil.GetAttrByKeyFromRepeatedKV(SearchParamsKey, st.query.SearchParams)
 		if err != nil {
@@ -1371,9 +1389,7 @@ func (st *searchTask) PreExecute(ctx context.Context) error {
 			zap.Any("plan", plan.String()))
 	}
 	travelTimestamp := st.query.TravelTimestamp
-	if travelTimestamp == 0 {
-		travelTimestamp = st.BeginTs()
-	} else {
+	if travelTimestamp != 0 {
 		durationSeconds := tsoutil.CalculateDuration(st.BeginTs(), travelTimestamp) / 1000
 		if durationSeconds > Params.CommonCfg.RetentionDuration {
 			duration := time.Second * time.Duration(durationSeconds)
@@ -1391,7 +1407,7 @@ func (st *searchTask) PreExecute(ctx context.Context) error {
 		st.SearchRequest.TimeoutTimestamp = tsoutil.ComposeTSByTime(deadline, 0)
 	}
 
-	st.SearchRequest.ResultChannelID = Params.ProxyCfg.SearchResultChannelNames[0]
+	st.SearchRequest.ReqID = st.ID()
 	st.SearchRequest.DbID = 0 // todo
 	st.SearchRequest.CollectionID = collID
 	st.SearchRequest.PartitionIDs = make([]UniqueID, 0)
@@ -1426,6 +1442,12 @@ func (st *searchTask) PreExecute(ctx context.Context) error {
 
 	st.SearchRequest.Dsl = st.query.Dsl
 	st.SearchRequest.PlaceholderGroup = st.query.PlaceholderGroup
+	st.SearchRequest.Nq = int64(st.query.Nq)
+
+	log.Info(log.BenchmarkRoot, zap.String(log.BenchmarkRole, typeutil.ProxyRole), zap.String(log.BenchmarkStep, "PreExecute"),
+		zap.Int64(log.BenchmarkCollectionID, st.CollectionID),
+		zap.Int64(log.BenchmarkMsgID, st.ID()), zap.Int64(log.BenchmarkDuration, preTr.ElapseSpan().Microseconds()))
+	metrics.ProxySearchPreExecute.WithLabelValues(fmt.Sprint(Params.ProxyCfg.ProxyID)).Set(float64(preTr.ElapseSpan().Microseconds()))
 
 	return nil
 }
@@ -1437,21 +1459,21 @@ func (st *searchTask) Execute(ctx context.Context) error {
 	tr := timerecord.NewTimeRecorder(fmt.Sprintf("proxy execute search %d", st.ID()))
 	defer tr.Elapse("done")
 
-	var tsMsg msgstream.TsMsg = &msgstream.SearchMsg{
-		SearchRequest: *st.SearchRequest,
-		BaseMsg: msgstream.BaseMsg{
-			Ctx:            ctx,
-			HashValues:     []uint32{uint32(Params.ProxyCfg.ProxyID)},
-			BeginTimestamp: st.Base.Timestamp,
-			EndTimestamp:   st.Base.Timestamp,
-		},
-	}
-	msgPack := msgstream.MsgPack{
-		BeginTs: st.Base.Timestamp,
-		EndTs:   st.Base.Timestamp,
-		Msgs:    make([]msgstream.TsMsg, 1),
-	}
-	msgPack.Msgs[0] = tsMsg
+	//var tsMsg msgstream.TsMsg = &msgstream.SearchMsg{
+	//	SearchRequest: *st.SearchRequest,
+	//	BaseMsg: msgstream.BaseMsg{
+	//		Ctx:            ctx,
+	//		HashValues:     []uint32{uint32(Params.ProxyCfg.ProxyID)},
+	//		BeginTimestamp: st.Base.Timestamp,
+	//		EndTimestamp:   st.Base.Timestamp,
+	//	},
+	//}
+	//msgPack := msgstream.MsgPack{
+	//	BeginTs: st.Base.Timestamp,
+	//	EndTs:   st.Base.Timestamp,
+	//	Msgs:    make([]msgstream.TsMsg, 1),
+	//}
+	//msgPack.Msgs[0] = tsMsg
 
 	collectionName := st.query.CollectionName
 	info, err := globalMetaCache.GetCollectionInfo(ctx, collectionName)
@@ -1460,43 +1482,69 @@ func (st *searchTask) Execute(ctx context.Context) error {
 	}
 	st.collectionName = info.schema.Name
 
-	stream, err := st.chMgr.getDQLStream(info.collID)
-	if err != nil {
-		err = st.chMgr.createDQLStream(info.collID)
-		if err != nil {
-			st.result = &milvuspb.SearchResults{
-				Status: &commonpb.Status{
-					ErrorCode: commonpb.ErrorCode_UnexpectedError,
-					Reason:    err.Error(),
-				},
-			}
-			return err
-		}
-		stream, err = st.chMgr.getDQLStream(info.collID)
-		if err != nil {
-			st.result = &milvuspb.SearchResults{
-				Status: &commonpb.Status{
-					ErrorCode: commonpb.ErrorCode_UnexpectedError,
-					Reason:    err.Error(),
-				},
-			}
-			return err
-		}
+	//stream, err := st.chMgr.getDQLStream(info.collID)
+	//if err != nil {
+	//	err = st.chMgr.createDQLStream(info.collID)
+	//	if err != nil {
+	//		st.result = &milvuspb.SearchResults{
+	//			Status: &commonpb.Status{
+	//				ErrorCode: commonpb.ErrorCode_UnexpectedError,
+	//				Reason:    err.Error(),
+	//			},
+	//		}
+	//		return err
+	//	}
+	//	stream, err = st.chMgr.getDQLStream(info.collID)
+	//	if err != nil {
+	//		st.result = &milvuspb.SearchResults{
+	//			Status: &commonpb.Status{
+	//				ErrorCode: commonpb.ErrorCode_UnexpectedError,
+	//				Reason:    err.Error(),
+	//			},
+	//		}
+	//		return err
+	//	}
+	//}
+	req := &querypb.SearchRequest{
+		Request:        st.SearchRequest,
+		CollectionID:   info.collID,
+		BeginTimestamp: st.Base.Timestamp,
+		EndTimestamp:   st.Base.Timestamp,
 	}
 	tr.Record("get used message stream")
-	err = stream.Produce(&msgPack)
-	if err != nil {
-		log.Debug("proxy", zap.String("send search request failed", err.Error()))
+	log.Debug(log.BenchmarkRoot, zap.String(log.BenchmarkRole, typeutil.ProxyRole), zap.String(log.BenchmarkStep, "SendMsgToMessageStorage"),
+		zap.Int64(log.BenchmarkCollectionID, st.CollectionID),
+		zap.Int64(log.BenchmarkMsgID, st.ID()), zap.Int64(log.BenchmarkDuration, time.Now().UnixNano()))
+	for _, client := range st.qnClients {
+		status, err := client.Search(st.ctx, req)
+		if err != nil {
+			log.Warn("search failed", zap.Error(err))
+			return err
+		}
+		if status.ErrorCode != commonpb.ErrorCode_Success {
+			log.Warn("search illegal")
+		}
 	}
-	metrics.ProxySendMessageLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), collectionName, metrics.SearchLabel).Observe(float64(tr.RecordSpan().Milliseconds()))
-	st.tr.Record("send message done")
+	//err = stream.Produce(&msgPack)
+	//if err != nil {
+	//	log.Debug("proxy", zap.String("send search request failed", err.Error()))
+	//}
+	sendDur := st.tr.Record("send message done")
+	log.Debug(log.BenchmarkRoot, zap.String(log.BenchmarkRole, typeutil.ProxyRole), zap.String(log.BenchmarkStep, "SendMsgToPulsar"),
+		zap.Int64(log.BenchmarkCollectionID, st.CollectionID),
+		zap.Int64(log.BenchmarkMsgID, st.ID()), zap.Int64(log.BenchmarkDuration, sendDur.Microseconds()))
+	metrics.ProxySendMessageLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), collectionName, metrics.SearchLabel).Observe(float64(sendDur.Milliseconds()))
 	log.Debug("proxy sent one searchMsg",
 		zap.Int64("collectionID", st.CollectionID),
-		zap.Int64("msgID", tsMsg.ID()),
-		zap.Int("length of search msg", len(msgPack.Msgs)),
+		//zap.Int64("msgID", tsMsg.ID()),
+		//zap.Int("length of search msg", len(msgPack.Msgs)),
 		zap.Uint64("timeoutTs", st.SearchRequest.TimeoutTimestamp))
-	tr.Record("send search msg to message stream")
 
+	log.Debug(log.BenchmarkRoot, zap.String(log.BenchmarkRole, typeutil.ProxyRole), zap.String(log.BenchmarkStep, "Execute"),
+		zap.Int64(log.BenchmarkCollectionID, st.CollectionID),
+		zap.Int64(log.BenchmarkMsgID, st.ID()), zap.Int64(log.BenchmarkDuration, st.perfTR.RecordSpan().Microseconds()))
+
+	metrics.ProxySearchExecute.WithLabelValues(fmt.Sprint(Params.ProxyCfg.ProxyID)).Set(float64(tr.ElapseSpan().Microseconds()))
 	return err
 }
 
@@ -1617,49 +1665,86 @@ func reduceSearchResultData(searchResultData []*schemapb.SearchResultData, nq in
 		//printSearchResultData(sData, strconv.FormatInt(int64(i), 10))
 	}
 
-	var skipDupCnt int64
-	var realTopK int64 = -1
-	for i := int64(0); i < nq; i++ {
-		offsets := make([]int64, len(searchResultData))
-
-		var idSet = make(map[int64]struct{})
-		var j int64
-		for j = 0; j < topk; {
-			sel := selectSearchResultData(searchResultData, offsets, topk, i)
-			if sel == -1 {
+	if len(searchResultData) == 1 { // skip global reduce
+		ret.Results = searchResultData[0]
+		ret.GetResults().Topks = make([]int64, int(nq))
+		for i := 0; i < int(nq); i++ {
+			ret.GetResults().Topks[i] = topk
+		}
+		ids := ret.GetResults().GetIds().GetIntId().GetData()
+		scores := ret.GetResults().GetScores()
+		// get realTopK
+		realTopK := 0
+		for i := int(topk - 1); i >= 0; i-- {
+			if ids[i] != -1 {
+				realTopK = i + 1
 				break
 			}
-			idx := i*topk + offsets[sel]
-
-			id := searchResultData[sel].Ids.GetIntId().Data[idx]
-			score := searchResultData[sel].Scores[idx]
-			// ignore invalid search result
-			if id == -1 {
-				continue
-			}
-
-			// remove duplicates
-			if _, ok := idSet[id]; !ok {
-				typeutil.AppendFieldData(ret.Results.FieldsData, searchResultData[sel].FieldsData, idx)
-				ret.Results.Ids.GetIntId().Data = append(ret.Results.Ids.GetIntId().Data, id)
-				ret.Results.Scores = append(ret.Results.Scores, score)
-				idSet[id] = struct{}{}
-				j++
-			} else {
-				// skip entity with same id
-				skipDupCnt++
-			}
-			offsets[sel]++
 		}
-		if realTopK != -1 && realTopK != j {
-			log.Warn("Proxy Reduce Search Result", zap.Error(errors.New("the length (topk) between all result of query is different")))
-			// return nil, errors.New("the length (topk) between all result of query is different")
+		if int64(realTopK) != topk {
+			// copy real topK ids and scores if realTopK != topK
+			resIDs := make([]int64, int(nq)*realTopK)
+			resScores := make([]float32, int(nq)*realTopK)
+			topKs := make([]int64, int(nq))
+			for nqOffset := 0; nqOffset < int(nq); nqOffset++ {
+				srcBegin := int(topk) * nqOffset
+				srcEnd := int(topk)*nqOffset + realTopK
+				dstBegin := realTopK * nqOffset
+				if srcEnd <= len(ids) && srcEnd <= len(scores) {
+					copy(resIDs[dstBegin:], ids[srcBegin:srcEnd])
+					copy(resScores[dstBegin:], scores[srcBegin:srcEnd])
+				}
+				topKs[nqOffset] = int64(realTopK)
+			}
+			ret.GetResults().GetIds().GetIntId().Data = resIDs
+			ret.GetResults().Scores = resScores
+			ret.GetResults().Topks = topKs
 		}
-		realTopK = j
-		ret.Results.Topks = append(ret.Results.Topks, realTopK)
+	} else {
+		var skipDupCnt int64
+		var realTopK int64 = -1
+		for i := int64(0); i < nq; i++ {
+			offsets := make([]int64, len(searchResultData))
+
+			var idSet = make(map[int64]struct{})
+			var j int64
+			for j = 0; j < topk; {
+				sel := selectSearchResultData(searchResultData, offsets, topk, i)
+				if sel == -1 {
+					break
+				}
+				idx := i*topk + offsets[sel]
+
+				id := searchResultData[sel].Ids.GetIntId().Data[idx]
+				score := searchResultData[sel].Scores[idx]
+				// ignore invalid search result
+				if id == -1 {
+					continue
+				}
+
+				// remove duplicates
+				if _, ok := idSet[id]; !ok {
+					typeutil.AppendFieldData(ret.Results.FieldsData, searchResultData[sel].FieldsData, idx)
+					ret.Results.Ids.GetIntId().Data = append(ret.Results.Ids.GetIntId().Data, id)
+					ret.Results.Scores = append(ret.Results.Scores, score)
+					idSet[id] = struct{}{}
+					j++
+				} else {
+					// skip entity with same id
+					skipDupCnt++
+				}
+				offsets[sel]++
+			}
+			if realTopK != -1 && realTopK != j {
+				log.Warn("Proxy Reduce Search Result", zap.Error(errors.New("the length (topk) between all result of query is different")))
+				// return nil, errors.New("the length (topk) between all result of query is different")
+			}
+			realTopK = j
+			ret.Results.Topks = append(ret.Results.Topks, realTopK)
+		}
+		log.Debug("skip duplicated search result", zap.Int64("count", skipDupCnt))
+		ret.Results.TopK = realTopK
 	}
-	log.Debug("skip duplicated search result", zap.Int64("count", skipDupCnt))
-	ret.Results.TopK = realTopK
 
 	if !distance.PositivelyRelated(metricType) {
 		for k := range ret.Results.Scores {
@@ -1712,7 +1797,8 @@ func (st *searchTask) PostExecute(ctx context.Context) error {
 
 			log.Debug("Proxy Search PostExecute stage1",
 				zap.Any("len(filterSearchResults)", len(filterSearchResults)))
-			metrics.ProxyWaitForSearchResultLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), st.collectionName, metrics.SearchLabel).Observe(float64(st.tr.RecordSpan().Milliseconds()))
+			waitResultDur := st.tr.RecordSpan()
+			metrics.ProxyWaitForSearchResultLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), st.collectionName, metrics.SearchLabel).Observe(float64(waitResultDur.Milliseconds()))
 			tr.Record("Proxy Search PostExecute stage1 done")
 			if len(filterSearchResults) <= 0 || errNum > 0 {
 				st.result = &milvuspb.SearchResults{
@@ -1729,7 +1815,8 @@ func (st *searchTask) PostExecute(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			metrics.ProxyDecodeSearchResultLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), st.collectionName, metrics.SearchLabel).Observe(float64(tr.RecordSpan().Milliseconds()))
+			decodeResultDur := tr.RecordSpan()
+			metrics.ProxyDecodeSearchResultLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), st.collectionName, metrics.SearchLabel).Observe(float64(decodeResultDur.Milliseconds()))
 			log.Debug("Proxy Search PostExecute stage2", zap.Any("len(validSearchResults)", len(validSearchResults)))
 			if len(validSearchResults) <= 0 {
 				filterReason += "empty search result\n"
@@ -1754,7 +1841,8 @@ func (st *searchTask) PostExecute(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			metrics.ProxyReduceSearchResultLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), st.collectionName, metrics.SuccessLabel).Observe(float64(tr.RecordSpan().Milliseconds()))
+			reduceResultDur := tr.RecordSpan()
+			metrics.ProxyReduceSearchResultLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10), st.collectionName, metrics.SuccessLabel).Observe(float64(reduceResultDur.Milliseconds()))
 			st.result.CollectionName = st.collectionName
 
 			schema, err := globalMetaCache.GetCollectionSchema(ctx, st.query.CollectionName)
@@ -1772,6 +1860,11 @@ func (st *searchTask) PostExecute(ctx context.Context) error {
 					}
 				}
 			}
+			log.Debug(log.BenchmarkRoot, zap.String(log.BenchmarkRole, typeutil.ProxyRole), zap.String(log.BenchmarkStep, "PostExecute"),
+				zap.Int64(log.BenchmarkCollectionID, st.CollectionID),
+				zap.Int64(log.BenchmarkMsgID, st.ID()), zap.Int64(log.BenchmarkDuration, st.perfTR.RecordSpan().Microseconds()))
+
+			metrics.ProxySearchPostExecute.WithLabelValues(fmt.Sprint(Params.ProxyCfg.ProxyID)).Set(float64(tr.ElapseSpan().Microseconds()))
 			return nil
 		}
 	}
@@ -2021,7 +2114,7 @@ func (qt *queryTask) PreExecute(ctx context.Context) error {
 		qt.RetrieveRequest.TimeoutTimestamp = tsoutil.ComposeTSByTime(deadline, 0)
 	}
 
-	qt.ResultChannelID = Params.ProxyCfg.RetrieveResultChannelNames[0]
+	qt.ReqID = qt.ID()
 	qt.DbID = 0 // todo(yukun)
 
 	qt.CollectionID = info.collID

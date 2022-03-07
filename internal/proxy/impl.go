@@ -2401,13 +2401,14 @@ func (node *Proxy) Search(ctx context.Context, request *milvuspb.SearchRequest) 
 			Status: unhealthyStatus(),
 		}, nil
 	}
+	metrics.ProxyReceiveReqsNum.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10),
+		request.CollectionName).Inc()
 	method := "Search"
 	tr := timerecord.NewTimeRecorder(method)
 
 	sp, ctx := trace.StartSpanFromContextWithOperationName(ctx, "Proxy-Search")
 	defer sp.Finish()
 	traceID, _, _ := trace.InfoFromSpan(sp)
-
 	qt := &searchTask{
 		ctx:       ctx,
 		Condition: NewTaskCondition(ctx),
@@ -2416,13 +2417,15 @@ func (node *Proxy) Search(ctx context.Context, request *milvuspb.SearchRequest) 
 				MsgType:  commonpb.MsgType_Search,
 				SourceID: Params.ProxyCfg.ProxyID,
 			},
-			ResultChannelID: strconv.FormatInt(Params.ProxyCfg.ProxyID, 10),
 		},
 		resultBuf: make(chan []*internalpb.SearchResults, 1),
 		query:     request,
 		chMgr:     node.chMgr,
 		qc:        node.queryCoord,
 		tr:        timerecord.NewTimeRecorder("search"),
+		perfTR:    timerecord.NewTimeRecorder("performance-search"),
+
+		qnClients: node.getQueryNodeClients(),
 	}
 
 	travelTs := request.TravelTimestamp
@@ -2535,10 +2538,17 @@ func (node *Proxy) Search(ctx context.Context, request *milvuspb.SearchRequest) 
 		strconv.FormatInt(qt.CollectionID, 10), metrics.SearchLabel, metrics.SuccessLabel).Inc()
 	metrics.ProxySearchVectors.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10),
 		strconv.FormatInt(qt.CollectionID, 10), metrics.SearchLabel).Set(float64(qt.result.Results.NumQueries))
+	searchDur := tr.ElapseSpan()
 	metrics.ProxySearchLatency.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10),
-		strconv.FormatInt(qt.CollectionID, 10), metrics.SearchLabel).Observe(float64(tr.ElapseSpan().Milliseconds()))
+		strconv.FormatInt(qt.CollectionID, 10), metrics.SearchLabel).Observe(float64(searchDur.Milliseconds()))
 	metrics.ProxySearchLatencyPerNQ.WithLabelValues(strconv.FormatInt(Params.ProxyCfg.ProxyID, 10),
-		strconv.FormatInt(qt.CollectionID, 10)).Observe(float64(tr.ElapseSpan().Milliseconds()) / float64(qt.result.Results.NumQueries))
+		strconv.FormatInt(qt.CollectionID, 10)).Observe(float64(searchDur.Milliseconds()) / float64(qt.result.Results.NumQueries))
+
+	log.Debug(log.BenchmarkRoot, zap.String(log.BenchmarkRole, typeutil.ProxyRole), zap.String(log.BenchmarkStep, "server search"),
+		zap.Int64(log.BenchmarkCollectionID, qt.CollectionID),
+		zap.Int64(log.BenchmarkMsgID, qt.ID()), zap.Int64(log.BenchmarkDuration, searchDur.Microseconds()))
+
+	metrics.ProxyServerSearch.WithLabelValues(strconv.FormatInt(qt.CollectionID, 10)).Set(float64(searchDur.Microseconds()))
 	return qt.result, nil
 }
 
@@ -2657,7 +2667,6 @@ func (node *Proxy) Query(ctx context.Context, request *milvuspb.QueryRequest) (*
 				MsgType:  commonpb.MsgType_Retrieve,
 				SourceID: Params.ProxyCfg.ProxyID,
 			},
-			ResultChannelID: strconv.FormatInt(Params.ProxyCfg.ProxyID, 10),
 		},
 		resultBuf: make(chan []*internalpb.RetrieveResults),
 		query:     request,
@@ -3074,7 +3083,6 @@ func (node *Proxy) CalcDistance(ctx context.Context, request *milvuspb.CalcDista
 					MsgType:  commonpb.MsgType_Retrieve,
 					SourceID: Params.ProxyCfg.ProxyID,
 				},
-				ResultChannelID: strconv.FormatInt(Params.ProxyCfg.ProxyID, 10),
 			},
 			resultBuf: make(chan []*internalpb.RetrieveResults),
 			query:     queryRequest,
