@@ -26,12 +26,12 @@
 #include "index/ScalarIndex.h"
 #include "index/ScalarIndexSort.h"
 #include "common/CDataType.h"
-#include "test_utils/indexbuilder_test_utils.h"
+#include "./IndexBuilder.h"
 
 constexpr int64_t nb = 100;
-namespace indexcgo = milvus::proto::indexcgo;
-namespace schemapb = milvus::proto::schema;
 using milvus::scalar::ScalarIndexPtr;
+using knowhere::scalar::OperatorType;
+using milvus::test::GenArr;
 
 namespace {
 template <typename T>

@@ -128,7 +128,7 @@ ReduceResultData(std::vector<SearchResult*>& search_results, int64_t nq, int64_t
         }
 #endif
     }
-    LOG_SEGCORE_DEBUG_ << "skip duplicated search result, count = " << skip_dup_cnt;
+//    LOG_SEGCORE_DEBUG_ << "skip duplicated search result, count = " << skip_dup_cnt;
 
     // after reduce, remove redundant values in primary_keys, distances and ids
     for (int i = 0; i < num_segments; i++) {

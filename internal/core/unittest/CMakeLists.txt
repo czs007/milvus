@@ -12,11 +12,24 @@
 include_directories(${CMAKE_HOME_DIRECTORY}/src)
 include_directories(${CMAKE_HOME_DIRECTORY}/src/thirdparty)
 
-add_definitions(-DMILVUS_TEST_SEGCORE_YAML_PATH="${CMAKE_SOURCE_DIR}/unittest/test_utils/test_segcore.yaml")
+add_definitions(-DMILVUS_TEST_SEGCORE_YAML_PATH="${CMAKE_SOURCE_DIR}/unittest/test_segcore.yaml")
 
 if (LINUX)
     # TODO: better to use ls/find pattern
-    set(MILVUS_TEST_FILES
+
+    set(MILVUS_TEST_UTILS_FILES DataGen.cpp
+	IndexBuilder.cpp
+	    )
+
+    file(GLOB MILVUS_TEST_FILES
+		"test_*.cpp"
+	    )
+
+    file(GLOB MILVUS_BENCH_FILES
+		"bench_*.cpp"
+	    )
+
+    set(MILVUS_TEST_FILES2
             init_gtest.cpp
             test_binary.cpp
             test_bitmap.cpp
@@ -42,28 +55,8 @@ if (LINUX)
             test_scalar_index_creator.cpp
             test_index_c_api.cpp
             test_index.cpp
+            ${MILVUS_TEST_UTILS_FILES}
             )
-    # check if memory leak exists in index builder
-    set(INDEX_BUILDER_TEST_FILES
-            test_index_wrapper.cpp
-            test_scalar_index_creator.cpp
-            test_index_c_api.cpp
-            )
-
-    add_executable(index_builder_test
-            ${INDEX_BUILDER_TEST_FILES}
-            )
-
-    target_link_libraries(index_builder_test
-            gtest
-            gtest_main
-            milvus_segcore
-            milvus_indexbuilder
-            milvus_index
-            log
-            pthread
-            )
-    install(TARGETS index_builder_test DESTINATION unittest)
 endif()
 
 if ( APPLE )
@@ -79,15 +72,19 @@ if ( APPLE )
             test_timestamp_index.cpp
             test_similarity_corelation.cpp
             test_utils.cpp
+            ${MILVUS_TEST_UTILS_FILES}
             )
 endif ()
 
-add_executable(all_tests
-        ${MILVUS_TEST_FILES}
+message("fiels" ${MILVUS_TEST_UTILS_FILES})
+
+add_executable(all_tests init_gtest.cpp ${MILVUS_TEST_FILES}
+	${MILVUS_TEST_UTILS_FILES}
         )
 
 target_link_libraries(all_tests
         gtest
+    	gtest_main
         milvus_segcore
         milvus_indexbuilder
         milvus_index
@@ -97,3 +94,15 @@ target_link_libraries(all_tests
 
 install(TARGETS all_tests DESTINATION unittest)
 
+add_executable(all_bench ${MILVUS_TEST_UTILS_FILES}
+	${MILVUS_BENCH_FILES})
+
+target_link_libraries(all_bench
+	benchmark::benchmark_main
+        milvus_segcore
+	milvus_indexbuilder
+        milvus_index
+        log
+        pthread
+        )
+install(TARGETS all_bench DESTINATION unittest)

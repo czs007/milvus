@@ -12,15 +12,13 @@
 #include <gtest/gtest.h>
 
 #include "segcore/SegmentGrowing.h"
-#include "test_utils/DataGen.h"
 #include "utils/Utils.h"
+#include "DataGen.h"
 
 const int64_t ROW_COUNT = 100 * 1000;
+using namespace milvus;
 
 TEST(Span, Naive) {
-    using namespace milvus;
-    using namespace milvus::query;
-    using namespace milvus::segcore;
     int64_t N = ROW_COUNT;
     constexpr int64_t size_per_chunk = 32 * 1024;
     auto schema = std::make_shared<Schema>();
@@ -28,15 +26,15 @@ TEST(Span, Naive) {
     schema->AddDebugField("age", DataType::FLOAT);
     schema->AddDebugField("floatvec", DataType::VECTOR_FLOAT, 32, MetricType::METRIC_L2);
 
-    auto dataset = DataGen(schema, N);
-    auto seg_conf = SegcoreConfig::default_config();
-    auto segment = CreateGrowingSegment(schema, -1, seg_conf);
+    auto dataset = test::DataGen(schema, N);
+    auto seg_conf = segcore::SegcoreConfig::default_config();
+    auto segment = segcore::CreateGrowingSegment(schema, -1, seg_conf);
     segment->PreInsert(N);
     segment->Insert(0, N, dataset.row_ids_.data(), dataset.timestamps_.data(), dataset.raw_);
     auto vec_ptr = dataset.get_col<uint8_t>(0);
     auto age_ptr = dataset.get_col<float>(1);
     auto float_ptr = dataset.get_col<float>(2);
-    SegmentInternalInterface& interface = *segment;
+    segcore::SegmentInternalInterface& interface = *segment;
     auto num_chunk = interface.num_chunk();
     ASSERT_EQ(num_chunk, upper_div(N, size_per_chunk));
     auto row_count = interface.get_row_count();

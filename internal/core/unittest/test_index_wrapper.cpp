@@ -22,12 +22,16 @@
 #include "indexbuilder/index_c.h"
 #include "indexbuilder/utils.h"
 #include "pb/index_cgo_msg.pb.h"
-#include "test_utils/DataGen.h"
-#include "test_utils/indexbuilder_test_utils.h"
+#include "./IndexBuilder.h"
+#include "./DataGen.h"
 
+using namespace milvus;
 constexpr int64_t NB = 1000;
-namespace indexcgo = milvus::proto::indexcgo;
+constexpr int64_t DIM = test::DIM;
+constexpr int64_t NQ = test::NQ;
+constexpr int64_t K = test::K;
 
+namespace indexcgo = milvus::proto::indexcgo;
 using Param = std::pair<knowhere::IndexType, knowhere::MetricType>;
 
 class IndexWrapperTest : public ::testing::TestWithParam<Param> {
@@ -39,7 +43,7 @@ class IndexWrapperTest : public ::testing::TestWithParam<Param> {
         auto param = GetParam();
         index_type = param.first;
         metric_type = param.second;
-        std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+        std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
 
         std::map<std::string, bool> is_binary_map = {
             {knowhere::IndexEnum::INDEX_FAISS_IDMAP, false},
@@ -74,7 +78,7 @@ class IndexWrapperTest : public ::testing::TestWithParam<Param> {
         ok = google::protobuf::TextFormat::PrintToString(index_params, &index_params_str);
         assert(ok);
 
-        auto dataset = GenDataset(NB, metric_type, is_binary);
+        auto dataset = test::GenDataset(NB, metric_type, is_binary);
         if (!is_binary) {
             xb_data = dataset.get_col<float>(0);
             xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
@@ -110,9 +114,9 @@ class IndexWrapperTest : public ::testing::TestWithParam<Param> {
 TEST(PQ, Build) {
     auto index_type = knowhere::IndexEnum::INDEX_FAISS_IVFPQ;
     auto metric_type = knowhere::Metric::L2;
-    auto conf = generate_conf(index_type, metric_type);
+    auto conf = test::generate_conf(index_type, metric_type);
     auto index = knowhere::VecIndexFactory::GetInstance().CreateVecIndex(index_type);
-    auto dataset = GenDataset(NB, metric_type, false);
+    auto dataset = test::GenDataset(NB, metric_type, false);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
     ASSERT_NO_THROW(index->Train(xb_dataset, conf));
@@ -122,9 +126,9 @@ TEST(PQ, Build) {
 TEST(IVFFLATNM, Build) {
     auto index_type = knowhere::IndexEnum::INDEX_FAISS_IVFFLAT;
     auto metric_type = knowhere::Metric::L2;
-    auto conf = generate_conf(index_type, metric_type);
+    auto conf = test::generate_conf(index_type, metric_type);
     auto index = knowhere::VecIndexFactory::GetInstance().CreateVecIndex(index_type);
-    auto dataset = GenDataset(NB, metric_type, false);
+    auto dataset = test::GenDataset(NB, metric_type, false);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
     ASSERT_NO_THROW(index->Train(xb_dataset, conf));
@@ -136,9 +140,9 @@ TEST(IVFFLATNM, Query) {
 
     auto index_type = knowhere::IndexEnum::INDEX_FAISS_IVFFLAT;
     auto metric_type = knowhere::Metric::L2;
-    auto conf = generate_conf(index_type, metric_type);
+    auto conf = test::generate_conf(index_type, metric_type);
     auto index = knowhere::VecIndexFactory::GetInstance().CreateVecIndex(index_type);
-    auto dataset = GenDataset(NB, metric_type, false);
+    auto dataset = test::GenDataset(NB, metric_type, false);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
     ASSERT_NO_THROW(index->Train(xb_dataset, conf));
@@ -165,9 +169,9 @@ TEST(IVFFLATNM, Query) {
 TEST(NSG, Query) {
     auto index_type = knowhere::IndexEnum::INDEX_NSG;
     auto metric_type = knowhere::Metric::L2;
-    auto conf = generate_conf(index_type, metric_type);
+    auto conf = test::generate_conf(index_type, metric_type);
     auto index = knowhere::VecIndexFactory::GetInstance().CreateVecIndex(index_type);
-    auto dataset = GenDataset(NB, metric_type, false);
+    auto dataset = test::GenDataset(NB, metric_type, false);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
     index->BuildAll(xb_dataset, conf);
@@ -186,9 +190,9 @@ TEST(NSG, Query) {
 TEST(BINFLAT, Build) {
     auto index_type = knowhere::IndexEnum::INDEX_FAISS_BIN_IVFFLAT;
     auto metric_type = knowhere::Metric::JACCARD;
-    auto conf = generate_conf(index_type, metric_type);
+    auto conf = test::generate_conf(index_type, metric_type);
     auto index = knowhere::VecIndexFactory::GetInstance().CreateVecIndex(index_type);
-    auto dataset = GenDataset(NB, metric_type, true);
+    auto dataset = test::GenDataset(NB, metric_type, true);
     auto xb_data = dataset.get_col<uint8_t>(0);
     std::vector<knowhere::IDType> ids(NB, 0);
     std::iota(ids.begin(), ids.end(), 0);
@@ -213,7 +217,7 @@ TEST(BinIVFFlat, Build_and_Query) {
 
     auto index_type = knowhere::IndexEnum::INDEX_FAISS_BIN_IVFFLAT;
     auto metric_type = knowhere::Metric::TANIMOTO;
-    auto conf = generate_conf(index_type, metric_type);
+    auto conf = test::generate_conf(index_type, metric_type);
     auto topk = 10;
     conf[knowhere::meta::TOPK] = topk;
     conf[knowhere::IndexParams::nlist] = 1;
@@ -221,7 +225,7 @@ TEST(BinIVFFlat, Build_and_Query) {
     auto nb = 2;
     auto dim = 128;
     auto nq = 10;
-    auto dataset = GenDataset(std::max(nq, nb), metric_type, true);
+    auto dataset = test::GenDataset(std::max(nq, nb), metric_type, true);
     auto xb_data = dataset.get_col<uint8_t>(0);
     std::vector<knowhere::IDType> ids(nb, 0);
     std::iota(ids.begin(), ids.end(), 0);
@@ -255,9 +259,9 @@ TEST(BinIVFFlat, Build_and_Query) {
 TEST(BINIDMAP, Build) {
     auto index_type = knowhere::IndexEnum::INDEX_FAISS_BIN_IDMAP;
     auto metric_type = knowhere::Metric::JACCARD;
-    auto conf = generate_conf(index_type, metric_type);
+    auto conf = test::generate_conf(index_type, metric_type);
     auto index = knowhere::VecIndexFactory::GetInstance().CreateVecIndex(index_type);
-    auto dataset = GenDataset(NB, metric_type, true);
+    auto dataset = test::GenDataset(NB, metric_type, true);
     auto xb_data = dataset.get_col<uint8_t>(0);
     std::vector<knowhere::IDType> ids(NB, 0);
     std::iota(ids.begin(), ids.end(), 0);
@@ -270,14 +274,14 @@ TEST(PQWrapper, Build) {
     auto metric_type = knowhere::Metric::L2;
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
     std::string type_params_str, index_params_str;
     bool ok;
     ok = google::protobuf::TextFormat::PrintToString(type_params, &type_params_str);
     assert(ok);
     ok = google::protobuf::TextFormat::PrintToString(index_params, &index_params_str);
     assert(ok);
-    auto dataset = GenDataset(NB, metric_type, false);
+    auto dataset = test::GenDataset(NB, metric_type, false);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
     auto index =
@@ -290,14 +294,14 @@ TEST(IVFFLATNMWrapper, Build) {
     auto metric_type = knowhere::Metric::L2;
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
     std::string type_params_str, index_params_str;
     bool ok;
     ok = google::protobuf::TextFormat::PrintToString(type_params, &type_params_str);
     assert(ok);
     ok = google::protobuf::TextFormat::PrintToString(index_params, &index_params_str);
     assert(ok);
-    auto dataset = GenDataset(NB, metric_type, false);
+    auto dataset = test::GenDataset(NB, metric_type, false);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
     auto index =
@@ -311,14 +315,14 @@ TEST(IVFFLATNMWrapper, Codec) {
     auto metric_type = knowhere::Metric::L2;
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
     std::string type_params_str, index_params_str;
     bool ok;
     ok = google::protobuf::TextFormat::PrintToString(type_params, &type_params_str);
     assert(ok);
     ok = google::protobuf::TextFormat::PrintToString(index_params, &index_params_str);
     assert(ok);
-    auto dataset = GenDataset(flat_nb, metric_type, false);
+    auto dataset = test::GenDataset(flat_nb, metric_type, false);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(flat_nb, DIM, xb_data.data());
     auto index_wrapper =
@@ -345,14 +349,14 @@ TEST(BinFlatWrapper, Build) {
     auto metric_type = knowhere::Metric::JACCARD;
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
     std::string type_params_str, index_params_str;
     bool ok;
     ok = google::protobuf::TextFormat::PrintToString(type_params, &type_params_str);
     assert(ok);
     ok = google::protobuf::TextFormat::PrintToString(index_params, &index_params_str);
     assert(ok);
-    auto dataset = GenDataset(NB, metric_type, true);
+    auto dataset = test::GenDataset(NB, metric_type, true);
     auto xb_data = dataset.get_col<uint8_t>(0);
     std::vector<knowhere::IDType> ids(NB, 0);
     std::iota(ids.begin(), ids.end(), 0);
@@ -368,14 +372,14 @@ TEST(BinIdMapWrapper, Build) {
     auto metric_type = knowhere::Metric::JACCARD;
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
     std::string type_params_str, index_params_str;
     bool ok;
     ok = google::protobuf::TextFormat::PrintToString(type_params, &type_params_str);
     assert(ok);
     ok = google::protobuf::TextFormat::PrintToString(index_params, &index_params_str);
     assert(ok);
-    auto dataset = GenDataset(NB, metric_type, true);
+    auto dataset = test::GenDataset(NB, metric_type, true);
     auto xb_data = dataset.get_col<uint8_t>(0);
     std::vector<knowhere::IDType> ids(NB, 0);
     std::iota(ids.begin(), ids.end(), 0);

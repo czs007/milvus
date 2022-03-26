@@ -13,14 +13,13 @@
 
 #include "query/ExprImpl.h"
 #include "segcore/ScalarIndex.h"
-#include "test_utils/DataGen.h"
+#include "DataGen.h"
 
 using namespace milvus;
-using namespace milvus::segcore;
 
 TEST(GetEntityByIds, ScalarIndex) {
     SUCCEED();
-    auto index = std::make_unique<ScalarIndexVector>();
+    auto index = std::make_unique<segcore::ScalarIndexVector>();
     std::vector<int64_t> data;
     int N = 1000;
     auto req_ids = std::make_unique<IdArray>();
@@ -54,8 +53,8 @@ TEST(GetEntityByIds, AUTOID) {
     int64_t req_size = 10;
     auto choose = [=](int i) { return i * 3 % N; };
 
-    auto dataset = DataGen(schema, N);
-    auto segment = CreateSealedSegment(schema);
+    auto dataset = test::DataGen(schema, N);
+    auto segment = segcore::CreateSealedSegment(schema);
     SealedLoader(dataset, *segment);
 
     auto req_ids = std::make_unique<IdArray>();
@@ -112,8 +111,8 @@ TEST(Retrieve, AUTOID) {
     int64_t req_size = 10;
     auto choose = [=](int i) { return i * 3 % N; };
 
-    auto dataset = DataGen(schema, N);
-    auto segment = CreateSealedSegment(schema);
+    auto dataset = test::DataGen(schema, N);
+    auto segment = segcore::CreateSealedSegment(schema);
     SealedLoader(dataset, *segment);
     auto i64_col = dataset.get_col<int64_t>(0);
 
@@ -164,8 +163,8 @@ TEST(Retrieve2, LargeTimestamp) {
     int choose_sep = 3;
     auto choose = [=](int i) { return i * choose_sep % N; };
     uint64_t ts_offset = 100;
-    auto dataset = DataGen(schema, N, 42, ts_offset + 1);
-    auto segment = CreateSealedSegment(schema);
+    auto dataset = test::DataGen(schema, N, 42, ts_offset + 1);
+    auto segment = segcore::CreateSealedSegment(schema);
     SealedLoader(dataset, *segment);
     auto i64_col = dataset.get_col<int64_t>(0);
 
@@ -207,8 +206,8 @@ TEST(GetEntityByIds, PrimaryKey) {
     int64_t req_size = 10;
     auto choose = [=](int i) { return i * 3 % N; };
 
-    auto dataset = DataGen(schema, N);
-    auto segment = CreateSealedSegment(schema);
+    auto dataset = test::DataGen(schema, N);
+    auto segment = segcore::CreateSealedSegment(schema);
     SealedLoader(dataset, *segment);
 
     auto req_ids = std::make_unique<IdArray>();
@@ -265,8 +264,8 @@ TEST(GetEntityByIds, delete_retrieve) {
     int64_t req_size = 10;
     auto choose = [=](int i) { return i; };
 
-    auto dataset = DataGen(schema, N);
-    auto segment = CreateSealedSegment(schema);
+    auto dataset = test::DataGen(schema, N);
+    auto segment = segcore::CreateSealedSegment(schema);
     SealedLoader(dataset, *segment);
     auto i64_col = dataset.get_col<int64_t>(0);
 

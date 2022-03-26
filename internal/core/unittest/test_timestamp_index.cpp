@@ -15,7 +15,6 @@
 #include "segcore/TimestampIndex.h"
 
 using namespace milvus;
-using namespace milvus::segcore;
 
 TEST(TimestampIndex, Naive) {
     SUCCEED();
@@ -23,11 +22,11 @@ TEST(TimestampIndex, Naive) {
         1, 2, 14, 11, 13, 22, 21, 20,
     };
     std::vector<int64_t> lengths = {2, 3, 3};
-    TimestampIndex index;
+    segcore::TimestampIndex index;
     index.set_length_meta(lengths);
     index.build_with(timestamps.data(), timestamps.size());
 
-    auto guessed_slice = GenerateFakeSlices(timestamps.data(), timestamps.size(), 2);
+    auto guessed_slice = segcore::GenerateFakeSlices(timestamps.data(), timestamps.size(), 2);
     ASSERT_EQ(guessed_slice.size(), lengths.size());
     for (auto i = 0; i < lengths.size(); ++i) {
         ASSERT_EQ(guessed_slice[i], lengths[i]);

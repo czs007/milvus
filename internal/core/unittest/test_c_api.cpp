@@ -13,7 +13,6 @@
 #include <chrono>
 #include <google/protobuf/text_format.h>
 #include <iostream>
-#include <random>
 #include <string>
 #include <unordered_set>
 #include <knowhere/index/vector_index/helpers/IndexParameter.h>
@@ -27,16 +26,16 @@
 #include "query/ExprImpl.h"
 #include "segcore/Collection.h"
 #include "segcore/reduce_c.h"
-#include "test_utils/DataGen.h"
 #include "utils/Types.h"
-
-namespace chrono = std::chrono;
+#include "DataGen.h"
 
 using namespace milvus;
-using namespace milvus::segcore;
-using namespace knowhere;
+
+// todo remove dependeny on milvus.proto
+namespace ser = milvus::proto::milvus;
 
 namespace {
+
 const int DIM = 16;
 const int64_t ROW_COUNT = 100 * 1000;
 
@@ -185,7 +184,7 @@ generate_collection_schema(std::string metric_type, int dim, bool is_binary) {
     return schema_string;
 }
 
-VecIndexPtr
+knowhere::VecIndexPtr
 generate_index(
     void* raw_data, knowhere::Config conf, int64_t dim, int64_t topK, int64_t N, std::string index_type) {
     auto indexing = knowhere::VecIndexFactory::GetInstance().CreateVecIndex(index_type, knowhere::IndexMode::MODE_CPU);
@@ -1100,7 +1099,7 @@ TEST(CApiTest, Indexing_Without_Predicate) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto query_ptr = vec_col.data() + 42000 * DIM;
 
@@ -1129,7 +1128,7 @@ TEST(CApiTest, Indexing_Without_Predicate) {
 
     // create place_holder_group
     int num_queries = 5;
-    auto raw_group = CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -1158,7 +1157,7 @@ TEST(CApiTest, Indexing_Without_Predicate) {
                                  {knowhere::IndexParams::nbits, 8},
                                  {knowhere::Metric::TYPE, knowhere::Metric::L2},
                                  {knowhere::meta::DEVICEID, 0}};
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_IVFPQ);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_IVFPQ);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -1198,8 +1197,8 @@ TEST(CApiTest, Indexing_Without_Predicate) {
         Search(sealed_segment.get(), plan, placeholderGroup, time, &c_search_result_on_bigIndex, -1);
     assert(res_after_load_index.error_code == Success);
 
-    auto search_result_on_raw_index_json = SearchResultToJson(*search_result_on_raw_index);
-    auto search_result_on_bigIndex_json = SearchResultToJson((*(SearchResult*)c_search_result_on_bigIndex));
+    auto search_result_on_raw_index_json = test::SearchResultToJson(*search_result_on_raw_index);
+    auto search_result_on_bigIndex_json = test::SearchResultToJson((*(SearchResult*)c_search_result_on_bigIndex));
     // std::cout << search_result_on_raw_index_json.dump(1) << std::endl;
     // std::cout << search_result_on_bigIndex_json.dump(1) << std::endl;
 
@@ -1224,7 +1223,7 @@ TEST(CApiTest, Indexing_Expr_Without_Predicate) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto query_ptr = vec_col.data() + 42000 * DIM;
 
@@ -1247,7 +1246,7 @@ TEST(CApiTest, Indexing_Expr_Without_Predicate) {
 
     // create place_holder_group
     int num_queries = 5;
-    auto raw_group = CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -1277,7 +1276,7 @@ TEST(CApiTest, Indexing_Expr_Without_Predicate) {
                                  {knowhere::IndexParams::nbits, 8},
                                  {knowhere::Metric::TYPE, knowhere::Metric::L2},
                                  {knowhere::meta::DEVICEID, 0}};
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_IVFPQ);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_IVFPQ);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -1317,8 +1316,8 @@ TEST(CApiTest, Indexing_Expr_Without_Predicate) {
         Search(sealed_segment.get(), plan, placeholderGroup, time, &c_search_result_on_bigIndex, -1);
     assert(res_after_load_index.error_code == Success);
 
-    auto search_result_on_raw_index_json = SearchResultToJson(*search_result_on_raw_index);
-    auto search_result_on_bigIndex_json = SearchResultToJson((*(SearchResult*)c_search_result_on_bigIndex));
+    auto search_result_on_raw_index_json = test::SearchResultToJson(*search_result_on_raw_index);
+    auto search_result_on_bigIndex_json = test::SearchResultToJson((*(SearchResult*)c_search_result_on_bigIndex));
     // std::cout << search_result_on_raw_index_json.dump(1) << std::endl;
     // std::cout << search_result_on_bigIndex_json.dump(1) << std::endl;
 
@@ -1343,7 +1342,7 @@ TEST(CApiTest, Indexing_With_float_Predicate_Range) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto query_ptr = vec_col.data() + 42000 * DIM;
 
@@ -1384,7 +1383,7 @@ TEST(CApiTest, Indexing_With_float_Predicate_Range) {
 
     // create place_holder_group
     int num_queries = 10;
-    auto raw_group = CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -1414,7 +1413,7 @@ TEST(CApiTest, Indexing_With_float_Predicate_Range) {
                                  {knowhere::Metric::TYPE, knowhere::Metric::L2},
                                  {knowhere::meta::DEVICEID, 0}};
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_IVFPQ);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_IVFPQ);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -1480,7 +1479,7 @@ TEST(CApiTest, Indexing_Expr_With_float_Predicate_Range) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = 1000 * 1000;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto query_ptr = vec_col.data() + 420000 * DIM;
 
@@ -1534,7 +1533,7 @@ TEST(CApiTest, Indexing_Expr_With_float_Predicate_Range) {
 
     // create place_holder_group
     int num_queries = 10;
-    auto raw_group = CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -1565,7 +1564,7 @@ TEST(CApiTest, Indexing_Expr_With_float_Predicate_Range) {
                                  {knowhere::Metric::TYPE, knowhere::Metric::L2},
                                  {knowhere::meta::DEVICEID, 0}};
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_IVFPQ);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_IVFPQ);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -1631,7 +1630,7 @@ TEST(CApiTest, Indexing_With_float_Predicate_Term) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto query_ptr = vec_col.data() + 42000 * DIM;
 
@@ -1670,7 +1669,7 @@ TEST(CApiTest, Indexing_With_float_Predicate_Term) {
 
     // create place_holder_group
     int num_queries = 5;
-    auto raw_group = CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -1700,7 +1699,7 @@ TEST(CApiTest, Indexing_With_float_Predicate_Term) {
                                  {knowhere::Metric::TYPE, knowhere::Metric::L2},
                                  {knowhere::meta::DEVICEID, 0}};
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_IVFPQ);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_IVFPQ);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -1766,7 +1765,7 @@ TEST(CApiTest, Indexing_Expr_With_float_Predicate_Term) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = 1000 * 1000;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto query_ptr = vec_col.data() + 420000 * DIM;
 
@@ -1813,7 +1812,7 @@ TEST(CApiTest, Indexing_Expr_With_float_Predicate_Term) {
 
     // create place_holder_group
     int num_queries = 5;
-    auto raw_group = CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -1844,7 +1843,7 @@ TEST(CApiTest, Indexing_Expr_With_float_Predicate_Term) {
                                  {knowhere::Metric::TYPE, knowhere::Metric::L2},
                                  {knowhere::meta::DEVICEID, 0}};
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_IVFPQ);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_IVFPQ);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -1910,7 +1909,7 @@ TEST(CApiTest, Indexing_With_binary_Predicate_Range) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = 1000 * 1000;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<uint8_t>(0);
     auto query_ptr = vec_col.data() + 420000 * DIM / 8;
 
@@ -1950,7 +1949,7 @@ TEST(CApiTest, Indexing_With_binary_Predicate_Range) {
 
     // create place_holder_group
     int num_queries = 5;
-    auto raw_group = CreateBinaryPlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreateBinaryPlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -1981,7 +1980,7 @@ TEST(CApiTest, Indexing_With_binary_Predicate_Range) {
         {knowhere::Metric::TYPE, knowhere::Metric::JACCARD},
     };
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_BIN_IVFFLAT);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_BIN_IVFFLAT);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -2047,7 +2046,7 @@ TEST(CApiTest, Indexing_Expr_With_binary_Predicate_Range) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<uint8_t>(0);
     auto query_ptr = vec_col.data() + 42000 * DIM / 8;
 
@@ -2099,7 +2098,7 @@ TEST(CApiTest, Indexing_Expr_With_binary_Predicate_Range) {
 
     // create place_holder_group
     int num_queries = 5;
-    auto raw_group = CreateBinaryPlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreateBinaryPlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -2131,7 +2130,7 @@ TEST(CApiTest, Indexing_Expr_With_binary_Predicate_Range) {
         {knowhere::Metric::TYPE, knowhere::Metric::JACCARD},
     };
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_BIN_IVFFLAT);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_BIN_IVFFLAT);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -2197,7 +2196,7 @@ TEST(CApiTest, Indexing_With_binary_Predicate_Term) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<uint8_t>(0);
     auto query_ptr = vec_col.data() + 42000 * DIM / 8;
 
@@ -2236,7 +2235,7 @@ TEST(CApiTest, Indexing_With_binary_Predicate_Term) {
 
     // create place_holder_group
     int num_queries = 5;
-    auto raw_group = CreateBinaryPlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreateBinaryPlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -2267,7 +2266,7 @@ TEST(CApiTest, Indexing_With_binary_Predicate_Term) {
         {knowhere::Metric::TYPE, knowhere::Metric::JACCARD},
     };
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_BIN_IVFFLAT);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_BIN_IVFFLAT);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -2338,7 +2337,7 @@ TEST(CApiTest, Indexing_Expr_With_binary_Predicate_Term) {
     auto segment = NewSegment(collection, Growing, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<uint8_t>(0);
     auto query_ptr = vec_col.data() + 42000 * DIM / 8;
 
@@ -2384,7 +2383,7 @@ TEST(CApiTest, Indexing_Expr_With_binary_Predicate_Term) {
 
     // create place_holder_group
     int num_queries = 5;
-    auto raw_group = CreateBinaryPlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreateBinaryPlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -2416,7 +2415,7 @@ TEST(CApiTest, Indexing_Expr_With_binary_Predicate_Term) {
         {knowhere::Metric::TYPE, knowhere::Metric::JACCARD},
     };
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_BIN_IVFFLAT);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_BIN_IVFFLAT);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -2533,7 +2532,7 @@ TEST(CApiTest, SealedSegment_search_float_Predicate_Range) {
     auto segment = NewSegment(collection, Sealed, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto counter_col = dataset.get_col<int64_t>(1);
     auto query_ptr = vec_col.data() + 42000 * DIM;
@@ -2568,7 +2567,7 @@ TEST(CApiTest, SealedSegment_search_float_Predicate_Range) {
 
     // create place_holder_group
     int num_queries = 10;
-    auto raw_group = CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -2594,7 +2593,7 @@ TEST(CApiTest, SealedSegment_search_float_Predicate_Range) {
                                  {knowhere::Metric::TYPE, knowhere::Metric::L2},
                                  {knowhere::meta::DEVICEID, 0}};
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_IVFPQ);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_IVFPQ);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);
@@ -2686,7 +2685,7 @@ TEST(CApiTest, SealedSegment_search_without_predicates) {
 
     auto N = ROW_COUNT;
     uint64_t ts_offset = 1000;
-    auto dataset = DataGen(schema, N, ts_offset);
+    auto dataset = test::DataGen(schema, N, ts_offset);
     auto vec_col = dataset.get_col<float>(0);
     auto counter_col = dataset.get_col<int64_t>(1);
     auto query_ptr = vec_col.data() + 42000 * DIM;
@@ -2779,7 +2778,7 @@ TEST(CApiTest, SealedSegment_search_float_With_Expr_Predicate_Range) {
     auto segment = NewSegment(collection, Sealed, -1);
 
     auto N = ROW_COUNT;
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto counter_col = dataset.get_col<int64_t>(1);
     auto query_ptr = vec_col.data() + 42000 * DIM;
@@ -2826,7 +2825,7 @@ TEST(CApiTest, SealedSegment_search_float_With_Expr_Predicate_Range) {
 
     // create place_holder_group
     int num_queries = 10;
-    auto raw_group = CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
+    auto raw_group = test::CreatePlaceholderGroupFromBlob(num_queries, DIM, query_ptr);
     auto blob = raw_group.SerializeAsString();
 
     // search on segment's small index
@@ -2853,7 +2852,7 @@ TEST(CApiTest, SealedSegment_search_float_With_Expr_Predicate_Range) {
                                  {knowhere::Metric::TYPE, knowhere::Metric::L2},
                                  {knowhere::meta::DEVICEID, 0}};
 
-    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, IndexEnum::INDEX_FAISS_IVFPQ);
+    auto indexing = generate_index(vec_col.data(), conf, DIM, TOPK, N, knowhere::IndexEnum::INDEX_FAISS_IVFPQ);
 
     // gen query dataset
     auto query_dataset = knowhere::GenDataset(num_queries, DIM, query_ptr);

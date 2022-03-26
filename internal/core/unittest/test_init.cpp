@@ -12,11 +12,8 @@
 #include <gtest/gtest.h>
 
 #include "segcore/segcore_init_c.h"
-#include "test_utils/DataGen.h"
 
 TEST(Init, Naive) {
-    using namespace milvus;
-    using namespace milvus::segcore;
     SegcoreInit();
     SegcoreSetChunkRows(32768);
     SegcoreSetSimdType("auto");

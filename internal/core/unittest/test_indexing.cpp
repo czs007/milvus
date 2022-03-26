@@ -21,11 +21,10 @@
 #include "knowhere/index/vector_offset_index/IndexIVF_NM.h"
 #include "query/SearchBruteForce.h"
 #include "segcore/Reduce.h"
-#include "test_utils/DataGen.h"
-#include "test_utils/Timer.h"
+#include "DataGen.h"
+#include "Timer.h"
 
 using namespace milvus;
-using namespace milvus::segcore;
 
 namespace {
 template <int DIM>
@@ -75,11 +74,11 @@ TEST(Indexing, SmartBruteForce) {
     std::vector<int64_t> final_uids(total_count, -1);
     std::vector<float> final_dis(total_count, std::numeric_limits<float>::max());
 
-    for (int beg = 0; beg < N; beg += TestChunkSize) {
+    for (int beg = 0; beg < N; beg += test::TestChunkSize) {
         std::vector<int64_t> buf_uids(total_count, -1);
         std::vector<float> buf_dis(total_count, std::numeric_limits<float>::max());
         faiss::float_maxheap_array_t buf = {queries, TOPK, buf_uids.data(), buf_dis.data()};
-        auto end = beg + TestChunkSize;
+        auto end = beg + test::TestChunkSize;
         if (end > N) {
             end = N;
         }
@@ -90,7 +89,7 @@ TEST(Indexing, SmartBruteForce) {
         for (auto& x : buf_uids) {
             x = uids[x + beg];
         }
-        merge_into(queries, TOPK, final_dis.data(), final_uids.data(), buf_dis.data(), buf_uids.data());
+	segcore::merge_into(queries, TOPK, final_dis.data(), final_uids.data(), buf_dis.data(), buf_uids.data());
     }
 
     for (int qn = 0; qn < queries; ++qn) {
@@ -134,8 +133,8 @@ TEST(Indexing, Naive) {
     std::vector<knowhere::DatasetPtr> datasets;
     std::vector<std::vector<float>> ftrashs;
     auto raw = raw_data.data();
-    for (int beg = 0; beg < N; beg += TestChunkSize) {
-        auto end = beg + TestChunkSize;
+    for (int beg = 0; beg < N; beg += test::TestChunkSize) {
+        auto end = beg + test::TestChunkSize;
         if (end > N) {
             end = N;
         }
@@ -185,7 +184,7 @@ TEST(Indexing, IVFFlat) {
     constexpr int NLIST = 128;
     constexpr int NPROBE = 16;
 
-    Timer timer;
+    test::Timer timer;
     auto [raw_data, timestamps, uids] = generate_data<DIM>(N);
     std::cout << "generate data: " << timer.get_step_seconds() << " seconds" << std::endl;
     auto indexing = std::make_shared<knowhere::IVF>();
@@ -225,7 +224,7 @@ TEST(Indexing, IVFFlatNM) {
     constexpr int NLIST = 128;
     constexpr int NPROBE = 16;
 
-    Timer timer;
+    test::Timer timer;
     auto [raw_data, timestamps, uids] = generate_data<DIM>(N);
     std::cout << "generate data: " << timer.get_step_seconds() << " seconds" << std::endl;
     auto indexing = std::make_shared<knowhere::IVF_NM>();
@@ -276,7 +275,7 @@ TEST(Indexing, BinaryBruteForce) {
     auto schema = std::make_shared<Schema>();
     schema->AddDebugField("vecbin", DataType::VECTOR_BINARY, dim, MetricType::METRIC_Jaccard);
     schema->AddDebugField("age", DataType::INT64);
-    auto dataset = DataGen(schema, N, 10);
+    auto dataset = test::DataGen(schema, N, 10);
     auto bin_vec = dataset.get_col<uint8_t>(0);
     auto query_data = 1024 * dim / 8 + bin_vec.data();
     query::dataset::SearchDataset search_dataset{
@@ -296,7 +295,7 @@ TEST(Indexing, BinaryBruteForce) {
     sr.ids_ = std::move(sub_result.mutable_ids());
     sr.distances_ = std::move(sub_result.mutable_distances());
 
-    auto json = SearchResultToJson(sr);
+    auto json = test::SearchResultToJson(sr);
     std::cout << json.dump(2);
     auto ref = json::parse(R"(
 [

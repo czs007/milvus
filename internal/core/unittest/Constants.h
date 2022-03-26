@@ -10,4 +10,10 @@
 // or implied. See the License for the specific language governing permissions and limitations under the License
 
 #pragma once
+namespace milvus::test {
 constexpr int64_t TestChunkSize = 32 * 1024;
+constexpr int64_t DIM = 16;
+constexpr int64_t NQ = 10;
+constexpr int64_t K = 4;
+
+}  // namespace milvus::test

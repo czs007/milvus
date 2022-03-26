@@ -22,30 +22,38 @@
 #include "indexbuilder/VecIndexCreator.h"
 #include "indexbuilder/index_c.h"
 #include "indexbuilder/utils.h"
-#include "test_utils/DataGen.h"
-#include "test_utils/indexbuilder_test_utils.h"
+#include "./IndexBuilder.h"
 #include "indexbuilder/ScalarIndexCreator.h"
 #include "indexbuilder/IndexFactory.h"
 #include "common/type_c.h"
 
+#include "./DataGen.h"
+#include "./IndexBuilder.h"
+
+
+using namespace milvus;
+namespace indexcgo =  milvus::proto::indexcgo;
+namespace schemapb = milvus::proto::schema;
+
 constexpr int NB = 10;
+constexpr int64_t DIM = 16;
 
 TEST(FloatVecIndex, All) {
     auto index_type = knowhere::IndexEnum::INDEX_FAISS_IVFPQ;
     auto metric_type = knowhere::Metric::L2;
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
     std::string type_params_str, index_params_str;
     bool ok;
     ok = google::protobuf::TextFormat::PrintToString(type_params, &type_params_str);
     assert(ok);
     ok = google::protobuf::TextFormat::PrintToString(index_params, &index_params_str);
     assert(ok);
-    auto dataset = GenDataset(NB, metric_type, false);
+    auto dataset = test::GenDataset(NB, metric_type, false);
     auto xb_data = dataset.get_col<float>(0);
 
-    CDataType dtype = FloatVector;
+    CDataType dtype = ::FloatVector;
     CIndex index;
     CStatus status;
     CBinarySet binary_set;
@@ -86,17 +94,17 @@ TEST(BinaryVecIndex, All) {
     auto metric_type = knowhere::Metric::JACCARD;
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
     std::string type_params_str, index_params_str;
     bool ok;
     ok = google::protobuf::TextFormat::PrintToString(type_params, &type_params_str);
     assert(ok);
     ok = google::protobuf::TextFormat::PrintToString(index_params, &index_params_str);
     assert(ok);
-    auto dataset = GenDataset(NB, metric_type, true);
+    auto dataset = test::GenDataset(NB, metric_type, true);
     auto xb_data = dataset.get_col<uint8_t>(0);
 
-    CDataType dtype = BinaryVector;
+    CDataType dtype = ::BinaryVector;
     CIndex index;
     CStatus status;
     CBinarySet binary_set;
@@ -139,16 +147,16 @@ TEST(CBoolIndexTest, All) {
     for (size_t i = 0; i < NB; i++) {
         *(half.mutable_data()->Add()) = (i % 2) == 0;
     }
-    half_ds = GenDsFromPB(half);
+    half_ds = test::GenDsFromPB(half);
 
-    auto params = GenBoolParams();
+    auto params = test::GenBoolParams();
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto type_params_str = generate_type_params(type_params);
-        auto index_params_str = generate_index_params(index_params);
+        auto type_params_str = test::generate_type_params(type_params);
+        auto index_params_str = test::generate_index_params(index_params);
 
-        CDataType dtype = Bool;
+        CDataType dtype = ::Bool;
         CIndex index;
         CStatus status;
         CBinarySet binary_set;
@@ -190,16 +198,16 @@ TEST(CBoolIndexTest, All) {
 
 // TODO: more scalar type.
 TEST(CInt64IndexTest, All) {
-    auto arr = GenArr<int64_t>(NB);
+    auto arr = test::GenArr<int64_t>(NB);
 
-    auto params = GenParams<int64_t>();
+    auto params = test::GenParams<int64_t>();
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto type_params_str = generate_type_params(type_params);
-        auto index_params_str = generate_index_params(index_params);
+        auto type_params_str = test::generate_type_params(type_params);
+        auto index_params_str = test::generate_index_params(index_params);
 
-        CDataType dtype = Int64;
+        CDataType dtype = ::Int64;
         CIndex index;
         CStatus status;
         CBinarySet binary_set;
@@ -237,19 +245,19 @@ TEST(CInt64IndexTest, All) {
 }
 
 TEST(CStringIndexTest, All) {
-    auto strs = GenStrArr(NB);
+    auto strs = test::GenStrArr(NB);
     schemapb::StringArray str_arr;
     *str_arr.mutable_data() = {strs.begin(), strs.end()};
-    auto str_ds = GenDsFromPB(str_arr);
+    auto str_ds = test::GenDsFromPB(str_arr);
 
-    auto params = GenStringParams();
+    auto params = test::GenStringParams();
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto type_params_str = generate_type_params(type_params);
-        auto index_params_str = generate_index_params(index_params);
+        auto type_params_str = test::generate_type_params(type_params);
+        auto index_params_str = test::generate_index_params(index_params);
 
-        CDataType dtype = String;
+        CDataType dtype = ::String;
         CIndex index;
         CStatus status;
         CBinarySet binary_set;

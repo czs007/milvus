@@ -10,17 +10,17 @@
 // or implied. See the License for the specific language governing permissions and limitations under the License
 
 #include <gtest/gtest.h>
-#include "test_utils/DataGen.h"
 #include "knowhere/index/structured_index_simple/StructuredIndexSort.h"
+#include "./DataGen.h"
+
+using namespace milvus;
 
 TEST(Bitmap, Naive) {
-    using namespace milvus;
-    using namespace milvus::segcore;
 
     auto schema = std::make_shared<Schema>();
     schema->AddDebugField("height", DataType::FLOAT);
     int N = 10000;
-    auto raw_data = DataGen(schema, N);
+    auto raw_data = test::DataGen(schema, N);
     auto vec = raw_data.get_col<float>(0);
     auto sort_index = std::make_shared<knowhere::scalar::StructuredIndexSort<float>>();
     sort_index->Build(N, vec.data());

@@ -19,13 +19,12 @@
 #include "segcore/SegmentGrowing.h"
 #include "segcore/AckResponder.h"
 
-using namespace milvus::engine;
-using namespace milvus::segcore;
+using namespace milvus;
 using std::vector;
 
 TEST(ConcurrentVector, TestSingle) {
     auto dim = 8;
-    ConcurrentVectorImpl<int, false> c_vec(dim, 32);
+    segcore::ConcurrentVectorImpl<int, false> c_vec(dim, 32);
     std::default_random_engine e(42);
     int data = 0;
     auto total_count = 0;
@@ -53,7 +52,7 @@ TEST(ConcurrentVector, TestMultithreads) {
     constexpr int threads = 16;
     std::vector<int64_t> total_counts(threads);
 
-    ConcurrentVectorImpl<int64_t, false> c_vec(dim, 32);
+    segcore::ConcurrentVectorImpl<int64_t, false> c_vec(dim, 32);
     std::atomic<int64_t> ack_counter = 0;
 
     auto executor = [&](int thread_id) {
@@ -98,7 +97,7 @@ TEST(ConcurrentVector, TestMultithreads) {
 TEST(ConcurrentVector, TestAckSingle) {
     std::vector<std::tuple<int64_t, int64_t, int64_t>> raw_data;
     std::default_random_engine e(42);
-    AckResponder ack;
+    segcore::AckResponder ack;
     int N = 10000;
     for (int i = 0; i < 10000; ++i) {
         auto weight = i + e() % 100;

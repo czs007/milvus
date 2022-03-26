@@ -9,8 +9,6 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
 // or implied. See the License for the specific language governing permissions and limitations under the License
 
-#pragma once
-
 #include <boost/algorithm/string/predicate.hpp>
 #include <cstring>
 #include <memory>
@@ -25,43 +23,18 @@
 #include "query/SearchOnIndex.h"
 #include "segcore/SegmentGrowingImpl.h"
 #include "segcore/SegmentSealedImpl.h"
+#include "DataGen.h"
+
+//namespace ser = milvus::proto::milvus;
+using namespace milvus::segcore;
+
+namespace milvus::test {
 
 using boost::algorithm::starts_with;
+using milvus::proto::milvus::PlaceholderGroup;
+using milvus::proto::milvus::PlaceholderType;
 
-namespace milvus::segcore {
-
-struct GeneratedData {
-    std::vector<uint8_t> rows_;
-    std::vector<aligned_vector<uint8_t>> cols_;
-    std::vector<idx_t> row_ids_;
-    std::vector<Timestamp> timestamps_;
-    RowBasedRawData raw_;
-    template <typename T>
-    auto
-    get_col(int index) const {
-        auto& target = cols_.at(index);
-        std::vector<T> ret(target.size() / sizeof(T));
-        memcpy(ret.data(), target.data(), target.size());
-        return ret;
-    }
-    template <typename T>
-    auto
-    get_mutable_col(int index) {
-        auto& target = cols_.at(index);
-        assert(target.size() == row_ids_.size() * sizeof(T));
-        auto ptr = reinterpret_cast<T*>(target.data());
-        return ptr;
-    }
-
- private:
-    GeneratedData() = default;
-    friend GeneratedData
-    DataGen(SchemaPtr schema, int64_t N, uint64_t seed, uint64_t ts_offset);
-    void
-    generate_rows(int64_t N, SchemaPtr schema);
-};
-
-inline void
+void
 GeneratedData::generate_rows(int64_t N, SchemaPtr schema) {
     std::vector<int> offset_infos(schema->size() + 1, 0);
     auto sizeof_infos = schema->get_sizeof_infos();
@@ -86,8 +59,8 @@ GeneratedData::generate_rows(int64_t N, SchemaPtr schema) {
     raw_.count = N;
 }
 
-inline GeneratedData
-DataGen(SchemaPtr schema, int64_t N, uint64_t seed = 42, uint64_t ts_offset = 0) {
+GeneratedData
+DataGen(SchemaPtr schema, int64_t N, uint64_t seed, uint64_t ts_offset) {
     using std::vector;
     std::vector<aligned_vector<uint8_t>> cols;
     std::default_random_engine er(seed);
@@ -201,13 +174,13 @@ DataGen(SchemaPtr schema, int64_t N, uint64_t seed = 42, uint64_t ts_offset = 0)
     return std::move(res);
 }
 
-inline auto
-CreatePlaceholderGroup(int64_t num_queries, int dim, int64_t seed = 42) {
-    namespace ser = milvus::proto::milvus;
-    ser::PlaceholderGroup raw_group;
+PlaceholderGroup
+CreatePlaceholderGroup(int64_t num_queries, int dim, int64_t seed) {
+//    namespace ser = milvus::proto::milvus;
+    PlaceholderGroup raw_group;
     auto value = raw_group.add_placeholders();
     value->set_tag("$0");
-    value->set_type(ser::PlaceholderType::FloatVector);
+    value->set_type(PlaceholderType::FloatVector);
     std::normal_distribution<double> dis(0, 1);
     std::default_random_engine e(seed);
     for (int i = 0; i < num_queries; ++i) {
@@ -221,13 +194,13 @@ CreatePlaceholderGroup(int64_t num_queries, int dim, int64_t seed = 42) {
     return raw_group;
 }
 
-inline auto
+PlaceholderGroup
 CreatePlaceholderGroupFromBlob(int64_t num_queries, int dim, const float* src) {
-    namespace ser = milvus::proto::milvus;
-    ser::PlaceholderGroup raw_group;
+    //namespace ser = milvus::proto::milvus;
+    PlaceholderGroup raw_group;
     auto value = raw_group.add_placeholders();
     value->set_tag("$0");
-    value->set_type(ser::PlaceholderType::FloatVector);
+    value->set_type(PlaceholderType::FloatVector);
     int64_t src_index = 0;
 
     for (int i = 0; i < num_queries; ++i) {
@@ -241,14 +214,14 @@ CreatePlaceholderGroupFromBlob(int64_t num_queries, int dim, const float* src) {
     return raw_group;
 }
 
-inline auto
-CreateBinaryPlaceholderGroup(int64_t num_queries, int64_t dim, int64_t seed = 42) {
+PlaceholderGroup
+CreateBinaryPlaceholderGroup(int64_t num_queries, int64_t dim, int64_t seed) {
     assert(dim % 8 == 0);
-    namespace ser = milvus::proto::milvus;
-    ser::PlaceholderGroup raw_group;
+    //namespace ser = milvus::proto::milvus;
+    PlaceholderGroup raw_group;
     auto value = raw_group.add_placeholders();
     value->set_tag("$0");
-    value->set_type(ser::PlaceholderType::BinaryVector);
+    value->set_type(PlaceholderType::BinaryVector);
     std::default_random_engine e(seed);
     for (int i = 0; i < num_queries; ++i) {
         std::vector<uint8_t> vec;
@@ -261,14 +234,14 @@ CreateBinaryPlaceholderGroup(int64_t num_queries, int64_t dim, int64_t seed = 42
     return raw_group;
 }
 
-inline auto
+PlaceholderGroup
 CreateBinaryPlaceholderGroupFromBlob(int64_t num_queries, int64_t dim, const uint8_t* ptr) {
     assert(dim % 8 == 0);
-    namespace ser = milvus::proto::milvus;
-    ser::PlaceholderGroup raw_group;
+    //namespace ser = milvus::proto::milvus;
+    PlaceholderGroup raw_group;
     auto value = raw_group.add_placeholders();
     value->set_tag("$0");
-    value->set_type(ser::PlaceholderType::BinaryVector);
+    value->set_type(PlaceholderType::BinaryVector);
     for (int i = 0; i < num_queries; ++i) {
         std::vector<uint8_t> vec;
         for (int d = 0; d < dim / 8; ++d) {
@@ -281,7 +254,7 @@ CreateBinaryPlaceholderGroupFromBlob(int64_t num_queries, int64_t dim, const uin
     return raw_group;
 }
 
-inline json
+json
 SearchResultToJson(const SearchResult& sr) {
     int64_t num_queries = sr.num_queries_;
     int64_t topk = sr.topk_;
@@ -295,9 +268,9 @@ SearchResultToJson(const SearchResult& sr) {
         results.emplace_back(std::move(result));
     }
     return json{results};
-};
+}
 
-inline void
+void
 SealedLoader(const GeneratedData& dataset, SegmentSealed& seg) {
     // TODO
     auto row_count = dataset.row_ids_.size();
@@ -326,7 +299,7 @@ SealedLoader(const GeneratedData& dataset, SegmentSealed& seg) {
     }
 }
 
-inline std::unique_ptr<SegmentSealed>
+std::unique_ptr<SegmentSealed>
 SealedCreator(SchemaPtr schema, const GeneratedData& dataset, const LoadIndexInfo& index_info) {
     auto segment = CreateSealedSegment(schema);
     SealedLoader(dataset, *segment);
@@ -334,7 +307,7 @@ SealedCreator(SchemaPtr schema, const GeneratedData& dataset, const LoadIndexInf
     return segment;
 }
 
-inline knowhere::VecIndexPtr
+knowhere::VecIndexPtr
 GenIndexing(int64_t N, int64_t dim, const float* vec) {
     // {knowhere::IndexParams::nprobe, 10},
     auto conf = knowhere::Config{{knowhere::meta::DIM, dim},

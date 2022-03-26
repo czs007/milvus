@@ -13,11 +13,9 @@
 #include <segcore/ConcurrentVector.h>
 #include "common/Types.h"
 #include "common/Span.h"
+using namespace milvus;
 
 TEST(Common, Span) {
-    using namespace milvus;
-    using namespace milvus::segcore;
-
     Span<float> s1(nullptr, 100);
     Span<FloatVector> s2(nullptr, 10, 16 * sizeof(float));
     SpanBase b1 = s1;

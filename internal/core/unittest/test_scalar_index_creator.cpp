@@ -18,23 +18,22 @@
 #include <knowhere/index/vector_index/ConfAdapterMgr.h>
 #include <knowhere/archive/KnowhereConfig.h>
 #include "pb/index_cgo_msg.pb.h"
-
 #define private public
-
 #include "indexbuilder/VecIndexCreator.h"
 #include "indexbuilder/index_c.h"
 #include "indexbuilder/utils.h"
-#include "test_utils/DataGen.h"
-#include "test_utils/indexbuilder_test_utils.h"
 #include "indexbuilder/ScalarIndexCreator.h"
 #include "indexbuilder/IndexFactory.h"
+#include "IndexBuilder.h"
+#include "DataGen.h"
 
 TEST(Dummy, Aha) {
     std::cout << "aha" << std::endl;
 }
 
+using namespace milvus;
+
 constexpr int64_t nb = 100;
-namespace indexcgo = milvus::proto::indexcgo;
 namespace schemapb = milvus::proto::schema;
 using milvus::indexbuilder::MapParams;
 using milvus::indexbuilder::ScalarIndexCreator;
@@ -42,6 +41,7 @@ using knowhere::scalar::OperatorType;
 using ScalarTestParams = std::pair<MapParams, MapParams>;
 
 namespace {
+
 template <typename T>
 inline void
 assert_in(const std::unique_ptr<ScalarIndexCreator<T>>& creator, const std::vector<T>& arr) {
@@ -154,16 +154,16 @@ TYPED_TEST_CASE_P(TypedScalarIndexCreatorTest);
 TYPED_TEST_P(TypedScalarIndexCreatorTest, Dummy) {
     using T = TypeParam;
     std::cout << typeid(T()).name() << std::endl;
-    PrintMapParams(GenParams<T>());
+    test::PrintMapParams(test::GenParams<T>());
 }
 
 TYPED_TEST_P(TypedScalarIndexCreatorTest, Constructor) {
     using T = TypeParam;
-    for (const auto& tp : GenParams<T>()) {
+    for (const auto& tp : test::GenParams<T>()) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
     }
@@ -171,59 +171,59 @@ TYPED_TEST_P(TypedScalarIndexCreatorTest, Constructor) {
 
 TYPED_TEST_P(TypedScalarIndexCreatorTest, In) {
     using T = TypeParam;
-    for (const auto& tp : GenParams<T>()) {
+    for (const auto& tp : test::GenParams<T>()) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
-        auto arr = GenArr<T>(nb);
-        build_index<T>(creator, arr);
+        auto arr = test::GenArr<T>(nb);
+        test::build_index<T>(creator, arr);
         assert_in<T>(creator, arr);
     }
 }
 
 TYPED_TEST_P(TypedScalarIndexCreatorTest, NotIn) {
     using T = TypeParam;
-    for (const auto& tp : GenParams<T>()) {
+    for (const auto& tp : test::GenParams<T>()) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
-        auto arr = GenArr<T>(nb);
-        build_index<T>(creator, arr);
+        auto arr = test::GenArr<T>(nb);
+        test::build_index<T>(creator, arr);
         assert_not_in<T>(creator, arr);
     }
 }
 
 TYPED_TEST_P(TypedScalarIndexCreatorTest, Range) {
     using T = TypeParam;
-    for (const auto& tp : GenParams<T>()) {
+    for (const auto& tp : test::GenParams<T>()) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
-        auto arr = GenArr<T>(nb);
-        build_index<T>(creator, arr);
+        auto arr = test::GenArr<T>(nb);
+        test::build_index<T>(creator, arr);
         assert_range<T>(creator, arr);
     }
 }
 
 TYPED_TEST_P(TypedScalarIndexCreatorTest, Codec) {
     using T = TypeParam;
-    for (const auto& tp : GenParams<T>()) {
+    for (const auto& tp : test::GenParams<T>()) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
-        auto arr = GenArr<T>(nb);
+        auto arr = test::GenArr<T>(nb);
         const int64_t dim = 8;  // not important here
         auto dataset = knowhere::GenDataset(arr.size(), dim, arr.data());
         creator->Build(dataset);
@@ -253,9 +253,9 @@ class BoolIndexTest : public ::testing::Test {
             *(half.mutable_data()->Add()) = (i % 2) == 0;
         }
 
-        all_true_ds = GenDsFromPB(all_true);
-        all_false_ds = GenDsFromPB(all_false);
-        half_ds = GenDsFromPB(half);
+        all_true_ds = test::GenDsFromPB(all_true);
+        all_false_ds = test::GenDsFromPB(all_false);
+        half_ds = test::GenDsFromPB(half);
 
         GenTestParams();
     }
@@ -270,7 +270,7 @@ class BoolIndexTest : public ::testing::Test {
  private:
     void
     GenTestParams() {
-        params = GenBoolParams();
+        params = test::GenBoolParams();
     }
 
  protected:
@@ -289,8 +289,8 @@ TEST_F(BoolIndexTest, Constructor) {
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
     }
@@ -301,8 +301,8 @@ TEST_F(BoolIndexTest, In) {
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
 
         auto true_test = std::make_unique<bool>(true);
         auto false_test = std::make_unique<bool>(false);
@@ -357,8 +357,8 @@ TEST_F(BoolIndexTest, NotIn) {
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
 
         auto true_test = std::make_unique<bool>(true);
         auto false_test = std::make_unique<bool>(false);
@@ -413,8 +413,8 @@ TEST_F(BoolIndexTest, Codec) {
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
 
         auto true_test = std::make_unique<bool>(true);
         auto false_test = std::make_unique<bool>(false);
@@ -480,9 +480,9 @@ class StringIndexTest : public ::testing::Test {
     void
     SetUp() override {
         size_t n = 10;
-        strs = GenStrArr(n);
+        strs = test::GenStrArr(n);
         *str_arr.mutable_data() = {strs.begin(), strs.end()};
-        str_ds = GenDsFromPB(str_arr);
+        str_ds = test::GenDsFromPB(str_arr);
 
         GenTestParams();
     }
@@ -495,7 +495,7 @@ class StringIndexTest : public ::testing::Test {
  private:
     void
     GenTestParams() {
-        params = GenStringParams();
+        params = test::GenStringParams();
     }
 
  protected:
@@ -510,8 +510,8 @@ TEST_F(StringIndexTest, Constructor) {
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
     }
@@ -520,13 +520,13 @@ TEST_F(StringIndexTest, Constructor) {
 TEST_F(StringIndexTest, In) {
     using T = std::string;
     for (const auto& tp : params) {
-        PrintMapParam(tp);
+	test::PrintMapParam(tp);
 
         auto type_params = tp.first;
         auto index_params = tp.second;
 
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
 
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
@@ -540,8 +540,8 @@ TEST_F(StringIndexTest, NotIn) {
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
 
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
@@ -555,8 +555,8 @@ TEST_F(StringIndexTest, Range) {
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
 
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());
@@ -570,8 +570,8 @@ TEST_F(StringIndexTest, Codec) {
     for (const auto& tp : params) {
         auto type_params = tp.first;
         auto index_params = tp.second;
-        auto serialized_type_params = generate_type_params(type_params);
-        auto serialized_index_params = generate_index_params(index_params);
+        auto serialized_type_params = test::generate_type_params(type_params);
+        auto serialized_index_params = test::generate_index_params(index_params);
 
         auto creator =
             std::make_unique<ScalarIndexCreator<T>>(serialized_type_params.c_str(), serialized_index_params.c_str());

@@ -20,11 +20,14 @@
 #include "indexbuilder/VecIndexCreator.h"
 #include "indexbuilder/index_c.h"
 #include "indexbuilder/utils.h"
-#include "test_utils/indexbuilder_test_utils.h"
+#include "./IndexBuilder.h"
+#include "./DataGen.h"
 
 constexpr int64_t NB = 1000000;
+constexpr int64_t DIM = 16;
 
-namespace indexcgo = milvus::proto::indexcgo;
+using namespace milvus;
+namespace indexcgo =  milvus::proto::indexcgo;
 
 auto index_type_collections = [] {
     static std::map<int, knowhere::IndexType> collections{
@@ -48,7 +51,7 @@ IndexBuilder_build(benchmark::State& state) {
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
 
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
 
     std::string type_params_str, index_params_str;
     bool ok;
@@ -58,7 +61,7 @@ IndexBuilder_build(benchmark::State& state) {
     assert(ok);
 
     auto is_binary = state.range(2);
-    auto dataset = GenDataset(NB, metric_type, is_binary);
+    auto dataset = test::GenDataset(NB, metric_type, is_binary);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
 
@@ -77,7 +80,7 @@ IndexBuilder_build_and_codec(benchmark::State& state) {
     indexcgo::TypeParams type_params;
     indexcgo::IndexParams index_params;
 
-    std::tie(type_params, index_params) = generate_params(index_type, metric_type);
+    std::tie(type_params, index_params) = test::generate_params(index_type, metric_type);
 
     std::string type_params_str, index_params_str;
     bool ok;
@@ -87,7 +90,7 @@ IndexBuilder_build_and_codec(benchmark::State& state) {
     assert(ok);
 
     auto is_binary = state.range(2);
-    auto dataset = GenDataset(NB, metric_type, is_binary);
+    auto dataset = test::GenDataset(NB, metric_type, is_binary);
     auto xb_data = dataset.get_col<float>(0);
     auto xb_dataset = knowhere::GenDataset(NB, DIM, xb_data.data());
 

@@ -15,17 +15,15 @@
 #include "knowhere/index/vector_index/VecIndex.h"
 #include "knowhere/index/vector_index/adapter/VectorAdapter.h"
 #include "segcore/SegmentSealedImpl.h"
-#include "test_utils/DataGen.h"
+#include "DataGen.h"
 
 using namespace milvus;
-using namespace milvus::query;
-using namespace milvus::segcore;
-
 const int64_t ROW_COUNT = 100 * 1000;
 
 TEST(Sealed, without_predicate) {
     using namespace milvus::query;
     using namespace milvus::segcore;
+    using milvus::query::PlaceholderGroup;
     auto schema = std::make_shared<Schema>();
     auto dim = 16;
     auto topK = 5;
@@ -54,26 +52,26 @@ TEST(Sealed, without_predicate) {
 
     auto N = ROW_COUNT;
 
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     for (int64_t i = 0; i < 1000 * dim; ++i) {
         vec_col.push_back(0);
     }
     auto query_ptr = vec_col.data() + 4200 * dim;
-    auto segment = CreateGrowingSegment(schema);
+    auto segment = segcore::CreateGrowingSegment(schema);
     segment->PreInsert(N);
     segment->Insert(0, N, dataset.row_ids_.data(), dataset.timestamps_.data(), dataset.raw_);
 
-    auto plan = CreatePlan(*schema, dsl);
+    auto plan = query::CreatePlan(*schema, dsl);
     auto num_queries = 5;
-    auto ph_group_raw = CreatePlaceholderGroupFromBlob(num_queries, 16, query_ptr);
+    auto ph_group_raw = test::CreatePlaceholderGroupFromBlob(num_queries, 16, query_ptr);
     auto ph_group = ParsePlaceholderGroup(plan.get(), ph_group_raw.SerializeAsString());
 
     Timestamp time = 1000000;
     std::vector<const PlaceholderGroup*> ph_group_arr = {ph_group.get()};
 
     auto sr = segment->Search(plan.get(), *ph_group, time);
-    auto pre_result = SearchResultToJson(*sr);
+    auto pre_result = test::SearchResultToJson(*sr);
     auto indexing = std::make_shared<knowhere::IVF>();
 
     auto conf = knowhere::Config{{knowhere::meta::DIM, dim},
@@ -101,7 +99,7 @@ TEST(Sealed, without_predicate) {
 
     sr->ids_ = vec_ids;
     sr->distances_ = vec_dis;
-    auto ref_result = SearchResultToJson(*sr);
+    auto ref_result = test::SearchResultToJson(*sr);
 
     LoadIndexInfo load_info;
     load_info.field_id = fake_id.get();
@@ -111,7 +109,7 @@ TEST(Sealed, without_predicate) {
     auto sealed_segment = SealedCreator(schema, dataset, load_info);
     sr = sealed_segment->Search(plan.get(), *ph_group, time);
 
-    auto post_result = SearchResultToJson(*sr);
+    auto post_result = test::SearchResultToJson(*sr);
     std::cout << "ref_result" << std::endl;
     std::cout << ref_result.dump(1) << std::endl;
     std::cout << "post_result" << std::endl;
@@ -122,6 +120,7 @@ TEST(Sealed, without_predicate) {
 TEST(Sealed, with_predicate) {
     using namespace milvus::query;
     using namespace milvus::segcore;
+    using milvus::query::PlaceholderGroup;
     auto schema = std::make_shared<Schema>();
     auto dim = 16;
     auto topK = 5;
@@ -158,16 +157,16 @@ TEST(Sealed, with_predicate) {
 
     auto N = ROW_COUNT;
 
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
     auto vec_col = dataset.get_col<float>(0);
     auto query_ptr = vec_col.data() + 42000 * dim;
-    auto segment = CreateGrowingSegment(schema);
+    auto segment = segcore::CreateGrowingSegment(schema);
     segment->PreInsert(N);
     segment->Insert(0, N, dataset.row_ids_.data(), dataset.timestamps_.data(), dataset.raw_);
 
-    auto plan = CreatePlan(*schema, dsl);
+    auto plan = query::CreatePlan(*schema, dsl);
     auto num_queries = 5;
-    auto ph_group_raw = CreatePlaceholderGroupFromBlob(num_queries, 16, query_ptr);
+    auto ph_group_raw = test::CreatePlaceholderGroupFromBlob(num_queries, 16, query_ptr);
     auto ph_group = ParsePlaceholderGroup(plan.get(), ph_group_raw.SerializeAsString());
 
     Timestamp time = 10000000;
@@ -210,6 +209,7 @@ TEST(Sealed, with_predicate) {
 }
 
 TEST(Sealed, LoadFieldData) {
+    using milvus::query::PlaceholderGroup;
     auto dim = 16;
     auto topK = 5;
     auto N = ROW_COUNT;
@@ -220,13 +220,13 @@ TEST(Sealed, LoadFieldData) {
     auto double_id = schema->AddDebugField("double", DataType::DOUBLE);
     auto nothing_id = schema->AddDebugField("nothing", DataType::INT32);
 
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
 
     auto fakevec = dataset.get_col<float>(0);
 
-    auto indexing = GenIndexing(N, dim, fakevec.data());
+    auto indexing = test::GenIndexing(N, dim, fakevec.data());
 
-    auto segment = CreateSealedSegment(schema);
+    auto segment = segcore::CreateSealedSegment(schema);
     std::string dsl = R"({
         "bool": {
             "must": [
@@ -256,9 +256,9 @@ TEST(Sealed, LoadFieldData) {
     })";
 
     Timestamp time = 1000000;
-    auto plan = CreatePlan(*schema, dsl);
+    auto plan = query::CreatePlan(*schema, dsl);
     auto num_queries = 5;
-    auto ph_group_raw = CreatePlaceholderGroup(num_queries, 16, 1024);
+    auto ph_group_raw = test::CreatePlaceholderGroup(num_queries, 16, 1024);
     auto ph_group = ParsePlaceholderGroup(plan.get(), ph_group_raw.SerializeAsString());
 
     ASSERT_ANY_THROW(segment->Search(plan.get(), *ph_group, time));
@@ -287,18 +287,18 @@ TEST(Sealed, LoadFieldData) {
     }
 
     auto sr = segment->Search(plan.get(), *ph_group, time);
-    auto json = SearchResultToJson(*sr);
+    auto json = test::SearchResultToJson(*sr);
     std::cout << json.dump(1);
 
     segment->DropIndex(fakevec_id);
     ASSERT_ANY_THROW(segment->Search(plan.get(), *ph_group, time));
     segment->LoadIndex(vec_info);
     auto sr2 = segment->Search(plan.get(), *ph_group, time);
-    auto json2 = SearchResultToJson(*sr);
+    auto json2 = test::SearchResultToJson(*sr);
     ASSERT_EQ(json.dump(-2), json2.dump(-2));
     segment->DropFieldData(double_id);
     ASSERT_ANY_THROW(segment->Search(plan.get(), *ph_group, time));
-    auto std_json = Json::parse(R"(
+    auto std_json = query::Json::parse(R"(
 [
 	[
 		["982->0.000000", "25315->4.742000", "57893->4.758000", "48201->6.075000", "53853->6.223000"],
@@ -322,11 +322,11 @@ TEST(Sealed, Delete) {
     auto double_id = schema->AddDebugField("double", DataType::DOUBLE);
     auto nothing_id = schema->AddDebugField("nothing", DataType::INT32);
 
-    auto dataset = DataGen(schema, N);
+    auto dataset = test::DataGen(schema, N);
 
     auto fakevec = dataset.get_col<float>(0);
 
-    auto segment = CreateSealedSegment(schema);
+    auto segment = segcore::CreateSealedSegment(schema);
     std::string dsl = R"({
         "bool": {
             "must": [
@@ -356,9 +356,9 @@ TEST(Sealed, Delete) {
     })";
 
     Timestamp time = 1000000;
-    auto plan = CreatePlan(*schema, dsl);
+    auto plan = query::CreatePlan(*schema, dsl);
     auto num_queries = 5;
-    auto ph_group_raw = CreatePlaceholderGroup(num_queries, 16, 1024);
+    auto ph_group_raw = test::CreatePlaceholderGroup(num_queries, 16, 1024);
     auto ph_group = ParsePlaceholderGroup(plan.get(), ph_group_raw.SerializeAsString());
 
     ASSERT_ANY_THROW(segment->Search(plan.get(), *ph_group, time));

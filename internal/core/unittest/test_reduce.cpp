@@ -17,7 +17,6 @@
 #include "query/SubSearchResult.h"
 
 using namespace milvus;
-using namespace milvus::query;
 
 TEST(Reduce, SubQueryResult) {
     int64_t num_queries = 512;
@@ -35,7 +34,7 @@ TEST(Reduce, SubQueryResult) {
         }
     }
     std::default_random_engine e(42);
-    SubSearchResult final_result(num_queries, topk, metric_type, round_decimal);
+    query::SubSearchResult final_result(num_queries, topk, metric_type, round_decimal);
     for (int i = 0; i < iteration; ++i) {
         std::vector<int64_t> ids;
         std::vector<float> distances;
@@ -50,7 +49,7 @@ TEST(Reduce, SubQueryResult) {
             std::sort(ids.begin() + n * topk, ids.begin() + n * topk + topk);
             std::sort(distances.begin() + n * topk, distances.begin() + n * topk + topk);
         }
-        SubSearchResult sub_result(num_queries, topk, metric_type, round_decimal);
+	query::SubSearchResult sub_result(num_queries, topk, metric_type, round_decimal);
         sub_result.mutable_distances() = distances;
         sub_result.mutable_ids() = ids;
         final_result.merge(sub_result);
@@ -87,7 +86,7 @@ TEST(Reduce, SubSearchResultDesc) {
         }
     }
     std::default_random_engine e(42);
-    SubSearchResult final_result(num_queries, topk, metric_type, round_decimal);
+    query::SubSearchResult final_result(num_queries, topk, metric_type, round_decimal);
     for (int i = 0; i < iteration; ++i) {
         std::vector<int64_t> ids;
         std::vector<float> distances;
@@ -102,7 +101,7 @@ TEST(Reduce, SubSearchResultDesc) {
             std::sort(ids.begin() + n * topk, ids.begin() + n * topk + topk, std::greater<int64_t>());
             std::sort(distances.begin() + n * topk, distances.begin() + n * topk + topk, std::greater<float>());
         }
-        SubSearchResult sub_result(num_queries, topk, metric_type, round_decimal);
+	query::SubSearchResult sub_result(num_queries, topk, metric_type, round_decimal);
         sub_result.mutable_distances() = distances;
         sub_result.mutable_ids() = ids;
         final_result.merge(sub_result);

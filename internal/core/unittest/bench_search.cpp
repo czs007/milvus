@@ -14,11 +14,9 @@
 #include <string>
 #include "segcore/SegmentGrowing.h"
 #include "segcore/SegmentSealed.h"
-#include "test_utils/DataGen.h"
+#include "DataGen.h"
 
 using namespace milvus;
-using namespace milvus::query;
-using namespace milvus::segcore;
 
 static int dim = 768;
 
@@ -40,19 +38,20 @@ const auto plan = [] {
                             "nprobe": 10
                         },
                         "query": "$0",
-                        "topk": 5
+                        "topk": 5,
+                        "round_decimal": 6
                     }
                 }
             }
             ]
         }
     })";
-    auto plan = CreatePlan(*schema, dsl);
+    auto plan = query::CreatePlan(*schema, dsl);
     return plan;
 }();
 auto ph_group = [] {
     auto num_queries = 10;
-    auto ph_group_raw = CreatePlaceholderGroup(num_queries, dim, 1024);
+    auto ph_group_raw = test::CreatePlaceholderGroup(num_queries, dim, 1024);
     auto ph_group = ParsePlaceholderGroup(plan.get(), ph_group_raw.SerializeAsString());
     return ph_group;
 }();
@@ -63,20 +62,20 @@ Search_SmallIndex(benchmark::State& state) {
 
     static int64_t N = 1024 * 32;
     const auto dataset_ = [] {
-        auto dataset_ = DataGen(schema, N);
+        auto dataset_ = test::DataGen(schema, N);
         return dataset_;
     }();
 
     auto is_small_index = state.range(0);
     auto chunk_rows = state.range(1) * 1024;
-    auto segconf = SegcoreConfig::default_config();
+    auto segconf = segcore::SegcoreConfig::default_config();
     segconf.set_chunk_rows(chunk_rows);
-    auto segment = CreateGrowingSegment(schema, -1, segconf);
+    auto segment = segcore::CreateGrowingSegment(schema, -1, segconf);
     if (!is_small_index) {
         segment->disable_small_index();
     }
     segment->PreInsert(N);
-    ColumnBasedRawData raw_data;
+    segcore::ColumnBasedRawData raw_data;
     raw_data.columns_ = dataset_.cols_;
     raw_data.count = N;
     segment->Insert(0, N, dataset_.row_ids_.data(), dataset_.timestamps_.data(), raw_data);
@@ -92,10 +91,10 @@ BENCHMARK(Search_SmallIndex)->MinTime(5)->ArgsProduct({{true, false}, {8, 16, 32
 
 static void
 Search_Sealed(benchmark::State& state) {
-    auto segment = CreateSealedSegment(schema);
+    auto segment = segcore::CreateSealedSegment(schema);
     static int64_t N = 1024 * 1024;
     const auto dataset_ = [] {
-        auto dataset_ = DataGen(schema, N);
+        auto dataset_ = test::DataGen(schema, N);
         return dataset_;
     }();
     SealedLoader(dataset_, *segment);
@@ -105,7 +104,7 @@ Search_Sealed(benchmark::State& state) {
     } else if (choice == 1) {
         // ivf
         auto vec = (const float*)dataset_.cols_[0].data();
-        auto indexing = GenIndexing(N, dim, vec);
+        auto indexing = test::GenIndexing(N, dim, vec);
         LoadIndexInfo info;
         info.index = indexing;
         info.field_id = (*schema)[FieldName("fakevec")].get_id().get();

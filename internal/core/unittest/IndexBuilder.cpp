@@ -9,8 +9,6 @@
 // is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
 // or implied. See the License for the specific language governing permissions and limitations under the License
 
-#pragma once
-
 #include <tuple>
 #include <map>
 #include <limits>
@@ -28,25 +26,22 @@
 #include "DataGen.h"
 #include "indexbuilder/utils.h"
 #include "indexbuilder/helper.h"
-#define private public
 #include "indexbuilder/ScalarIndexCreator.h"
+#include "./IndexBuilder.h"
 
-constexpr int64_t DIM = 8;
-constexpr int64_t NQ = 10;
-constexpr int64_t K = 4;
+namespace milvus::test {
+
+using milvus::indexbuilder::ScalarIndexCreator;
+using knowhere::scalar::OperatorType;
+using QueryResultPtr = std::unique_ptr<milvus::indexbuilder::VecIndexCreator::QueryResult>;
+using milvus::indexbuilder::MapParams;
+using ScalarTestParams = std::pair<MapParams, MapParams>;
+
 #ifdef MILVUS_GPU_VERSION
 int DEVICEID = 0;
 #endif
 
-namespace indexcgo = milvus::proto::indexcgo;
-namespace schemapb = milvus::proto::schema;
-using milvus::indexbuilder::MapParams;
-using milvus::indexbuilder::ScalarIndexCreator;
-using knowhere::scalar::OperatorType;
-using ScalarTestParams = std::pair<MapParams, MapParams>;
-
-namespace {
-auto
+knowhere::Config
 generate_conf(const knowhere::IndexType& index_type, const knowhere::MetricType& metric_type) {
     if (index_type == knowhere::IndexEnum::INDEX_FAISS_IDMAP) {
         return knowhere::Config{
@@ -210,12 +205,12 @@ generate_conf(const knowhere::IndexType& index_type, const knowhere::MetricType&
     return knowhere::Config();
 }
 
-auto
+//auto
+std::tuple<TypeParams, IndexParams>
 generate_params(const knowhere::IndexType& index_type, const knowhere::MetricType& metric_type) {
-    namespace indexcgo = milvus::proto::indexcgo;
 
-    indexcgo::TypeParams type_params;
-    indexcgo::IndexParams index_params;
+    TypeParams type_params;
+    IndexParams index_params;
 
     auto configs = generate_conf(index_type, metric_type);
     for (auto& [key, value] : configs.items()) {
@@ -232,20 +227,19 @@ generate_params(const knowhere::IndexType& index_type, const knowhere::MetricTyp
     return std::make_tuple(type_params, index_params);
 }
 
-auto
-GenDataset(int64_t N, const knowhere::MetricType& metric_type, bool is_binary, int64_t dim = DIM) {
+GeneratedData
+GenDataset(int64_t N, const knowhere::MetricType& metric_type, bool is_binary, int64_t dim) {
     auto schema = std::make_shared<milvus::Schema>();
     auto faiss_metric_type = knowhere::GetMetricType(metric_type);
     if (!is_binary) {
         schema->AddDebugField("fakevec", milvus::engine::DataType::VECTOR_FLOAT, dim, faiss_metric_type);
-        return milvus::segcore::DataGen(schema, N);
+        return DataGen(schema, N);
     } else {
         schema->AddDebugField("fakebinvec", milvus::engine::DataType::VECTOR_BINARY, dim, faiss_metric_type);
-        return milvus::segcore::DataGen(schema, N);
+        return DataGen(schema, N);
     }
 }
 
-using QueryResultPtr = std::unique_ptr<milvus::indexbuilder::VecIndexCreator::QueryResult>;
 void
 PrintQueryResult(const QueryResultPtr& result) {
     auto nq = result->nq;
@@ -305,7 +299,7 @@ CountDistance(const void* point_a,
               const void* point_b,
               int dim,
               const knowhere::MetricType& metric,
-              bool is_binary = false) {
+              bool is_binary) {
     if (point_a == nullptr || point_b == nullptr) {
         return std::numeric_limits<float>::max();
     }
@@ -323,7 +317,7 @@ CheckDistances(const QueryResultPtr& result,
                const knowhere::DatasetPtr& base_dataset,
                const knowhere::DatasetPtr& query_dataset,
                const knowhere::MetricType& metric,
-               const float threshold = 1.0e-5) {
+               const float threshold) {
     auto base_vecs = base_dataset->Get<float*>(knowhere::meta::TENSOR);
     auto query_vecs = query_dataset->Get<float*>(knowhere::meta::TENSOR);
     auto dim = base_dataset->Get<int64_t>(knowhere::meta::DIM);
@@ -339,9 +333,10 @@ CheckDistances(const QueryResultPtr& result,
     }
 }
 
-auto
+//auto
+std::string
 generate_type_params(const MapParams& m) {
-    indexcgo::TypeParams p;
+    TypeParams p;
     for (const auto& [k, v] : m) {
         auto kv = p.add_params();
         kv->set_key(k);
@@ -353,9 +348,9 @@ generate_type_params(const MapParams& m) {
     return str;
 }
 
-auto
+std::string
 generate_index_params(const MapParams& m) {
-    indexcgo::IndexParams p;
+    IndexParams p;
     for (const auto& [k, v] : m) {
         auto kv = p.add_params();
         kv->set_key(k);
@@ -367,21 +362,8 @@ generate_index_params(const MapParams& m) {
     return str;
 }
 
-// TODO: std::is_arithmetic_v, hard to compare float point value. std::is_integral_v.
-template <typename T, typename = typename std::enable_if_t<std::is_arithmetic_v<T> || std::is_same_v<T, std::string>>>
-inline std::vector<T>
-GenArr(int64_t n) {
-    auto max_i8 = std::numeric_limits<int8_t>::max() - 1;
-    std::vector<T> arr;
-    arr.resize(n);
-    for (int64_t i = 0; i < n; i++) {
-        arr[i] = static_cast<T>(rand() % max_i8);
-    }
-    std::sort(arr.begin(), arr.end());
-    return arr;
-}
-
-inline auto
+//inline auto
+std::vector<std::string>
 GenStrArr(int64_t n) {
     using T = std::string;
     std::vector<T> arr;
@@ -392,21 +374,6 @@ GenStrArr(int64_t n) {
     }
     std::sort(arr.begin(), arr.end());
     return arr;
-}
-
-template <>
-inline std::vector<std::string>
-GenArr<std::string>(int64_t n) {
-    return GenStrArr(n);
-}
-
-template <typename T, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
-inline std::vector<ScalarTestParams>
-GenParams() {
-    std::vector<ScalarTestParams> ret;
-    ret.emplace_back(ScalarTestParams(MapParams(), {{"index_type", "inverted_index"}}));
-    ret.emplace_back(ScalarTestParams(MapParams(), {{"index_type", "flat"}}));
-    return ret;
 }
 
 std::vector<ScalarTestParams>
@@ -441,19 +408,13 @@ PrintMapParams(const std::vector<ScalarTestParams>& tps) {
     }
 }
 
-template <typename T>
-inline void
-build_index(const std::unique_ptr<ScalarIndexCreator<T>>& creator, const std::vector<T>& arr) {
-    const int64_t dim = 8;  // not important here
-    auto dataset = knowhere::GenDataset(arr.size(), dim, arr.data());
-    creator->Build(dataset);
-}
-
 // memory generated by this function should be freed by the caller.
-auto
+//auto
+knowhere::DatasetPtr
 GenDsFromPB(const google::protobuf::Message& msg) {
     auto data = new char[msg.ByteSize()];
     msg.SerializeToArray(data, msg.ByteSize());
     return knowhere::GenDataset(msg.ByteSize(), 8, data);
 }
-}  // namespace
+
+}  // namespace milvus::test

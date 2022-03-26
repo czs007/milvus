@@ -12,6 +12,7 @@
 #pragma once
 #include <chrono>
 
+namespace milvus::test {
 class Timer {
  public:
     Timer() {
@@ -49,3 +50,5 @@ class Timer {
     nanosecond_t init_record;
     nanosecond_t step_record;
 };
+
+}  // namespace milvus::test

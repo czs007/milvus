@@ -12,14 +12,15 @@
 #include <gtest/gtest.h>
 
 #include "segcore/SimilarityCorelation.h"
+using namespace milvus;
 
 TEST(SimilarityCorelation, Naive) {
-    ASSERT_TRUE(milvus::segcore::PositivelyRelated(faiss::METRIC_INNER_PRODUCT));
+    ASSERT_TRUE(segcore::PositivelyRelated(faiss::METRIC_INNER_PRODUCT));
 
-    ASSERT_FALSE(milvus::segcore::PositivelyRelated(faiss::METRIC_Jaccard));
-    ASSERT_FALSE(milvus::segcore::PositivelyRelated(faiss::METRIC_Tanimoto));
-    ASSERT_FALSE(milvus::segcore::PositivelyRelated(faiss::METRIC_L2));
-    ASSERT_FALSE(milvus::segcore::PositivelyRelated(faiss::METRIC_Hamming));
-    ASSERT_FALSE(milvus::segcore::PositivelyRelated(faiss::METRIC_Substructure));
-    ASSERT_FALSE(milvus::segcore::PositivelyRelated(faiss::METRIC_Superstructure));
+    ASSERT_FALSE(segcore::PositivelyRelated(faiss::METRIC_Jaccard));
+    ASSERT_FALSE(segcore::PositivelyRelated(faiss::METRIC_Tanimoto));
+    ASSERT_FALSE(segcore::PositivelyRelated(faiss::METRIC_L2));
+    ASSERT_FALSE(segcore::PositivelyRelated(faiss::METRIC_Hamming));
+    ASSERT_FALSE(segcore::PositivelyRelated(faiss::METRIC_Substructure));
+    ASSERT_FALSE(segcore::PositivelyRelated(faiss::METRIC_Superstructure));
 }

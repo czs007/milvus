@@ -21,11 +21,10 @@
 #include "query/generated/ShowPlanNodeVisitor.h"
 
 using namespace milvus;
-using namespace milvus::query;
-namespace planpb = proto::plan;
+namespace planpb = milvus::proto::plan;
+namespace spb = proto::schema;
 using std::string;
 
-namespace spb = proto::schema;
 static SchemaPtr
 getStandardSchema() {
     auto schema = std::make_shared<Schema>();
@@ -106,9 +105,9 @@ vector_anns: <
     planpb::PlanNode node_proto;
     google::protobuf::TextFormat::ParseFromString(proto_text, &node_proto);
     // std::cout << node_proto.DebugString();
-    auto plan = ProtoParser(*schema).CreatePlan(node_proto);
+    auto plan = query::ProtoParser(*schema).CreatePlan(node_proto);
 
-    ShowPlanNodeVisitor visitor;
+    query::ShowPlanNodeVisitor visitor;
     auto json = visitor.call_child(*plan->plan_node_);
     // std::cout << json.dump(2);
     auto extra_info = plan->extra_info_opt_.value();
@@ -142,7 +141,7 @@ vector_anns: <
 }
 )") % field_name);
 
-    auto ref_plan = CreatePlan(*schema, dsl_text);
+    auto ref_plan = query::CreatePlan(*schema, dsl_text);
     plan->check_identical(*ref_plan);
 }
 
@@ -194,9 +193,9 @@ vector_anns: <
     planpb::PlanNode node_proto;
     google::protobuf::TextFormat::ParseFromString(proto_text, &node_proto);
     // std::cout << node_proto.DebugString();
-    auto plan = ProtoParser(*schema).CreatePlan(node_proto);
+    auto plan = query::ProtoParser(*schema).CreatePlan(node_proto);
 
-    ShowPlanNodeVisitor visitor;
+    query::ShowPlanNodeVisitor visitor;
     auto json = visitor.call_child(*plan->plan_node_);
     // std::cout << json.dump(2);
     auto extra_info = plan->extra_info_opt_.value();
@@ -230,7 +229,7 @@ vector_anns: <
 }
 )") % field_name);
 
-    auto ref_plan = CreatePlan(*schema, dsl_text);
+    auto ref_plan = query::CreatePlan(*schema, dsl_text);
     plan->check_identical(*ref_plan);
 }
 
@@ -283,9 +282,9 @@ vector_anns: <
     planpb::PlanNode node_proto;
     google::protobuf::TextFormat::ParseFromString(proto_text, &node_proto);
     // std::cout << node_proto.DebugString();
-    auto plan = ProtoParser(*schema).CreatePlan(node_proto);
+    auto plan = query::ProtoParser(*schema).CreatePlan(node_proto);
 
-    ShowPlanNodeVisitor visitor;
+    query::ShowPlanNodeVisitor visitor;
     auto json = visitor.call_child(*plan->plan_node_);
     // std::cout << json.dump(2);
     auto extra_info = plan->extra_info_opt_.value();
@@ -321,8 +320,8 @@ vector_anns: <
 }
 )") % field_name);
 
-    auto ref_plan = CreatePlan(*schema, dsl_text);
-    auto ref_json = ShowPlanNodeVisitor().call_child(*ref_plan->plan_node_);
+    auto ref_plan = query::CreatePlan(*schema, dsl_text);
+    auto ref_json = query::ShowPlanNodeVisitor().call_child(*ref_plan->plan_node_);
     EXPECT_EQ(json.dump(2), ref_json.dump(2));
     plan->check_identical(*ref_plan);
 }
@@ -404,9 +403,9 @@ vector_anns: <
     planpb::PlanNode node_proto;
     google::protobuf::TextFormat::ParseFromString(proto_text, &node_proto);
     // std::cout << node_proto.DebugString();
-    auto plan = ProtoParser(*schema).CreatePlan(node_proto);
+    auto plan = query::ProtoParser(*schema).CreatePlan(node_proto);
 
-    ShowPlanNodeVisitor visitor;
+    query::ShowPlanNodeVisitor visitor;
     auto json = visitor.call_child(*plan->plan_node_);
     // std::cout << json.dump(2);
     auto extra_info = plan->extra_info_opt_.value();
@@ -459,8 +458,8 @@ vector_anns: <
 }
 )") % field_name);
 
-    auto ref_plan = CreatePlan(*schema, dsl_text);
-    auto ref_json = ShowPlanNodeVisitor().call_child(*ref_plan->plan_node_);
+    auto ref_plan = query::CreatePlan(*schema, dsl_text);
+    auto ref_json = query::ShowPlanNodeVisitor().call_child(*ref_plan->plan_node_);
     EXPECT_EQ(json.dump(2), ref_json.dump(2));
     plan->check_identical(*ref_plan);
 }
@@ -504,9 +503,9 @@ vector_anns: <
     planpb::PlanNode node_proto;
     google::protobuf::TextFormat::ParseFromString(proto_text, &node_proto);
     // std::cout << node_proto.DebugString();
-    auto plan = ProtoParser(*schema).CreatePlan(node_proto);
+    auto plan = query::ProtoParser(*schema).CreatePlan(node_proto);
 
-    ShowPlanNodeVisitor visitor;
+    query::ShowPlanNodeVisitor visitor;
     auto json = visitor.call_child(*plan->plan_node_);
     // std::cout << json.dump(2);
     auto extra_info = plan->extra_info_opt_.value();
@@ -541,6 +540,6 @@ vector_anns: <
 }
 )") % field_name);
 
-    auto ref_plan = CreatePlan(*schema, dsl_text);
+    auto ref_plan = query::CreatePlan(*schema, dsl_text);
     plan->check_identical(*ref_plan);
 }
