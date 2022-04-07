@@ -146,7 +146,7 @@ double test_concurrent_bitset_set(int round){
     	Timer timer;
 
 	for (int i =0; i < round; i++){
-		for (int j =0; j<N; j++){
+		for (int j =0; j<N_BITS; j++){
 		  l.set(ConcurrentBitset::id_type_t(j));
 		}
 	}	
