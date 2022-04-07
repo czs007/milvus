@@ -42,3 +42,10 @@ target_link_libraries(indexbuilder_bench
         )
 
 target_link_libraries(indexbuilder_bench benchmark::benchmark_main)
+
+add_executable(bench_bitset bench_bitset.cpp)
+target_link_libraries(bench_bitset
+        milvus_segcore
+        pthread
+        )
+

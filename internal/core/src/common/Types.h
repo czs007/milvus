@@ -127,6 +127,7 @@ BitsetSubView(const BitsetView& view, int64_t offset, int64_t size) {
     return BitsetView(view.data() + offset / 8, size);
 }
 
+using ConcurrentBitset = faiss::ConcurrentBitset;
 using BitsetType = boost::dynamic_bitset<>;
 using BitsetTypeOpt = std::optional<BitsetType>;
 
