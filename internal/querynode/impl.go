@@ -575,15 +575,6 @@ func (node *QueryNode) Search(ctx context.Context, req *queryPb.SearchRequest) (
 		return failRet, nil
 	}
 
-	if !node.queryShardService.hasQueryShard(req.GetDmlChannel()) {
-		// TODO: add replicaID in request or remove it in query shard
-		err := node.queryShardService.addQueryShard(req.Req.CollectionID, req.GetDmlChannel(), 0)
-		if err != nil {
-			failRet.Status.Reason = err.Error()
-			return failRet, nil
-		}
-	}
-
 	log.Debug("QueryNode Search1111", zap.String("vchannel", req.GetDmlChannel()), zap.Int64s("segmentIDs", req.GetSegmentIDs()))
 	qs, err := node.queryShardService.getQueryShard(req.GetDmlChannel())
 	if err != nil {
@@ -711,11 +702,13 @@ func (node *QueryNode) Query(ctx context.Context, req *queryPb.QueryRequest) (*i
 		return failRet, nil
 	}
 
+	/*
 	if !node.queryShardService.hasQueryShard(req.GetDmlChannel()) {
 		err := node.queryShardService.addQueryShard(req.Req.CollectionID, req.GetDmlChannel(), 0) // TODO: add replicaID in request or remove it in query shard
 		failRet.Status.Reason = err.Error()
 		return failRet, nil
 	}
+	*/
 
 	qs, err := node.queryShardService.getQueryShard(req.GetDmlChannel())
 	if err != nil {

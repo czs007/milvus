@@ -319,6 +319,7 @@ func (s *searchTask) combinePlaceHolderGroups() {
 }
 
 func newSearchTask(ctx context.Context, src *querypb.SearchRequest) *searchTask {
+	log.Debug("newSearchTask", zap.Any("nq", src.Req.GetNq()))
 	target := &searchTask{
 		sqBaseTask: sqBaseTask{
 			baseTask: baseTask{
