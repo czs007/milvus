@@ -845,16 +845,11 @@ testReduceSearchWithExpr(int N, int topK, int num_queries) {
     }
 
     // 1. reduce
-    status = ReduceSearchResultsAndFillData(plan, results.data(), results.size(), slice_nqs.data(), slice_topKs.data(),
-                                            slice_nqs.size());
-    assert(status.error_code == Success);
-
-    // 2. marshal
     CSearchResultDataBlobs cSearchResultData;
-
-    status = Marshal(&cSearchResultData, results.data(), plan, results.size(), slice_nqs.data(), slice_topKs.data(),
-                     slice_nqs.size());
+    status = ReduceSearchResultsAndFillData(&cSearchResultData, plan, results.data(), results.size(), slice_nqs.data(),
+                                            slice_topKs.data(), slice_nqs.size());
     assert(status.error_code == Success);
+
     auto search_result_data_blobs = reinterpret_cast<milvus::segcore::SearchResultDataBlobs*>(cSearchResultData);
 
     // check result

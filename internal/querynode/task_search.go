@@ -69,7 +69,6 @@ func (s *searchTask) PreExecute(ctx context.Context) error {
 func (s *searchTask) searchOnStreaming() error {
 	// deserialize query plan
 	// check if collection has been released
-
 	collection, err := s.QS.streaming.replica.getCollectionByID(s.CollectionID)
 	if err != nil {
 		return err
@@ -108,7 +107,6 @@ func (s *searchTask) searchOnHistorical() error {
 	if err != nil {
 		return err
 	}
-
 	if s.GuaranteeTimestamp >= collection.getReleaseTime() {
 		log.Warn("collection release before search", zap.Int64("collectionID", s.CollectionID))
 		return fmt.Errorf("retrieve failed, collection has been released, collectionID = %d", s.CollectionID)
@@ -166,11 +164,10 @@ func (s *searchTask) reduceResults(searchReq *searchRequest, results []*SearchRe
 	if !isEmpty {
 		sInfo := parseSliceInfo(s.OrigNQs, s.OrigTopKs, s.NQ)
 		numSegment := int64(len(results))
-		err := reduceSearchResultsAndFillData(searchReq.plan, results, numSegment, sInfo.sliceNQs, sInfo.sliceTopKs)
+		blobs, err := reduceSearchResultsAndFillData(searchReq.plan, results, numSegment, sInfo.sliceNQs, sInfo.sliceTopKs)
 		if err != nil {
 			return err
 		}
-		blobs, err := marshal(s.CollectionID, s.ID(), results, searchReq.plan, int(numSegment), sInfo.sliceNQs, sInfo.sliceTopKs)
 		defer deleteSearchResultDataBlobs(blobs)
 		if err != nil {
 			log.Warn("marshal for historical results error", zap.Error(err))
