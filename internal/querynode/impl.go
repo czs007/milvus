@@ -684,7 +684,8 @@ func (node *QueryNode) Search(ctx context.Context, req *queryPb.SearchRequest) (
 	}
 	results = append(results, streamingResult)
 	ret, err2 := reduceSearchResults(results, req.Req.GetNq(), req.Req.GetTopk(), req.Req.GetMetricType())
-	log.Debug("QueryNode SearchCCC", zap.String("vchannel", req.GetDmlChannel()), zap.Int64s("segmentIDs", req.GetSegmentIDs()), zap.Error(err2))
+	log.Debug("QueryNode SearchCCC", zap.String("vchannel", req.GetDmlChannel()), zap.Int64s("segmentIDs", req.GetSegmentIDs()), zap.Error(err2),
+		zap.Any("results", results))
 	if err2 != nil {
 		failRet.Status.Reason = err2.Error()
 		return failRet, nil
