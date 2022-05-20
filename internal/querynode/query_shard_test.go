@@ -20,15 +20,12 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/milvus-io/milvus/internal/common"
 	"github.com/milvus-io/milvus/internal/proto/internalpb"
-	"github.com/milvus-io/milvus/internal/proto/querypb"
 	"github.com/milvus-io/milvus/internal/proto/schemapb"
 )
 
@@ -54,6 +51,8 @@ func genSimpleQueryShard(ctx context.Context) (*queryShard, error) {
 		return nil, err
 	}
 
+	scheduler := newTaskScheduler(ctx)
+
 	shardCluster := NewShardCluster(defaultCollectionID, defaultReplicaID, defaultDMLChannel,
 		&mockNodeDetector{}, &mockSegmentDetector{}, buildMockQueryNode)
 	shardClusterService := &ShardClusterService{
@@ -62,7 +61,7 @@ func genSimpleQueryShard(ctx context.Context) (*queryShard, error) {
 	shardClusterService.clusters.Store(defaultDMLChannel, shardCluster)
 
 	qs, err := newQueryShard(ctx, defaultCollectionID, defaultDMLChannel, defaultReplicaID, shardClusterService,
-		historical, streaming, localCM, remoteCM, false)
+		historical, streaming, localCM, remoteCM, false, scheduler.tSafeUpdateChan)
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +102,8 @@ func TestNewQueryShard_IllegalCases(t *testing.T) {
 	remoteCM, err := genRemoteChunkManager(ctx)
 	require.NoError(t, err)
 
+	scheduler := newTaskScheduler(ctx)
+
 	shardCluster := NewShardCluster(defaultCollectionID, defaultReplicaID, defaultDMLChannel,
 		&mockNodeDetector{}, &mockSegmentDetector{}, buildMockQueryNode)
 	shardClusterService := &ShardClusterService{
@@ -111,15 +112,15 @@ func TestNewQueryShard_IllegalCases(t *testing.T) {
 	shardClusterService.clusters.Store(defaultDMLChannel, shardCluster)
 
 	_, err = newQueryShard(ctx, defaultCollectionID-1, defaultDMLChannel, defaultReplicaID, shardClusterService,
-		historical, streaming, localCM, remoteCM, false)
+		historical, streaming, localCM, remoteCM, false, scheduler.tSafeUpdateChan)
 	assert.Error(t, err)
 
 	_, err = newQueryShard(ctx, defaultCollectionID, defaultDMLChannel, defaultReplicaID, shardClusterService,
-		historical, streaming, nil, remoteCM, false)
+		historical, streaming, nil, remoteCM, false, scheduler.tSafeUpdateChan)
 	assert.Error(t, err)
 
 	_, err = newQueryShard(ctx, defaultCollectionID, defaultDMLChannel, defaultReplicaID, shardClusterService,
-		historical, streaming, localCM, nil, false)
+		historical, streaming, localCM, nil, false, scheduler.tSafeUpdateChan)
 	assert.Error(t, err)
 }
 
@@ -128,187 +129,6 @@ func TestQueryShard_Close(t *testing.T) {
 	assert.NoError(t, err)
 
 	qs.Close()
-}
-
-func TestQueryShard_Search(t *testing.T) {
-	qs, err := genSimpleQueryShard(context.Background())
-	assert.NoError(t, err)
-
-	pkType := schemapb.DataType_Int64
-	schema := genTestCollectionSchema(pkType)
-	req, err := genSearchRequest(defaultNQ, IndexFaissIDMap, schema)
-	assert.NoError(t, err)
-
-	t.Run("search follower", func(t *testing.T) {
-		request := &querypb.SearchRequest{
-			Req:           req,
-			IsShardLeader: false,
-			DmlChannel:    "",
-			SegmentIDs:    []int64{defaultSegmentID},
-		}
-
-		_, err = qs.search(context.Background(), request)
-		assert.NoError(t, err)
-	})
-
-	t.Run("search leader", func(t *testing.T) {
-		request := &querypb.SearchRequest{
-			Req:           req,
-			IsShardLeader: true,
-			DmlChannel:    defaultDMLChannel,
-			SegmentIDs:    []int64{},
-		}
-
-		_, err = qs.search(context.Background(), request)
-		assert.NoError(t, err)
-	})
-
-	t.Run("search timeout", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		r := proto.Clone(req).(*internalpb.SearchRequest)
-		r.GuaranteeTimestamp = Timestamp(100)
-		request := &querypb.SearchRequest{
-			Req:           r,
-			IsShardLeader: true,
-			DmlChannel:    defaultDMLChannel,
-			SegmentIDs:    []int64{},
-		}
-
-		_, err = qs.search(ctx, request)
-		assert.Error(t, err)
-	})
-
-	t.Run("search wait timeout", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		r := proto.Clone(req).(*internalpb.SearchRequest)
-		r.GuaranteeTimestamp = Timestamp(100)
-		request := &querypb.SearchRequest{
-			Req:           r,
-			IsShardLeader: true,
-			DmlChannel:    defaultDMLChannel,
-			SegmentIDs:    []int64{},
-		}
-
-		_, err = qs.search(ctx, request)
-		assert.Error(t, err)
-	})
-
-	t.Run("search collection released", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		r := proto.Clone(req).(*internalpb.SearchRequest)
-		r.GuaranteeTimestamp = Timestamp(100)
-		request := &querypb.SearchRequest{
-			Req:           r,
-			IsShardLeader: true,
-			DmlChannel:    defaultDMLChannel,
-			SegmentIDs:    []int64{},
-		}
-
-		qs.collection.setReleaseTime(100, true)
-
-		_, err = qs.search(ctx, request)
-		assert.Error(t, err)
-	})
-}
-
-func TestQueryShard_Query(t *testing.T) {
-	qs, err := genSimpleQueryShard(context.Background())
-	assert.NoError(t, err)
-
-	pkType := schemapb.DataType_Int64
-	schema := genTestCollectionSchema(pkType)
-	req, err := genRetrieveRequest(schema)
-	assert.NoError(t, err)
-
-	t.Run("query follower", func(t *testing.T) {
-		request := &querypb.QueryRequest{
-			Req:           req,
-			IsShardLeader: false,
-			DmlChannel:    "",
-			SegmentIDs:    []int64{defaultSegmentID},
-		}
-
-		resp, err := qs.query(context.Background(), request)
-		assert.NoError(t, err)
-		assert.ElementsMatch(t, resp.Ids.GetIntId().Data, []int64{1, 2, 3})
-	})
-
-	t.Run("query follower with wrong segment", func(t *testing.T) {
-		request := &querypb.QueryRequest{
-			Req:           req,
-			IsShardLeader: false,
-			DmlChannel:    "",
-			SegmentIDs:    []int64{defaultSegmentID + 1},
-		}
-
-		_, err := qs.query(context.Background(), request)
-		assert.Error(t, err)
-	})
-
-	t.Run("query leader", func(t *testing.T) {
-		request := &querypb.QueryRequest{
-			Req:           req,
-			IsShardLeader: true,
-			DmlChannel:    defaultDMLChannel,
-			SegmentIDs:    []int64{},
-		}
-
-		_, err := qs.query(context.Background(), request)
-		assert.NoError(t, err)
-	})
-
-	t.Run("query timeout", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		r := proto.Clone(req).(*internalpb.RetrieveRequest)
-		r.GuaranteeTimestamp = Timestamp(100)
-		request := &querypb.QueryRequest{
-			Req:           r,
-			IsShardLeader: true,
-			DmlChannel:    defaultDMLChannel,
-			SegmentIDs:    []int64{},
-		}
-
-		_, err = qs.query(ctx, request)
-		assert.Error(t, err)
-	})
-
-	t.Run("query wait timeout", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		r := proto.Clone(req).(*internalpb.RetrieveRequest)
-		r.GuaranteeTimestamp = Timestamp(100)
-		request := &querypb.QueryRequest{
-			Req:           r,
-			IsShardLeader: true,
-			DmlChannel:    defaultDMLChannel,
-			SegmentIDs:    []int64{},
-		}
-
-		_, err = qs.query(ctx, request)
-		assert.Error(t, err)
-	})
-
-	t.Run("query collection released", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		r := proto.Clone(req).(*internalpb.RetrieveRequest)
-		r.GuaranteeTimestamp = Timestamp(100)
-		request := &querypb.QueryRequest{
-			Req:           r,
-			IsShardLeader: true,
-			DmlChannel:    defaultDMLChannel,
-			SegmentIDs:    []int64{},
-		}
-		qs.collection.setReleaseTime(100, true)
-
-		_, err = qs.query(ctx, request)
-		assert.Error(t, err)
-	})
-
 }
 
 func TestQueryShard_waitNewTSafe(t *testing.T) {
@@ -380,7 +200,6 @@ func TestReduceSearchResultData(t *testing.T) {
 		topk       = 4
 		metricType = "L2"
 	)
-	plan := &SearchPlan{pkType: schemapb.DataType_Int64}
 	t.Run("case1", func(t *testing.T) {
 		ids := []int64{1, 2, 3, 4}
 		scores := []float32{-1.0, -2.0, -3.0, -4.0}
@@ -390,7 +209,7 @@ func TestReduceSearchResultData(t *testing.T) {
 		dataArray := make([]*schemapb.SearchResultData, 0)
 		dataArray = append(dataArray, data1)
 		dataArray = append(dataArray, data2)
-		res, err := reduceSearchResultData(dataArray, nq, topk, plan)
+		res, err := reduceSearchResultData(dataArray, nq, topk)
 		assert.Nil(t, err)
 		assert.Equal(t, ids, res.Ids.GetIntId().Data)
 		assert.Equal(t, scores, res.Scores)
@@ -407,7 +226,7 @@ func TestReduceSearchResultData(t *testing.T) {
 		dataArray := make([]*schemapb.SearchResultData, 0)
 		dataArray = append(dataArray, data1)
 		dataArray = append(dataArray, data2)
-		res, err := reduceSearchResultData(dataArray, nq, topk, plan)
+		res, err := reduceSearchResultData(dataArray, nq, topk)
 		assert.Nil(t, err)
 		assert.ElementsMatch(t, []int64{1, 5, 2, 3}, res.Ids.GetIntId().Data)
 	})

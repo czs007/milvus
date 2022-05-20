@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/milvus-io/milvus/internal/common"
-	"github.com/milvus-io/milvus/internal/proto/milvuspb"
+	"github.com/milvus-io/milvus/internal/proto/commonpb"
 	"github.com/milvus-io/milvus/internal/proto/planpb"
 	"github.com/milvus-io/milvus/internal/proto/schemapb"
 )
@@ -107,14 +107,14 @@ func TestPlan_PlaceholderGroup(t *testing.T) {
 		common.Endian.PutUint32(buf, math.Float32bits(ele+float32(i*4)))
 		searchRawData2 = append(searchRawData2, buf...)
 	}
-	placeholderValue := milvuspb.PlaceholderValue{
+	placeholderValue := commonpb.PlaceholderValue{
 		Tag:    "$0",
-		Type:   milvuspb.PlaceholderType_FloatVector,
+		Type:   commonpb.PlaceholderType_FloatVector,
 		Values: [][]byte{searchRawData1, searchRawData2},
 	}
 
-	placeholderGroup := milvuspb.PlaceholderGroup{
-		Placeholders: []*milvuspb.PlaceholderValue{&placeholderValue},
+	placeholderGroup := commonpb.PlaceholderGroup{
+		Placeholders: []*commonpb.PlaceholderValue{&placeholderValue},
 	}
 
 	placeGroupByte, err := proto.Marshal(&placeholderGroup)
@@ -125,7 +125,6 @@ func TestPlan_PlaceholderGroup(t *testing.T) {
 	numQueries := holder.getNumOfQuery()
 	assert.Equal(t, int(numQueries), 2)
 
-	plan.delete()
 	holder.delete()
 	deleteCollection(collection)
 }

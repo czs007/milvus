@@ -171,6 +171,14 @@ queryNode:
     enabled: true
     memoryLimit: 2147483648 # 2 GB, 2 * 1024 *1024 *1024
 
+  grouping:
+    enabled: true
+    receiveChanSize: 10240
+    unsolvedQueueSize: 10240
+    maxNQ: 1000
+    topKMergeRatio: 10.0
+
+
 
 indexCoord:
   address: localhost

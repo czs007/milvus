@@ -179,8 +179,7 @@ func TestSegmentLoader_loadSegmentFieldsData(t *testing.T) {
 			defaultPartitionID,
 			defaultCollectionID,
 			defaultDMLChannel,
-			segmentTypeSealed,
-			true)
+			segmentTypeSealed)
 		assert.Nil(t, err)
 
 		binlog, err := saveBinLog(ctx, defaultCollectionID, defaultPartitionID, defaultSegmentID, defaultMsgLength, schema)
@@ -368,7 +367,7 @@ func TestSegmentLoader_testLoadGrowing(t *testing.T) {
 		collection, err := node.historical.replica.getCollectionByID(defaultCollectionID)
 		assert.NoError(t, err)
 
-		segment, err := newSegment(collection, defaultSegmentID+1, defaultPartitionID, defaultCollectionID, defaultDMLChannel, segmentTypeGrowing, true)
+		segment, err := newSegment(collection, defaultSegmentID+1, defaultPartitionID, defaultCollectionID, defaultDMLChannel, segmentTypeGrowing)
 		assert.Nil(t, err)
 
 		insertData, err := genInsertData(defaultMsgLength, collection.schema)
@@ -397,7 +396,7 @@ func TestSegmentLoader_testLoadGrowing(t *testing.T) {
 		collection, err := node.historical.replica.getCollectionByID(defaultCollectionID)
 		assert.NoError(t, err)
 
-		segment, err := newSegment(collection, defaultSegmentID+1, defaultPartitionID, defaultCollectionID, defaultDMLChannel, segmentTypeGrowing, true)
+		segment, err := newSegment(collection, defaultSegmentID+1, defaultPartitionID, defaultCollectionID, defaultDMLChannel, segmentTypeGrowing)
 		assert.Nil(t, err)
 
 		insertData, err := genInsertData(defaultMsgLength, collection.schema)

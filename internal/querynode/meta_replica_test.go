@@ -182,7 +182,7 @@ func TestMetaReplica_addSegment(t *testing.T) {
 
 	const segmentNum = 3
 	for i := 0; i < segmentNum; i++ {
-		err := node.historical.replica.addSegment(UniqueID(i), defaultPartitionID, collectionID, "", segmentTypeGrowing, true)
+		err := node.historical.replica.addSegment(UniqueID(i), defaultPartitionID, collectionID, "", segmentTypeGrowing)
 		assert.NoError(t, err)
 		targetSeg, err := node.historical.replica.getSegmentByID(UniqueID(i))
 		assert.NoError(t, err)
@@ -201,7 +201,7 @@ func TestMetaReplica_removeSegment(t *testing.T) {
 	const segmentNum = 3
 
 	for i := 0; i < segmentNum; i++ {
-		err := node.historical.replica.addSegment(UniqueID(i), defaultPartitionID, collectionID, "", segmentTypeGrowing, true)
+		err := node.historical.replica.addSegment(UniqueID(i), defaultPartitionID, collectionID, "", segmentTypeGrowing)
 		assert.NoError(t, err)
 		targetSeg, err := node.historical.replica.getSegmentByID(UniqueID(i))
 		assert.NoError(t, err)
@@ -222,7 +222,7 @@ func TestMetaReplica_getSegmentByID(t *testing.T) {
 	const segmentNum = 3
 
 	for i := 0; i < segmentNum; i++ {
-		err := node.historical.replica.addSegment(UniqueID(i), defaultPartitionID, collectionID, "", segmentTypeGrowing, true)
+		err := node.historical.replica.addSegment(UniqueID(i), defaultPartitionID, collectionID, "", segmentTypeGrowing)
 		assert.NoError(t, err)
 		targetSeg, err := node.historical.replica.getSegmentByID(UniqueID(i))
 		assert.NoError(t, err)
@@ -256,12 +256,12 @@ func TestMetaReplica_getSegmentInfosByColID(t *testing.T) {
 		},
 	}
 
-	segment1, err := newSegment(collection, UniqueID(1), defaultPartitionID, collectionID, "", segmentTypeGrowing, true)
+	segment1, err := newSegment(collection, UniqueID(1), defaultPartitionID, collectionID, "", segmentTypeGrowing)
 	assert.NoError(t, err)
 	err = node.historical.replica.setSegment(segment1)
 	assert.NoError(t, err)
 
-	segment2, err := newSegment(collection, UniqueID(2), defaultPartitionID, collectionID, "", segmentTypeSealed, true)
+	segment2, err := newSegment(collection, UniqueID(2), defaultPartitionID, collectionID, "", segmentTypeSealed)
 	assert.NoError(t, err)
 	segment2.setIndexedFieldInfo(fieldID, indexInfo)
 	err = node.historical.replica.setSegment(segment2)
@@ -290,7 +290,7 @@ func TestMetaReplica_hasSegment(t *testing.T) {
 	const segmentNum = 3
 
 	for i := 0; i < segmentNum; i++ {
-		err := node.historical.replica.addSegment(UniqueID(i), defaultPartitionID, collectionID, "", segmentTypeGrowing, true)
+		err := node.historical.replica.addSegment(UniqueID(i), defaultPartitionID, collectionID, "", segmentTypeGrowing)
 		assert.NoError(t, err)
 		targetSeg, err := node.historical.replica.getSegmentByID(UniqueID(i))
 		assert.NoError(t, err)

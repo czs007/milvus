@@ -162,7 +162,7 @@ func initTestMeta(t *testing.T, node *QueryNode, collectionID UniqueID, segmentI
 	err = node.historical.replica.addPartition(collection.ID(), defaultPartitionID)
 	assert.NoError(t, err)
 
-	err = node.historical.replica.addSegment(segmentID, defaultPartitionID, collectionID, "", segmentTypeSealed, true)
+	err = node.historical.replica.addSegment(segmentID, defaultPartitionID, collectionID, "", segmentTypeSealed)
 	assert.NoError(t, err)
 }
 
@@ -204,7 +204,7 @@ func newQueryNodeMock() *QueryNode {
 	streamingReplica := newCollectionReplica(etcdKV)
 	historicalReplica := newCollectionReplica(etcdKV)
 	svr.historical = newHistorical(svr.queryNodeLoopCtx, historicalReplica, tsReplica)
-	svr.streaming = newStreaming(ctx, streamingReplica, factory, etcdKV, tsReplica)
+	svr.streaming = newStreaming(ctx, streamingReplica, tsReplica)
 	svr.dataSyncService = newDataSyncService(ctx, svr.streaming.replica, svr.historical.replica, tsReplica, factory)
 	svr.statsService = newStatsService(ctx, svr.historical.replica, factory)
 	svr.vectorStorage, err = factory.NewVectorStorageChunkManager(ctx)
@@ -333,11 +333,9 @@ func TestQueryNode_adjustByChangeInfo(t *testing.T) {
 	wg.Add(1)
 	t.Run("test cleanup segments", func(t *testing.T) {
 		defer wg.Done()
-		node, err := genSimpleQueryNodeToTestWatchChangeInfo(ctx)
+		_, err := genSimpleQueryNodeToTestWatchChangeInfo(ctx)
 		assert.NoError(t, err)
 
-		err = node.removeSegments(genSimpleChangeInfo())
-		assert.NoError(t, err)
 	})
 
 	wg.Add(1)
@@ -358,8 +356,7 @@ func TestQueryNode_adjustByChangeInfo(t *testing.T) {
 			assert.NoError(t, err)
 			qc.globalSegmentManager.removeGlobalSealedSegmentInfo(defaultSegmentID)
 		*/
-		err = node.removeSegments(segmentChangeInfos)
-		assert.Error(t, err)
+
 	})
 	wg.Wait()
 }

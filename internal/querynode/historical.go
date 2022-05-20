@@ -95,8 +95,8 @@ func (h *historical) retrieve(collID UniqueID, partIDs []UniqueID, vcm storage.C
 	return retrieveResults, retrieveSegmentIDs, retrievePartIDs, nil
 }
 
-// retrieveBySegmentIDs retrieves records from segments specified by their IDs
-func (h *historical) retrieveBySegmentIDs(collID UniqueID, segmentIDs []UniqueID, vcm storage.ChunkManager, plan *RetrievePlan) (
+// retrieveSegments retrieves records from segments specified by their IDs
+func (h *historical) retrieveSegments(collID UniqueID, segmentIDs []UniqueID, vcm storage.ChunkManager, plan *RetrievePlan) (
 	retrieveResults []*segcorepb.RetrieveResults, err error) {
 
 	for _, segID := range segmentIDs {
@@ -119,8 +119,8 @@ func (h *historical) retrieveBySegmentIDs(collID UniqueID, segmentIDs []UniqueID
 }
 
 // search will search all the target segments in historical
-func (h *historical) search(searchReqs []*searchRequest, collID UniqueID, partIDs []UniqueID, plan *SearchPlan,
-	searchTs Timestamp) (searchResults []*SearchResult, searchSegmentIDs []UniqueID, searchPartIDs []UniqueID, err error) {
+// currently is used only in unittest
+func (h *historical) search(searchReq *searchRequest, collID UniqueID, partIDs []UniqueID) (searchResults []*SearchResult, searchSegmentIDs []UniqueID, searchPartIDs []UniqueID, err error) {
 
 	searchPartIDs, err = h.getTargetPartIDs(collID, partIDs)
 	if err != nil {
@@ -154,7 +154,7 @@ func (h *historical) search(searchReqs []*searchRequest, collID UniqueID, partID
 		segmentIDs = append(segmentIDs, segIDs...)
 	}
 
-	searchResults, searchSegmentIDs, err = h.searchSegments(segmentIDs, searchReqs, plan, searchTs)
+	searchResults, searchSegmentIDs, err = h.searchSegments(searchReq, segmentIDs)
 
 	return searchResults, searchSegmentIDs, searchPartIDs, err
 }
@@ -219,7 +219,7 @@ func (h *historical) getTargetPartIDs(collID UniqueID, partIDs []UniqueID) ([]Un
 
 // searchSegments performs search on listed segments
 // all segment ids are validated before calling this function
-func (h *historical) searchSegments(segIDs []UniqueID, searchReqs []*searchRequest, plan *SearchPlan, searchTs Timestamp) ([]*SearchResult, []UniqueID, error) {
+func (h *historical) searchSegments(searchReq *searchRequest, segIDs []UniqueID) ([]*SearchResult, []UniqueID, error) {
 	// pre-fetch all the segment
 	// if error found, return before executing segment search
 	segments := make([]*Segment, 0, len(segIDs))
@@ -243,13 +243,9 @@ func (h *historical) searchSegments(segIDs []UniqueID, searchReqs []*searchReque
 		wg.Add(1)
 		go func(seg *Segment) {
 			defer wg.Done()
-			if !seg.getOnService() {
-				log.Warn("segment no on service", zap.Int64("segmentID", seg.segmentID))
-				return
-			}
 			// record search time
 			tr := timerecord.NewTimeRecorder("searchOnSealed")
-			searchResult, err := seg.search(plan, searchReqs, []Timestamp{searchTs})
+			searchResult, err := seg.search(searchReq)
 
 			// update metrics
 			metrics.QueryNodeSQSegmentLatency.WithLabelValues(fmt.Sprint(Params.QueryNodeCfg.GetNodeID()),
@@ -269,6 +265,7 @@ func (h *historical) searchSegments(segIDs []UniqueID, searchReqs []*searchReque
 	}
 	wg.Wait()
 	if serr != nil {
+		deleteSearchResults(searchResults)
 		return nil, nil, serr
 	}
 	return searchResults, searchSegmentIDs, nil

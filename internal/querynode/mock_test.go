@@ -40,7 +40,6 @@ import (
 	"github.com/milvus-io/milvus/internal/proto/datapb"
 	"github.com/milvus-io/milvus/internal/proto/etcdpb"
 	"github.com/milvus-io/milvus/internal/proto/internalpb"
-	"github.com/milvus-io/milvus/internal/proto/milvuspb"
 	"github.com/milvus-io/milvus/internal/proto/planpb"
 	"github.com/milvus-io/milvus/internal/proto/querypb"
 	"github.com/milvus-io/milvus/internal/proto/schemapb"
@@ -1187,8 +1186,7 @@ func genSealedSegment(schema *schemapb.CollectionSchema,
 		partitionID,
 		collectionID,
 		vChannel,
-		segmentTypeSealed,
-		true)
+		segmentTypeSealed)
 	if err != nil {
 		return nil, err
 	}
@@ -1276,16 +1274,11 @@ func genSimpleHistorical(ctx context.Context, tSafeReplica TSafeReplicaInterface
 }
 
 func genSimpleStreaming(ctx context.Context, tSafeReplica TSafeReplicaInterface) (*streaming, error) {
-	kv, err := genEtcdKV()
-	if err != nil {
-		return nil, err
-	}
-	fac := genFactory()
 	replica, err := genSimpleReplica()
 	if err != nil {
 		return nil, err
 	}
-	s := newStreaming(ctx, replica, fac, kv, tSafeReplica)
+	s := newStreaming(ctx, replica, tSafeReplica)
 	r, err := genSimpleReplica()
 	if err != nil {
 		return nil, err
@@ -1294,8 +1287,7 @@ func genSimpleStreaming(ctx context.Context, tSafeReplica TSafeReplicaInterface)
 		defaultPartitionID,
 		defaultCollectionID,
 		defaultDMLChannel,
-		segmentTypeGrowing,
-		true)
+		segmentTypeGrowing)
 	if err != nil {
 		return nil, err
 	}
@@ -1410,13 +1402,13 @@ func genDSLByIndexType(schema *schemapb.CollectionSchema, indexType string) (str
 	return "", fmt.Errorf("Invalid indexType")
 }
 
-func genPlaceHolderGroup(nq int) ([]byte, error) {
-	placeholderValue := &milvuspb.PlaceholderValue{
+func genPlaceHolderGroup(nq int64) ([]byte, error) {
+	placeholderValue := &commonpb.PlaceholderValue{
 		Tag:    "$0",
-		Type:   milvuspb.PlaceholderType_FloatVector,
+		Type:   commonpb.PlaceholderType_FloatVector,
 		Values: make([][]byte, 0),
 	}
-	for i := 0; i < nq; i++ {
+	for i := int64(0); i < nq; i++ {
 		var vec = make([]float32, defaultDim)
 		for j := 0; j < defaultDim; j++ {
 			vec[j] = rand.Float32()
@@ -1431,8 +1423,8 @@ func genPlaceHolderGroup(nq int) ([]byte, error) {
 	}
 
 	// generate placeholder
-	placeholderGroup := milvuspb.PlaceholderGroup{
-		Placeholders: []*milvuspb.PlaceholderValue{placeholderValue},
+	placeholderGroup := commonpb.PlaceholderGroup{
+		Placeholders: []*commonpb.PlaceholderValue{placeholderValue},
 	}
 	placeGroupByte, err := proto.Marshal(&placeholderGroup)
 	if err != nil {
@@ -1441,36 +1433,17 @@ func genPlaceHolderGroup(nq int) ([]byte, error) {
 	return placeGroupByte, nil
 }
 
-func genSearchPlanAndRequests(collection *Collection, indexType string) (*SearchPlan, []*searchRequest, error) {
+func genSearchPlanAndRequests(collection *Collection, indexType string, nq int64) (*searchRequest, error) {
 
-	var plan *SearchPlan
-	var err error
-	sm, err := genSearchMsg(collection.schema, defaultNQ, indexType)
-	if err != nil {
-		return nil, nil, err
+	iReq, _ := genSearchRequest(nq, indexType, collection.schema)
+	queryReq := &querypb.SearchRequest{
+		Req:             iReq,
+		DmlChannel:      defaultDMLChannel,
+		SegmentIDs:      []UniqueID{defaultSegmentID},
+		FromShardLeader: true,
+		Scope:           querypb.DataScope_Historical,
 	}
-	if sm.GetDslType() == commonpb.DslType_BoolExprV1 {
-		expr := sm.SerializedExprPlan
-		plan, err = createSearchPlanByExpr(collection, expr)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		dsl := sm.Dsl
-		plan, err = createSearchPlan(collection, dsl)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	searchRequestBlob := sm.PlaceholderGroup
-	searchReq, err := parseSearchRequest(plan, searchRequestBlob)
-	if err != nil {
-		return nil, nil, err
-	}
-	searchRequests := make([]*searchRequest, 0)
-	searchRequests = append(searchRequests, searchReq)
-
-	return plan, searchRequests, nil
+	return newSearchRequest(collection, queryReq, queryReq.Req.GetPlaceholderGroup())
 }
 
 func genSimpleRetrievePlanExpr(schema *schemapb.CollectionSchema) ([]byte, error) {
@@ -1521,18 +1494,18 @@ func genSimpleRetrievePlan(collection *Collection) (*RetrievePlan, error) {
 	}
 	timestamp := retrieveMsg.RetrieveRequest.TravelTimestamp
 
-	plan, err := createRetrievePlanByExpr(collection, retrieveMsg.SerializedExprPlan, timestamp)
-	return plan, err
+	plan, err2 := createRetrievePlanByExpr(collection, retrieveMsg.SerializedExprPlan, timestamp)
+	return plan, err2
 }
 
-func genSearchRequest(nq int, indexType string, schema *schemapb.CollectionSchema) (*internalpb.SearchRequest, error) {
+func genSearchRequest(nq int64, indexType string, schema *schemapb.CollectionSchema) (*internalpb.SearchRequest, error) {
 	placeHolder, err := genPlaceHolderGroup(nq)
 	if err != nil {
 		return nil, err
 	}
-	simpleDSL, err := genDSLByIndexType(schema, indexType)
-	if err != nil {
-		return nil, err
+	simpleDSL, err2 := genDSLByIndexType(schema, indexType)
+	if err2 != nil {
+		return nil, err2
 	}
 	return &internalpb.SearchRequest{
 		Base:             genCommonMsgBase(commonpb.MsgType_Search),
@@ -1541,20 +1514,8 @@ func genSearchRequest(nq int, indexType string, schema *schemapb.CollectionSchem
 		Dsl:              simpleDSL,
 		PlaceholderGroup: placeHolder,
 		DslType:          commonpb.DslType_Dsl,
+		Nq:               nq,
 	}, nil
-}
-
-func genSearchMsg(schema *schemapb.CollectionSchema, nq int, indexType string) (*msgstream.SearchMsg, error) {
-	req, err := genSearchRequest(nq, indexType, schema)
-	if err != nil {
-		return nil, err
-	}
-	msg := &msgstream.SearchMsg{
-		BaseMsg:       genMsgStreamBaseMsg(),
-		SearchRequest: *req,
-	}
-	msg.SetTimeRecorder()
-	return msg, nil
 }
 
 func genRetrieveRequest(schema *schemapb.CollectionSchema) (*internalpb.RetrieveRequest, error) {
@@ -1604,25 +1565,17 @@ func checkSearchResult(nq int64, plan *SearchPlan, searchResult *SearchResult) e
 	searchResults := make([]*SearchResult, 0)
 	searchResults = append(searchResults, searchResult)
 
-	err := reduceSearchResultsAndFillData(plan, searchResults, 1)
+	topK := plan.getTopK()
+	sliceNQs := []int64{nq / 5, nq / 5, nq / 5, nq / 5, nq / 5}
+	sliceTopKs := []int64{topK, topK / 2, topK, topK, topK / 2}
+	sInfo := parseSliceInfo(sliceNQs, sliceTopKs, nq)
+
+	res, err := reduceSearchResultsAndFillData(plan, searchResults, 1, sInfo.sliceNQs, sInfo.sliceTopKs)
 	if err != nil {
 		return err
 	}
 
-	nqOfReqs := []int64{nq / 5, nq / 5, nq / 5, nq / 5, nq / 5}
-	nqPerSlice := nq / 5
-
-	reqSlices, err := getReqSlices(nqOfReqs, nqPerSlice)
-	if err != nil {
-		return err
-	}
-
-	res, err := marshal(defaultCollectionID, UniqueID(0), searchResults, plan, 1, reqSlices)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < len(reqSlices); i++ {
+	for i := 0; i < len(sInfo.sliceNQs); i++ {
 		blob, err := getSearchResultDataBlob(res, i)
 		if err != nil {
 			return err
@@ -1637,10 +1590,10 @@ func checkSearchResult(nq int64, plan *SearchPlan, searchResult *SearchResult) e
 			return err
 		}
 
-		if result.TopK != defaultTopK {
+		if result.TopK != sliceTopKs[i] {
 			return fmt.Errorf("unexpected topK when checkSearchResult")
 		}
-		if result.NumQueries != int64(reqSlices[i]) {
+		if result.NumQueries != int64(sInfo.sliceNQs[i]) {
 			return fmt.Errorf("unexpected nq when checkSearchResult")
 		}
 		// search empty segment, return empty result.IDs
@@ -1665,6 +1618,14 @@ func initConsumer(ctx context.Context, queryResultChannel Channel) (msgstream.Ms
 	stream.AsConsumer([]string{queryResultChannel}, defaultSubName)
 	stream.Start()
 	return stream, nil
+}
+
+func genSimpleSegmentInfo() *querypb.SegmentInfo {
+	return &querypb.SegmentInfo{
+		SegmentID:    defaultSegmentID,
+		CollectionID: defaultCollectionID,
+		PartitionID:  defaultPartitionID,
+	}
 }
 
 func genSimpleChangeInfo() *querypb.SealedSegmentsChangeInfo {
@@ -1752,7 +1713,9 @@ func genSimpleQueryNodeWithMQFactory(ctx context.Context, fac dependency.Factory
 	// init shard cluster service
 	node.ShardClusterService = newShardClusterService(node.etcdCli, node.session, node)
 
-	node.queryShardService = newQueryShardService(node.queryNodeLoopCtx, node.historical, node.streaming, node.ShardClusterService, node.factory)
+	node.queryShardService = newQueryShardService(node.queryNodeLoopCtx,
+		node.historical, node.streaming,
+		node.ShardClusterService, node.factory, node.scheduler)
 
 	node.UpdateStateCode(internalpb.StateCode_Healthy)
 

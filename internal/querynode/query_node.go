@@ -313,8 +313,6 @@ func (node *QueryNode) Init() error {
 		)
 		node.streaming = newStreaming(node.queryNodeLoopCtx,
 			streamingReplica,
-			node.factory,
-			node.etcdKV,
 			node.tSafeReplica,
 		)
 
@@ -373,7 +371,7 @@ func (node *QueryNode) Start() error {
 	// create shardClusterService for shardLeader functions.
 	node.ShardClusterService = newShardClusterService(node.etcdCli, node.session, node)
 	// create shard-level query service
-	node.queryShardService = newQueryShardService(node.queryNodeLoopCtx, node.historical, node.streaming, node.ShardClusterService, node.factory)
+	node.queryShardService = newQueryShardService(node.queryNodeLoopCtx, node.historical, node.streaming, node.ShardClusterService, node.factory, node.scheduler)
 
 	Params.QueryNodeCfg.CreatedTime = time.Now()
 	Params.QueryNodeCfg.UpdatedTime = time.Now()
@@ -497,47 +495,4 @@ func validateChangeChannel(info *querypb.SegmentChangeInfo) (string, error) {
 	}
 
 	return channelName, nil
-}
-
-// remove the segments since it's already compacted or balanced to other QueryNodes
-func (node *QueryNode) removeSegments(segmentChangeInfos *querypb.SealedSegmentsChangeInfo) error {
-
-	node.streaming.replica.queryLock()
-	node.historical.replica.queryLock()
-	defer node.streaming.replica.queryUnlock()
-	defer node.historical.replica.queryUnlock()
-	for _, info := range segmentChangeInfos.Infos {
-		// For online segments:
-		for _, segmentInfo := range info.OnlineSegments {
-			// delete growing segment because these segments are loaded in historical.
-			hasGrowingSegment := node.streaming.replica.hasSegment(segmentInfo.SegmentID)
-			if hasGrowingSegment {
-				err := node.streaming.replica.removeSegment(segmentInfo.SegmentID)
-				if err != nil {
-					return err
-				}
-				log.Info("remove growing segment in removeSegments",
-					zap.Any("collectionID", segmentInfo.CollectionID),
-					zap.Any("segmentID", segmentInfo.SegmentID),
-					zap.Any("infoID", segmentChangeInfos.Base.GetMsgID()),
-				)
-			}
-		}
-
-		// For offline segments:
-		for _, segmentInfo := range info.OfflineSegments {
-			// load balance or compaction, remove old sealed segments.
-			if info.OfflineNodeID == Params.QueryNodeCfg.GetNodeID() {
-				err := node.historical.replica.removeSegment(segmentInfo.SegmentID)
-				if err != nil {
-					return err
-				}
-				log.Info("remove sealed segment", zap.Any("collectionID", segmentInfo.CollectionID),
-					zap.Any("segmentID", segmentInfo.SegmentID),
-					zap.Any("infoID", segmentChangeInfos.Base.GetMsgID()),
-				)
-			}
-		}
-	}
-	return nil
 }
