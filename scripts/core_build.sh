@@ -250,7 +250,6 @@ fi
 if command -v ccache &> /dev/null
 then
 	ccache -s
-    echo "ccache could not be found"
     exit
 fi
 
