@@ -111,6 +111,7 @@ jobs:
           fi
           brew install boost libomp ninja tbb openblas ccache
           make check-proto-product && make verifiers
+          sh scripts/collect_arrow_dep.sh -f /tmp/thirdparty
   centos:
     name: Code Checker CentOS 7
     # Run in centos docker 
