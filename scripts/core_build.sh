@@ -218,6 +218,8 @@ for c in "${!ArrowDepUrlMap[@]}"; do
    fi
 done
 
+set
+
 if [[ ${RUN_CPPLINT} == "ON" ]]; then
   # cpplint check
   make lint
