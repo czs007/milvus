@@ -205,18 +205,28 @@ ${CMAKE_CMD} -G "${CMAKE_GENERATOR}"
 
 
 # enable offline build of arrow dependency if files exist.
-declare -A ArrowDepUrlMap
-ArrowDepUrlMap[ARROW_JEMALLOC_URL]="jemalloc-5.2.1.tar.bz2"
-ArrowDepUrlMap[ARROW_THRIFT_URL]="thrift-0.13.0.tar.gz"
-ArrowDepUrlMap[ARROW_UTF8PROC_URL]="utf8proc-v2.7.0.tar.gz"
-ArrowDepUrlMap[ARROW_XSIMD_URL]="xsimd-7d1778c3b38d63db7cec7145d939f40bc5d859d1.tar.gz"
-ArrowDepUrlMap[ARROW_ZSTD_URL]="zstd-v1.5.1.tar.gz"
-for c in "${!ArrowDepUrlMap[@]}"; do
-   if test -f "${CUSTOM_THIRDPARTY_PATH}/${ArrowDepUrlMap[$c]}"; then
-	echo "${ArrowDepUrlMap[$c]} exists."
-	export $c=${CUSTOM_THIRDPARTY_PATH}/${ArrowDepUrlMap[$c]}
+arrowDepKeys=(
+"ARROW_JEMALLOC_URL"
+"ARROW_THRIFT_URL"
+"ARROW_UTF8PROC_URL"
+"ARROW_XSIMD_URL"
+"ARROW_ZSTD_URL"
+)
+arrowDepValues=(
+"jemalloc-5.2.1.tar.bz2"
+"thrift-0.13.0.tar.gz"
+"utf8proc-v2.7.0.tar.gz"
+"xsimd-7d1778c3b38d63db7cec7145d939f40bc5d859d1.tar.gz"
+"zstd-v1.5.1.tar.gz"
+)
+for i in "${!arrowDepValues[@]}"; do
+   if test -f "${CUSTOM_THIRDPARTY_PATH}/${arrowDepValues[$i]}"; then
+	echo "${arrowDepValues[$i]} exists."
+	export ${arrowDepKeys[$i]}=${CUSTOM_THIRDPARTY_PATH}/${arrowDepValues[$i]}
    fi
 done
+
+set
 
 if [[ ${RUN_CPPLINT} == "ON" ]]; then
   # cpplint check
