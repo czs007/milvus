@@ -77,25 +77,30 @@ BUILD_OUTPUT_DIR="${SCRIPTS_DIR}/../cmake_build"
 ARROW_DIR=${BUILD_OUTPUT_DIR}/thirdparty/arrow 
 ARROWBIN_DIR=${BUILD_OUTPUT_DIR}/thirdparty/arrow/arrow-bin
 
-#pushd ${ARROWBIN_DIR}
-
 echo ${ARROWBIN_DIR}
 
-# enable offline build of arrow dependency if files exist.
-declare -A ArrowDepFileMap
-ArrowDepFileMap[jemalloc-5.2.1.tar.bz2]="jemalloc_ep-prefix/src/jemalloc-5.2.1.tar.bz2"
-ArrowDepFileMap[thrift-0.13.0.tar.gz]="thrift_ep-prefix/src/thrift-0.13.0.tar.gz"
-ArrowDepFileMap[utf8proc-v2.7.0.tar.gz]="utf8proc_ep-prefix/src/v2.7.0.tar.gz"
-ArrowDepFileMap[xsimd-7d1778c3b38d63db7cec7145d939f40bc5d859d1.tar.gz]="src/7d1778c3b38d63db7cec7145d939f40bc5d859d1.tar.gz"
-ArrowDepFileMap[zstd-v1.5.1.tar.gz]="zstd_ep-prefix/src/v1.5.1.tar.gz"
+pushd ${ARROWBIN_DIR}
+targetNames=(
+"jemalloc-5.2.1.tar.bz2"
+"thrift-0.13.0.tar.gz"
+"utf8proc-v2.7.0.tar.gz"
+"xsimd-7d1778c3b38d63db7cec7145d939f40bc5d859d1.tar.gz"
+"zstd-v1.5.1.tar.gz"
+)
 
-for c in "${!ArrowDepFileMap[@]}"; do
-	echo ${ARROWBIN_DIR}/${ArrowDepFileMap[$c]}
-	
-   if test -f "${ARROWBIN_DIR}/${ArrowDepFileMap[$c]}"; then
-	echo "${ArrowDepFileMap[$c]} exists. start to copy to ${CUSTOM_THIRDPARTY_PATH}/$c"
-	cp "${ARROWBIN_DIR}/${ArrowDepFileMap[$c]}" -f  "${CUSTOM_THIRDPARTY_PATH}/$c"
+srcNames=(
+"jemalloc_ep-prefix/src/jemalloc-5.2.1.tar.bz2"
+"thrift_ep-prefix/src/thrift-0.13.0.tar.gz"
+"utf8proc_ep-prefix/src/v2.7.0.tar.gz"
+"src/7d1778c3b38d63db7cec7145d939f40bc5d859d1.tar.gz"
+"zstd_ep-prefix/src/v1.5.1.tar.gz"
+)
+
+for i in "${!srcNames[@]}"; do
+   if test -f "${srcNames[i]}"; then
+	echo "${srcNames[i]} exists. start to copy to ${CUSTOM_THIRDPARTY_PATH}/${targetNames[i]}"
+	cp "${srcNames[i]}" -f  "${CUSTOM_THIRDPARTY_PATH}/${targetNames[i]}"
    fi
 done
 
-#popd
+popd
