@@ -99,7 +99,8 @@ srcNames=(
 for i in "${!srcNames[@]}"; do
    if test -f "${srcNames[i]}"; then
 	echo "${srcNames[i]} exists. start to copy to ${CUSTOM_THIRDPARTY_PATH}/${targetNames[i]}"
-	cp "${srcNames[i]}" -f  "${CUSTOM_THIRDPARTY_PATH}/${targetNames[i]}"
+	echo cp "${srcNames[i]}" -fT  "${CUSTOM_THIRDPARTY_PATH}/${targetNames[i]}"
+	cp "${srcNames[i]}" -fT  "${CUSTOM_THIRDPARTY_PATH}/${targetNames[i]}"
    fi
 done
 
