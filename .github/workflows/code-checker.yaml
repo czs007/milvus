@@ -129,7 +129,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: .docker/thirdparty
-          key: centos7-thirdparty-${{ hashFiles('internal/core/thirdparty/** }}
+          key: centos7-thirdparty-${{ hashFiles('internal/core/thirdparty/**') }}
           restore-keys: centos7-thirdparty-
       - name: Cache Go Mod Volumes
         uses: actions/cache@v3
