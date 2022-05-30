@@ -34,7 +34,7 @@ parameter:
 -h: help
 
 usage:
-./core_build.sh -f\${CUSTOM_THIRDPARTY_PATH} [-h]
+./collect_arrow_dep.sh -f\${CUSTOM_THIRDPARTY_PATH} [-h]
                 "
     exit 0
     ;;
