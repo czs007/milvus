@@ -28,8 +28,28 @@ cmake_minimum_required( VERSION 3.18 )
 if ( APPLE )
     set( CMAKE_CROSSCOMPILING TRUE )
     set( RUN_HAVE_GNU_POSIX_REGEX 0 )
-    set( CMAKE_C_COMPILER "/usr/local/opt/llvm/bin/clang" )
-    set( CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++" )
+    message( STATUS "DDDDDDDDDDDDDDDDDD")
+    if(EXISTS "/usr/local/opt/llvm/bin/clang")
+	message( STATUS "Check clang exist" )
+    	set( CMAKE_C_COMPILER "/usr/local/opt/llvm/bin/clang" )
+    else()
+	execute_process (
+        COMMAND bash -c "which clang"
+	OUTPUT_VARIABLE outClangVar
+        )
+	message( STATUS "Check clang not exist, set to ${outClangVar}")
+    endif()
+
+    if(EXISTS "/usr/local/opt/llvm/bin/clang++")
+	message( STATUS "Check clang++ exist" )
+    	set( CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++" )
+    else()
+	execute_process (
+        COMMAND bash -c "which clang++"
+	OUTPUT_VARIABLE outClangPlusVar
+        )
+	message( STATUS "Check clang++ not exist, set to ${outClangPlusVar}")
+    endif()
 endif ()
 
 add_definitions(-DELPP_THREAD_SAFE)
