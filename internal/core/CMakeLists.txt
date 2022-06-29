@@ -29,26 +29,32 @@ if ( APPLE )
     set( CMAKE_CROSSCOMPILING TRUE )
     set( RUN_HAVE_GNU_POSIX_REGEX 0 )
     message( STATUS "DDDDDDDDDDDDDDDDDD")
+    execute_process (
+        COMMAND bash -c "brew --prefix llvm"
+	OUTPUT_VARIABLE LLVM_PREFIX
+    )
+
     if(EXISTS "/usr/local/opt/llvm/bin/clang")
 	message( STATUS "Check clang exist" )
     	set( CMAKE_C_COMPILER "/usr/local/opt/llvm/bin/clang" )
     else()
-	execute_process (
-        COMMAND bash -c "which clang"
-	OUTPUT_VARIABLE outClangVar
-        )
-	message( STATUS "Check clang not exist, set to ${outClangVar}")
+	    #	execute_process (
+	    #COMMAND bash -c "brew --prefix llvm"
+	    #OUTPUT_VARIABLE outClangVar
+	    #)
+	    message( STATUS "Check clang not exist, set to ${LLVM_PREFIX}/bin/clang")
     endif()
 
     if(EXISTS "/usr/local/opt/llvm/bin/clang++")
 	message( STATUS "Check clang++ exist" )
     	set( CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++" )
     else()
-	execute_process (
-        COMMAND bash -c "which clang++"
-	OUTPUT_VARIABLE outClangPlusVar
-        )
-	message( STATUS "Check clang++ not exist, set to ${outClangPlusVar}")
+	    #execute_process (
+	    #COMMAND bash -c "which clang++"
+	    #OUTPUT_VARIABLE outClangPlusVar
+	    #)
+    	message( STATUS "Check clang not exist, set to ${LLVM_PREFIX}/bin/clang++")
+	#	message( STATUS "Check clang++ not exist, set to ${outClangPlusVar}")
     endif()
 endif ()
 
