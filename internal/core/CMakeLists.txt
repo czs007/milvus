@@ -25,18 +25,26 @@ cmake_minimum_required( VERSION 3.18 )
 # add_compile_options(-fno-stack-protector -fno-omit-frame-pointer -fno-var-tracking -fsanitize=address)
 # add_link_options(-fno-stack-protector -fno-omit-frame-pointer -fno-var-tracking -fsanitize=address)
 
+project(core)
 if ( APPLE )
     set( CMAKE_CROSSCOMPILING TRUE )
     set( RUN_HAVE_GNU_POSIX_REGEX 0 )
-    set( CMAKE_C_COMPILER "/usr/local/opt/llvm/bin/clang" )
-    set( CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++" )
+
+    execute_process (
+        COMMAND bash -c "brew --prefix llvm"
+	OUTPUT_VARIABLE LLVM_PREFIX
+    )
+
+    #set( CMAKE_C_COMPILER "${LLVM_PREFIX}/bin/clang" )
+    #message( STATUS "Check clang set to ${LLVM_PREFIX}/bin/clang")
+    #set( CMAKE_CXX_COMPILER "${LLVM_PREFIX}/bin/clang++" )
+    #message( STATUS "Check clang not exist, set to ${LLVM_PREFIX}/bin/clang++")
 endif ()
 
 add_definitions(-DELPP_THREAD_SAFE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 message( STATUS "Building using CMake version: ${CMAKE_VERSION}" )
 
-project(core)
 include(CheckCXXCompilerFlag)
 if ( APPLE )
     message(STATUS "==============Darwin Environment==============")
