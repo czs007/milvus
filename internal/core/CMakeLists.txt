@@ -35,10 +35,10 @@ if ( APPLE )
 	OUTPUT_VARIABLE LLVM_PREFIX
     )
 
-    set( CMAKE_C_COMPILER "${LLVM_PREFIX}/bin/clang" )
-    message( STATUS "Check clang set to ${LLVM_PREFIX}/bin/clang")
-    set( CMAKE_CXX_COMPILER "${LLVM_PREFIX}/bin/clang++" )
-    message( STATUS "Check clang not exist, set to ${LLVM_PREFIX}/bin/clang++")
+    #set( CMAKE_C_COMPILER "${LLVM_PREFIX}/bin/clang" )
+    #message( STATUS "Check clang set to ${LLVM_PREFIX}/bin/clang")
+    #set( CMAKE_CXX_COMPILER "${LLVM_PREFIX}/bin/clang++" )
+    #message( STATUS "Check clang not exist, set to ${LLVM_PREFIX}/bin/clang++")
 endif ()
 
 add_definitions(-DELPP_THREAD_SAFE)
