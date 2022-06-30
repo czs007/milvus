@@ -169,10 +169,31 @@ if [[ ${MAKE_CLEAN} == "ON" ]]; then
   exit 0
 fi
 
+
+function determineLLVMPrefix()
+{
+        llvm_prefix="$(brew --prefix llvm)"
+
+        if [ -d "$llvm_prefix" ]; then
+                echo "set llvm_prefix to $llvm_prefix"
+        else
+                llvm_hard_prefix=`ls -d ${llvm_prefix}* | tail -n 1`
+                if [ -d "$llvm_hard_prefix" ]; then
+                        llvm_prefix=${llvm_hard_prefix}
+                        echo "set llvm_prefix to ${llvm_prefix}"
+                else
+                        echo "llvm not found"
+                fi
+        fi
+}
+
+
+
 unameOut="$(uname -s)"
 case "${unameOut}" in
     Darwin*)
-        llvm_prefix="$(brew --prefix llvm)"
+        #llvm_prefix="$(brew --prefix llvm)"
+	determineLLVMPrefix
         export CLANG_TOOLS_PATH="${llvm_prefix}/bin"
         export CC="${llvm_prefix}/bin/clang"
         export CXX="${llvm_prefix}/bin/clang++"
