@@ -1,0 +1,117 @@
+type:string;row:100000;str_len:8;size:12382208;
+type:string;row:200000;str_len:8;size:25100288;
+type:string;row:400000;str_len:8;size:49610752;
+type:string;row:800000;str_len:8;size:100610048;
+type:string;row:1000000;str_len:8;size:125775872;
+type:string;row:2000000;str_len:8;size:251035648;
+type:string;row:4000000;str_len:8;size:501784576;
+type:string;row:8000000;str_len:8;size:1002274816;
+type:string;row:10000000;str_len:8;size:1251475456;
+type:string;row:20000000;str_len:8;size:2492313600;
+type:string;row:40000000;str_len:8;size:4967276544;
+type:string;row:80000000;str_len:8;size:9917632512;
+
+type:string;row:100000;str_len:16;size:13373440;ratio:8.3584
+type:string;row:200000;str_len:16;size:28041216;ratio:8.76288
+type:string;row:400000;str_len:16;size:55201792;ratio:8.62528
+type:string;row:800000;str_len:16;size:110329856;ratio:8.61952
+type:string;row:1000000;str_len:16;size:138211328;ratio:8.638208
+type:string;row:2000000;str_len:16;size:276119552;ratio:8.628736
+type:string;row:4000000;str_len:16;size:551993344;ratio:8.624896
+type:string;row:8000000;str_len:16;size:1096970240;ratio:8.57008
+type:string;row:10000000;str_len:16;size:1365016576;ratio:8.5313536
+type:string;row:20000000;str_len:16;size:2690629632;ratio:8.4082176
+type:string;row:40000000;str_len:16;size:5333622784;ratio:8.3337856
+
+type:string;row:100000;size:15302656;ratio:4.78208
+type:string;row:200000;size:31141888;ratio:4.86592
+type:string;row:400000;size:61943808;ratio:4.83936
+type:string;row:800000;size:123596800;ratio:4.828
+type:string;row:1000000;size:154292224;ratio:4.821632
+type:string;row:2000000;size:308764672;ratio:4.824448
+type:string;row:4000000;size:617639936;ratio:4.825312
+type:string;row:8000000;size:1235087360;ratio:4.82456
+type:string;row:10000000;size:1542488064;ratio:4.8202752
+type:string;row:20000000;size:3079094272;ratio:4.8110848
+type:string;row:40000000;size:6145757184;ratio:4.8013728
+
+type:string;row:100000;size:18501632;ratio:2.89088
+type:string;row:200000;size:37367808;ratio:2.91936
+type:string;row:400000;size:74690560;ratio:2.9176
+type:string;row:800000;size:149229568;ratio:2.91464
+type:string;row:1000000;size:186638336;ratio:2.916224
+type:string;row:2000000;size:373051392;ratio:2.914464
+type:string;row:4000000;size:746430464;ratio:2.915744
+type:string;row:8000000;size:1492340736;ratio:2.914728
+type:string;row:100000;str_len:64;size:18845696;ratio:2.94464
+type:string;row:200000;str_len:64;size:37605376;ratio:2.93792
+type:string;row:400000;str_len:64;size:74784768;ratio:2.92128
+type:string;row:800000;str_len:64;size:149229568;ratio:2.91464
+type:string;row:1000000;str_len:64;size:186957824;ratio:2.921216
+type:string;row:2000000;str_len:64;size:373223424;ratio:2.915808
+type:string;row:4000000;str_len:64;size:746795008;ratio:2.917168
+type:string;row:8000000;str_len:64;size:1492217856;ratio:2.914488
+type:string;row:10000000;str_len:64;size:1863761920;ratio:2.912128
+type:string;row:20000000;str_len:64;size:3721736192;ratio:2.9076064
+
+type:string;row:100000;str_len:128;size:24850432;ratio:1.94144
+type:string;row:200000;str_len:128;size:50044928;ratio:1.95488
+type:string;row:400000;str_len:128;size:100270080;ratio:1.9584
+type:string;row:800000;str_len:128;size:200507392;ratio:1.95808
+type:string;row:1000000;str_len:128;size:250855424;ratio:1.959808
+type:string;row:2000000;str_len:128;size:501350400;ratio:1.9584
+type:string;row:4000000;str_len:128;size:1002946560;ratio:1.95888
+type:string;row:8000000;str_len:128;size:2005336064;ratio:1.958336
+type:string;row:10000000;str_len:128;size:2506203136;ratio:1.9579712
+[2023/02/06 19:53:47.503 +08:00] [WARN] [indexcgowrapper/helper.go:76] ["failed to build scalar index, C Runtime Exception: [UnexpectedError] basic_string::append\n"]
+[2023/02/06 19:53:47.504 +08:00] [ERROR] [indexcgowrapper/index.go:118] ["there is leakage in index object, please check."] [stack="github.com/milvus-io/milvus/internal/util/indexcgowrapper.NewCgoIndex.func11\n\t/home/czs/milvus/internal/util/indexcgowrapper/index.go:118\nruntime.runfinq\n\t/usr/local/go/src/runtime/mfinal.go:239"]
+type:string;row:100000;str_len:256;size:37883904;ratio:1.47984
+type:string;row:200000;str_len:256;size:76443648;ratio:1.49304
+type:string;row:400000;str_len:256;size:154685440;ratio:1.5106
+type:string;row:800000;str_len:256;size:302886912;ratio:1.47894
+type:string;row:1000000;str_len:256;size:378716160;ratio:1.47936
+type:string;row:2000000;str_len:256;size:757800960;ratio:1.48008
+type:string;row:4000000;str_len:256;size:1515323392;ratio:1.479808
+type:string;row:8000000;str_len:256;size:3030425600;ratio:1.4797
+[2023/02/06 19:59:13.934 +08:00] [ERROR] [indexcgowrapper/index.go:118] ["there is leakage in index object, please check."] [stack="github.com/milvus-io/milvus/internal/util/indexcgowrapper.NewCgoIndex.func11\n\t/home/czs/milvus/internal/util/indexcgowrapper/index.go:118\nruntime.runfinq\n\t/usr/local/go/src/runtime/mfinal.go:239"]
+type:string;row:100000;str_len:512;size:64073728;ratio:1.25144
+type:string;row:200000;str_len:512;size:142843904;ratio:1.39496
+type:string;row:400000;str_len:512;size:257449984;ratio:1.25708
+type:string;row:800000;str_len:512;size:507858944;ratio:1.23989
+type:string;row:1000000;str_len:512;size:635256832;ratio:1.240736
+type:string;row:2000000;str_len:512;size:1270218752;ratio:1.240448
+type:string;row:4000000;str_len:512;size:2539909120;ratio:1.24019
+[2023/02/06 20:03:40.827 +08:00] [WARN] [indexcgowrapper/helper.go:76] ["failed to build scalar index, C Runtime Exception: [UnexpectedError] basic_string::append\n"]
+[2023/02/06 20:03:40.828 +08:00] [ERROR] [indexcgowrapper/index.go:118] ["there is leakage in index object, please check."] [stack="github.com/milvus-io/milvus/internal/util/indexcgowrapper.NewCgoIndex.func11\n\t/home/czs/milvus/internal/util/indexcgowrapper/index.go:118\nruntime.runfinq\n\t/usr/local/go/src/runtime/mfinal.go:239"]
+type:string;row:100000;str_len:1024;size:142450688;ratio:1.39112
+type:string;row:200000;str_len:1024;size:231075840;ratio:1.1283
+type:string;row:400000;str_len:1024;size:462553088;ratio:1.12928
+type:string;row:800000;str_len:1024;size:917520384;ratio:1.12002
+type:string;row:1000000;str_len:1024;size:1147478016;ratio:1.120584
+type:string;row:2000000;str_len:1024;size:2294276096;ratio:1.120252
+[2023/02/06 20:08:40.411 +08:00] [WARN] [indexcgowrapper/helper.go:76] ["failed to build scalar index, C Runtime Exception: [UnexpectedError] basic_string::append\n"]
+[2023/02/06 20:08:40.412 +08:00] [ERROR] [indexcgowrapper/index.go:118] ["there is leakage in index object, please check."] [stack="github.com/milvus-io/milvus/internal/util/indexcgowrapper.NewCgoIndex.func11\n\t/home/czs/milvus/internal/util/indexcgowrapper/index.go:118\nruntime.runfinq\n\t/usr/local/go/src/runtime/mfinal.go:239"]
+type:string;row:100000;str_len:1024;size:146247680;ratio:1.4282
+type:string;row:200000;str_len:1024;size:253874176;ratio:1.23962
+type:string;row:400000;str_len:1024;size:490467328;ratio:1.19743
+type:string;row:800000;str_len:1024;size:820838400;ratio:1.002
+type:string;row:1000000;str_len:1024;size:1144950784;ratio:1.118116
+type:string;row:2000000;str_len:1024;size:2276724736;ratio:1.111682
+[2023/02/06 20:11:52.168 +08:00] [WARN] [indexcgowrapper/helper.go:76] ["failed to build scalar index, C Runtime Exception: [UnexpectedError] basic_string::append\n"]
+[2023/02/06 20:11:52.169 +08:00] [ERROR] [indexcgowrapper/index.go:118] ["there is leakage in index object, please check."] [stack="github.com/milvus-io/milvus/internal/util/indexcgowrapper.NewCgoIndex.func11\n\t/home/czs/milvus/internal/util/indexcgowrapper/index.go:118\nruntime.runfinq\n\t/usr/local/go/src/runtime/mfinal.go:239"]
+type:string;row:100000;str_len:2048;size:229998592;ratio:1.12304
+type:string;row:200000;str_len:2048;size:451022848;ratio:1.10113
+type:string;row:400000;str_len:2048;size:868249600;ratio:1.059875
+type:string;row:800000;str_len:2048;size:1737437184;ratio:1.0604475
+type:string;row:1000000;str_len:2048;size:2171445248;ratio:1.060276
+[2023/02/06 20:15:02.763 +08:00] [WARN] [indexcgowrapper/helper.go:76] ["failed to build scalar index, C Runtime Exception: [UnexpectedError] basic_string::append\n"]
+[2023/02/06 20:15:02.764 +08:00] [ERROR] [indexcgowrapper/index.go:118] ["there is leakage in index object, please check."] [stack="github.com/milvus-io/milvus/internal/util/indexcgowrapper.NewCgoIndex.func11\n\t/home/czs/milvus/internal/util/indexcgowrapper/index.go:118\nruntime.runfinq\n\t/usr/local/go/src/runtime/mfinal.go:239"]
+[2023/02/06 20:16:16.718 +08:00] [WARN] [indexcgowrapper/helper.go:76] ["failed to build scalar index, C Runtime Exception: [UnexpectedError] basic_string::append\n"]
+[2023/02/06 20:16:16.720 +08:00] [ERROR] [indexcgowrapper/index.go:118] ["there is leakage in index object, please check."] [stack="github.com/milvus-io/milvus/internal/util/indexcgowrapper.NewCgoIndex.func11\n\t/home/czs/milvus/internal/util/indexcgowrapper/index.go:118\nruntime.runfinq\n\t/usr/local/go/src/runtime/mfinal.go:239"]
+type:string;row:100000;str_len:4096;size:450883584;ratio:1.10079
+type:string;row:200000;str_len:4096;size:844156928;ratio:1.030465
+type:string;row:400000;str_len:4096;size:1701552128;ratio:1.038545
+[2023/02/06 20:18:42.889 +08:00] [WARN] [indexcgowrapper/helper.go:76] ["failed to build scalar index, C Runtime Exception: [UnexpectedError] basic_string::append\n"]
+[2023/02/06 20:18:42.890 +08:00] [ERROR] [indexcgowrapper/index.go:118] ["there is leakage in index object, please check."] [stack="github.com/milvus-io/milvus/internal/util/indexcgowrapper.NewCgoIndex.func11\n\t/home/czs/milvus/internal/util/indexcgowrapper/index.go:118\nruntime.runfinq\n\t/usr/local/go/src/runtime/mfinal.go:239"]
+type:string;row:100000;str_len:8192;size:831733760;ratio:1.0153
+type:string;row:200000;str_len:8192;size:1663455232;ratio:1.0152925

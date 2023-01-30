@@ -27,4 +27,5 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 fi
 
 echo "Starting standalone..."
-nohup ./bin/milvus run standalone > /tmp/standalone.log 2>&1 &
+#nohup ./bin/milvus run standalone > /tmp/standalone.log 2>&1 &
+./bin/scalar -load_num 10 -type string -str_len 20 -num 200000

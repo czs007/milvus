@@ -12,8 +12,10 @@
 #include "common/CGoHelper.h"
 #include "common/LoadInfo.h"
 #include "common/Types.h"
+#include "common/mem_monitor.hpp"
 #include "common/type_c.h"
 #include "log/Log.h"
+#include <malloc.h>
 
 #include "segcore/Collection.h"
 #include "segcore/SegmentGrowingImpl.h"
@@ -270,4 +272,17 @@ DropSealedSegmentIndex(CSegmentInterface c_segment, int64_t field_id) {
     } catch (std::exception& e) {
         return milvus::FailureCStatus(UnexpectedError, e.what());
     }
+    
+
+
+
+}
+
+
+const char*
+GetMemStats() {
+	malloc_trim(0);
+        mem_monitor mm;
+        auto ret = mm.get_value_str();
+    	return strdup(ret.data());
 }

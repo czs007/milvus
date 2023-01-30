@@ -20,6 +20,7 @@
 #include <shared_mutex>
 #include <utility>
 #include <vector>
+#include <type_traits>
 
 #include <tbb/concurrent_vector.h>
 
@@ -266,7 +267,6 @@ class ConcurrentVectorImpl : public VectorBase {
         chunks_.clear();
     }
 
- private:
     void
     fill_chunk(
         ssize_t chunk_id, ssize_t chunk_offset, ssize_t element_count, const Type* source, ssize_t source_offset) {
@@ -277,8 +277,21 @@ class ConcurrentVectorImpl : public VectorBase {
         Assert(chunk_id < chunk_max_size);
         Chunk& chunk = chunks_[chunk_id];
         auto ptr = chunk.data();
+
         std::copy_n(source + source_offset * Dim, element_count * Dim, ptr + chunk_offset * Dim);
+
+	if constexpr (std::is_same<std::string, Type>::value) {
+		std::cout<<"num_chunk:"<< num_chunk() <<std::endl;
+		std::string *str = static_cast<std::string *>(ptr+chunk_offset*Dim);
+		std::cout<<"target type traits catch string"<<std::endl;
+		std::cout<<"before shrink_to_fit, size:"<< str->size() <<std::endl;
+		std::cout<<"before shrink_to_fit, capacity:"<< str->capacity() <<std::endl;
+		str->shrink_to_fit();
+		std::cout<<"after shrink_to_fit, size:"<< str->size() <<std::endl;
+		std::cout<<"after shrink_to_fit, capacity:"<< str->capacity() <<std::endl;
+	}
     }
+
 
     const ssize_t Dim;
 
@@ -294,6 +307,20 @@ class ConcurrentVector : public ConcurrentVectorImpl<Type, true> {
         : ConcurrentVectorImpl<Type, true>::ConcurrentVectorImpl(1, size_per_chunk) {
     }
 };
+
+
+template <>
+class ConcurrentVector<std::string>: public ConcurrentVectorImpl<std::string, true> {
+ public:
+    ConcurrentVector(int64_t size_per_chunk)
+        : ConcurrentVectorImpl<std::string, true>::ConcurrentVectorImpl(1, size_per_chunk) {
+    }
+    ConcurrentVector(int64_t dim, int64_t size_per_chunk)
+        : ConcurrentVectorImpl<std::string, true>::ConcurrentVectorImpl(1, size_per_chunk) {
+    }
+
+};
+
 
 template <>
 class ConcurrentVector<FloatVector> : public ConcurrentVectorImpl<float, false> {

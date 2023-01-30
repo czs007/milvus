@@ -102,6 +102,11 @@ Delete(CSegmentInterface c_segment,
 
 int64_t
 PreDelete(CSegmentInterface c_segment, int64_t size);
+
+const char*
+GetMemStats();
+
+
 #ifdef __cplusplus
 }
 #endif
