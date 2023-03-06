@@ -137,6 +137,13 @@ VectorMemIndex::Query(const DatasetPtr dataset,
     result->distances_.resize(total_num);
     result->total_nq_ = num_queries;
     result->unity_topK_ = topk;
+    if (search_info.traced_) {
+    	result->traced_data_ = knowhere::GetDatasetJsonInfo(final);
+	knowhere::Config j2 = nlohmann::json::parse(knowhere::GetDatasetJsonIdSet(final));
+	nlohmann::from_json(j2, result->traced_ids_);
+    }
+ 
+
 
     std::copy_n(ids, total_num, result->seg_offsets_.data());
     std::copy_n(distances, total_num, result->distances_.data());

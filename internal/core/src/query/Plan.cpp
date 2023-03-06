@@ -100,6 +100,18 @@ GetFieldID(const Plan* plan) {
     return plan->plan_node_->search_info_.field_id_.get();
 }
 
+void
+SetTraceRecord(Plan *plan) {
+    plan->plan_node_->search_info_.traced_ = true;
+    return;
+}
+
+bool
+IsTraced(const Plan* plan) {
+    return plan->plan_node_->search_info_.traced_;
+}
+
+
 int64_t
 GetNumOfQueries(const PlaceholderGroup* group) {
     return group->at(0).num_of_queries_;

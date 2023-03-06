@@ -115,6 +115,17 @@ GetTopK(CSearchPlan plan) {
     return res;
 }
 
+bool
+IsTraced(CSearchPlan plan) {
+    auto traced = milvus::query::IsTraced((milvus::query::Plan*)plan);
+}
+
+void
+SetTraceRecord(CSearchPlan plan) {
+    milvus::query::SetTraceRecord((milvus::query::Plan*)plan);
+}
+
+
 CStatus
 GetFieldID(CSearchPlan plan, int64_t* field_id) {
     try {

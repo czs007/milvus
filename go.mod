@@ -211,6 +211,7 @@ replace (
 	github.com/apache/pulsar-client-go => github.com/milvus-io/pulsar-client-go v0.6.10
 	github.com/bketelsen/crypt => github.com/bketelsen/crypt v0.0.4 // Fix security alert for core-os/etcd
 	github.com/go-kit/kit => github.com/go-kit/kit v0.1.0
+	github.com/milvus-io/milvus-proto/go-api => ../milvus-proto/go-api
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
 	github.com/tecbot/gorocksdb => github.com/milvus-io/gorocksdb v0.0.0-20220624081344-8c5f4212846b // indirect
 )

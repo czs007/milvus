@@ -10,6 +10,7 @@ import "internal.proto";
 import "schema.proto";
 import "msg.proto";
 import "data_coord.proto";
+import "feder.proto";
 
 service QueryCoord {
   rpc GetComponentStates(milvus.GetComponentStatesRequest) returns (milvus.ComponentStates) {}
@@ -70,6 +71,8 @@ service QueryNode {
 
   rpc GetDataDistribution(GetDataDistributionRequest) returns (GetDataDistributionResponse) {}
   rpc SyncDistribution(SyncDistributionRequest) returns (common.Status) {}
+
+  rpc FederDescribeSegmentIndexData(internal.FederDescribeSegmentIndexDataRequest) returns(feder.DescribeSegmentIndexDataResponse) {} 
 }
 
 //--------------------QueryCoord grpc request and response proto------------------

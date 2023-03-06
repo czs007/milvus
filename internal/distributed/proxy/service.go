@@ -39,6 +39,7 @@ import (
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/milvus-io/milvus-proto/go-api/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/federpb"
 	"github.com/milvus-io/milvus-proto/go-api/milvuspb"
 	dcc "github.com/milvus-io/milvus/internal/distributed/datacoord/client"
 	"github.com/milvus-io/milvus/internal/distributed/proxy/httpserver"
@@ -217,6 +218,7 @@ func (s *Server) startExternalGrpc(grpcPort int, errChan chan error) {
 	}
 	s.grpcExternalServer = grpc.NewServer(grpcOpts...)
 	milvuspb.RegisterMilvusServiceServer(s.grpcExternalServer, s)
+	federpb.RegisterFederServiceServer(s.grpcExternalServer, s)
 	grpc_health_v1.RegisterHealthServer(s.grpcExternalServer, s)
 	errChan <- nil
 
@@ -890,4 +892,8 @@ func (s *Server) TransferReplica(ctx context.Context, req *milvuspb.TransferRepl
 
 func (s *Server) ListResourceGroups(ctx context.Context, req *milvuspb.ListResourceGroupsRequest) (*milvuspb.ListResourceGroupsResponse, error) {
 	return s.proxy.ListResourceGroups(ctx, req)
+}
+
+func (s *Server) FederDescribeSegmentIndexData(ctx context.Context, request *federpb.DescribeSegmentIndexDataRequest) (*federpb.DescribeSegmentIndexDataResponse, error) {
+	return nil, nil
 }

@@ -30,6 +30,7 @@ SearchOnSealedIndex(const Schema& schema,
     auto round_decimal = search_info.round_decimal_;
 
     auto field_id = search_info.field_id_;
+    bool traced = search_info.traced_;
     auto& field = schema[field_id];
     // Assert(field.get_data_type() == DataType::VECTOR_FLOAT);
     auto dim = field.get_dim();
@@ -45,6 +46,7 @@ SearchOnSealedIndex(const Schema& schema,
         auto conf = search_info.search_params_;
         conf[knowhere::meta::TOPK] = search_info.topk_;
         conf[knowhere::meta::METRIC_TYPE] = field_indexing->metric_type_;
+        knowhere::SetMetaTraceVisit(conf, traced);
         auto vec_index =
             dynamic_cast<index::VectorIndex*>(field_indexing->indexing_.get());
         auto index_type = vec_index->GetIndexType();
@@ -68,6 +70,9 @@ SearchOnSealedIndex(const Schema& schema,
 
     std::copy_n(ids, total_num, result.seg_offsets_.data());
     std::copy_n(distances, total_num, result.distances_.data());
+
+    result.traced_data_ = std::move(final->traced_data_);
+    result.traced_ids_ = std::move(final->traced_ids_);
 }
 
 void

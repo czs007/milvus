@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 #include <boost/align/aligned_allocator.hpp>
 #include <boost/dynamic_bitset.hpp>
 #include <NamedType/named_type.hpp>
@@ -51,6 +52,9 @@ struct SearchResult {
     // first fill data during search, and then update data after reducing search results
     std::vector<float> distances_;
     std::vector<int64_t> seg_offsets_;
+
+    std::string traced_data_;
+    std::unordered_set<int64_t> traced_ids_;
 
     // fist fill data during fillPrimaryKey, and then update data after reducing search results
     std::vector<PkType> primary_keys_;

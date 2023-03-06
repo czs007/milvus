@@ -42,6 +42,12 @@ ParsePlaceholderGroup(CSearchPlan plan,
 int64_t
 GetNumOfQueries(CPlaceholderGroup placeholder_group);
 
+bool
+IsTraced(CSearchPlan plan);
+
+void
+SetTraceRecord(CSearchPlan plan);
+
 int64_t
 GetTopK(CSearchPlan plan);
 

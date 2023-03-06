@@ -101,6 +101,7 @@ message SearchRequest {
   int64  topk = 15;
   string metricType = 16;
   bool ignoreGrowing = 17; // Optional
+  bool traced = 18; // Optional
 }
 
 message SearchResults {
@@ -227,4 +228,12 @@ enum RateType {
 message Rate {
   RateType rt = 1;
   double r = 2;
+}
+
+
+// ============= feder ====================
+message FederDescribeSegmentIndexDataRequest {
+    common.MsgBase base = 1;
+    int64 collectionID = 2;
+    repeated int64 segmentIDs = 3;
 }

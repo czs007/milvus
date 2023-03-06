@@ -27,6 +27,7 @@ struct SearchInfo {
     FieldId field_id_;
     MetricType metric_type_;
     knowhere::Json search_params_;
+    bool traced_;
 };
 
 using SearchInfoPtr = std::shared_ptr<SearchInfo>;

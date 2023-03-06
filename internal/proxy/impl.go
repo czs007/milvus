@@ -30,6 +30,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/milvus-io/milvus-proto/go-api/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/federpb"
 	"github.com/milvus-io/milvus-proto/go-api/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/msgpb"
 	"github.com/milvus-io/milvus-proto/go-api/schemapb"
@@ -4841,3 +4842,23 @@ func (node *Proxy) DescribeResourceGroup(ctx context.Context, request *milvuspb.
 	metrics.ProxyReqLatency.WithLabelValues(strconv.FormatInt(paramtable.GetNodeID(), 10), method).Observe(float64(tr.ElapseSpan().Milliseconds()))
 	return t.result, nil
 }
+
+
+func (node *Proxy) FederDescribeSegmentIndexData(ctx context.Context, request *federpb.DescribeSegmentIndexDataRequest) (*federpb.DescribeSegmentIndexDataResponse, error) {
+	if !node.checkHealthy() {
+		return &federpb.DescribeSegmentIndexDataResponse{
+			Status: unhealthyStatus(),
+		}, nil
+	}
+
+	sp, ctx := trace.StartSpanFromContextWithOperationName(ctx, "Proxy-FederDescribeSegmentIndexData")
+	defer sp.Finish()
+	method := "GetStatistics"
+	tr := timerecord.NewTimeRecorder(method)
+	metrics.ProxyFunctionCall.WithLabelValues(strconv.FormatInt(paramtable.GetNodeID(), 10), method,
+		metrics.TotalLabel).Inc()
+	tr.ElapseSpan()
+
+	return nil, nil
+}
+

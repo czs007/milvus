@@ -61,4 +61,10 @@ GetTopK(const Plan*);
 int64_t
 GetFieldID(const Plan* plan);
 
+void
+SetTraceRecord(Plan *plan);
+
+bool
+IsTraced(const Plan* plan);
+
 }  // namespace milvus::query

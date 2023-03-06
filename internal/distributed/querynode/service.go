@@ -32,6 +32,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/milvus-io/milvus-proto/go-api/commonpb"
+	"github.com/milvus-io/milvus-proto/go-api/federpb"
 	"github.com/milvus-io/milvus-proto/go-api/milvuspb"
 	"github.com/milvus-io/milvus/internal/log"
 	"github.com/milvus-io/milvus/internal/proto/internalpb"
@@ -325,4 +326,8 @@ func (s *Server) GetDataDistribution(ctx context.Context, req *querypb.GetDataDi
 
 func (s *Server) SyncDistribution(ctx context.Context, req *querypb.SyncDistributionRequest) (*commonpb.Status, error) {
 	return s.querynode.SyncDistribution(ctx, req)
+}
+
+func (s *Server) FederDescribeSegmentIndexData(ctx context.Context, request *internalpb.FederDescribeSegmentIndexDataRequest) (*federpb.DescribeSegmentIndexDataResponse, error) {
+	return nil, nil
 }
