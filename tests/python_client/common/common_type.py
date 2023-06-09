@@ -174,7 +174,6 @@ get_invalid_metric_type = [
     [1, "2", 3],
     (1,),
     {1: 1},
-    None,
     " ",
     "12-s",
     "12 s",
