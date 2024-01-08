@@ -54,13 +54,7 @@ func createSearchPlanByExpr(ctx context.Context, col *Collection, expr []byte, m
 		return nil, err1
 	}
 
-	newPlan := &SearchPlan{cSearchPlan: cPlan}
-	if len(metricType) != 0 {
-		newPlan.setMetricType(metricType)
-	} else {
-		newPlan.setMetricType(col.GetMetricType())
-	}
-	return newPlan, nil
+	return &SearchPlan{cSearchPlan: cPlan}, nil
 }
 
 func (plan *SearchPlan) getTopK() int64 {
@@ -90,6 +84,7 @@ type SearchRequest struct {
 	cPlaceholderGroup C.CPlaceholderGroup
 	msgID             UniqueID
 	searchFieldID     UniqueID
+	mvccTimestamp     Timestamp
 }
 
 func NewSearchRequest(ctx context.Context, collection *Collection, req *querypb.SearchRequest, placeholderGrp []byte) (*SearchRequest, error) {
@@ -129,6 +124,7 @@ func NewSearchRequest(ctx context.Context, collection *Collection, req *querypb.
 		cPlaceholderGroup: cPlaceholderGroup,
 		msgID:             req.GetReq().GetBase().GetMsgID(),
 		searchFieldID:     int64(fieldID),
+		mvccTimestamp:     req.GetReq().GetMvccTimestamp(),
 	}
 
 	return ret, nil
