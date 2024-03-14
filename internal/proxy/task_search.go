@@ -4,16 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
-	"regexp"
-	"strconv"
-	"strings"
-
 	"github.com/cockroachdb/errors"
 	"github.com/golang/protobuf/proto"
+	"github.com/milvus-io/milvus/pkg/util/tsoutil"
 	"github.com/samber/lo"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
+	"math"
+	"strconv"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
@@ -23,7 +21,6 @@ import (
 	"github.com/milvus-io/milvus/internal/proto/planpb"
 	"github.com/milvus-io/milvus/internal/proto/querypb"
 	"github.com/milvus-io/milvus/internal/types"
-	"github.com/milvus-io/milvus/pkg/common"
 	"github.com/milvus-io/milvus/pkg/log"
 	"github.com/milvus-io/milvus/pkg/metrics"
 	"github.com/milvus-io/milvus/pkg/util/commonpbutil"
@@ -64,7 +61,6 @@ type searchTask struct {
 
 	userOutputFields []string
 
-	offset    int64
 	resultBuf *typeutil.ConcurrentSet[*internalpb.SearchResults]
 
 	multipleRecallResults *typeutil.ConcurrentSet[*milvuspb.SearchResults]
@@ -74,211 +70,11 @@ type searchTask struct {
 	node            types.ProxyComponent
 	lb              LBPolicy
 	queryChannelsTs map[string]Timestamp
-	queryInfo       *planpb.QueryInfo
+	queryInfo       *planpb.QueryInfo // for non advanced search
+	subQueryInfos   []*planpb.QueryInfo // for advanced search
 
-	isAdvanced	bool
-	reScorers       []reScorer
-	rankParams      *rankParams
-}
-
-func getPartitionIDs(ctx context.Context, dbName string, collectionName string, partitionNames []string) (partitionIDs []UniqueID, err error) {
-	for _, tag := range partitionNames {
-		if err := validatePartitionTag(tag, false); err != nil {
-			return nil, err
-		}
-	}
-
-	partitionsMap, err := globalMetaCache.GetPartitions(ctx, dbName, collectionName)
-	if err != nil {
-		return nil, err
-	}
-
-	useRegexp := Params.ProxyCfg.PartitionNameRegexp.GetAsBool()
-
-	partitionsSet := typeutil.NewSet[int64]()
-	for _, partitionName := range partitionNames {
-		if useRegexp {
-			// Legacy feature, use partition name as regexp
-			pattern := fmt.Sprintf("^%s$", partitionName)
-			re, err := regexp.Compile(pattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid partition: %s", partitionName)
-			}
-			var found bool
-			for name, pID := range partitionsMap {
-				if re.MatchString(name) {
-					partitionsSet.Insert(pID)
-					found = true
-				}
-			}
-			if !found {
-				return nil, fmt.Errorf("partition name %s not found", partitionName)
-			}
-		} else {
-			partitionID, found := partitionsMap[partitionName]
-			if !found {
-				// TODO change after testcase updated: return nil, merr.WrapErrPartitionNotFound(partitionName)
-				return nil, fmt.Errorf("partition name %s not found", partitionName)
-			}
-			if !partitionsSet.Contain(partitionID) {
-				partitionsSet.Insert(partitionID)
-			}
-		}
-	}
-	return partitionsSet.Collect(), nil
-}
-
-// parseSearchInfo returns QueryInfo and offset
-func parseSearchInfo(searchParamsPair []*commonpb.KeyValuePair, schema *schemapb.CollectionSchema) (*planpb.QueryInfo, int64, error) {
-	// 1. parse offset and real topk
-	topKStr, err := funcutil.GetAttrByKeyFromRepeatedKV(TopKKey, searchParamsPair)
-	if err != nil {
-		return nil, 0, errors.New(TopKKey + " not found in search_params")
-	}
-	topK, err := strconv.ParseInt(topKStr, 0, 64)
-	if err != nil {
-		return nil, 0, fmt.Errorf("%s [%s] is invalid", TopKKey, topKStr)
-	}
-	if err := validateTopKLimit(topK); err != nil {
-		return nil, 0, fmt.Errorf("%s [%d] is invalid, %w", TopKKey, topK, err)
-	}
-
-	var offset int64
-	offsetStr, err := funcutil.GetAttrByKeyFromRepeatedKV(OffsetKey, searchParamsPair)
-	if err == nil {
-		offset, err = strconv.ParseInt(offsetStr, 0, 64)
-		if err != nil {
-			return nil, 0, fmt.Errorf("%s [%s] is invalid", OffsetKey, offsetStr)
-		}
-
-		if offset != 0 {
-			if err := validateTopKLimit(offset); err != nil {
-				return nil, 0, fmt.Errorf("%s [%d] is invalid, %w", OffsetKey, offset, err)
-			}
-		}
-	}
-
-	queryTopK := topK + offset
-	if err := validateTopKLimit(queryTopK); err != nil {
-		return nil, 0, fmt.Errorf("%s+%s [%d] is invalid, %w", OffsetKey, TopKKey, queryTopK, err)
-	}
-
-	// 2. parse metrics type
-	metricType, err := funcutil.GetAttrByKeyFromRepeatedKV(common.MetricTypeKey, searchParamsPair)
-	if err != nil {
-		metricType = ""
-	}
-
-	// 3. parse round decimal
-	roundDecimalStr, err := funcutil.GetAttrByKeyFromRepeatedKV(RoundDecimalKey, searchParamsPair)
-	if err != nil {
-		roundDecimalStr = "-1"
-	}
-
-	roundDecimal, err := strconv.ParseInt(roundDecimalStr, 0, 64)
-	if err != nil {
-		return nil, 0, fmt.Errorf("%s [%s] is invalid, should be -1 or an integer in range [0, 6]", RoundDecimalKey, roundDecimalStr)
-	}
-
-	if roundDecimal != -1 && (roundDecimal > 6 || roundDecimal < 0) {
-		return nil, 0, fmt.Errorf("%s [%s] is invalid, should be -1 or an integer in range [0, 6]", RoundDecimalKey, roundDecimalStr)
-	}
-
-	// 4. parse search param str
-	searchParamStr, err := funcutil.GetAttrByKeyFromRepeatedKV(SearchParamsKey, searchParamsPair)
-	if err != nil {
-		searchParamStr = ""
-	}
-
-	err = checkRangeSearchParams(searchParamStr, metricType)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// 5. parse group by field
-	groupByFieldName, err := funcutil.GetAttrByKeyFromRepeatedKV(GroupByFieldKey, searchParamsPair)
-	if err != nil {
-		groupByFieldName = ""
-	}
-	var groupByFieldId int64 = -1
-	if groupByFieldName != "" {
-		fields := schema.GetFields()
-		for _, field := range fields {
-			if field.Name == groupByFieldName {
-				groupByFieldId = field.FieldID
-				break
-			}
-		}
-		if groupByFieldId == -1 {
-			return nil, 0, merr.WrapErrFieldNotFound(groupByFieldName, "groupBy field not found in schema")
-		}
-	}
-
-	// 6. parse iterator tag, prevent trying to groupBy when doing iteration or doing range-search
-	isIterator, _ := funcutil.GetAttrByKeyFromRepeatedKV(IteratorField, searchParamsPair)
-	if isIterator == "True" && groupByFieldId > 0 {
-		return nil, 0, merr.WrapErrParameterInvalid("", "",
-			"Not allowed to do groupBy when doing iteration")
-	}
-	if strings.Contains(searchParamStr, radiusKey) && groupByFieldId > 0 {
-		return nil, 0, merr.WrapErrParameterInvalid("", "",
-			"Not allowed to do range-search when doing search-group-by")
-	}
-
-	return &planpb.QueryInfo{
-		Topk:           queryTopK,
-		MetricType:     metricType,
-		SearchParams:   searchParamStr,
-		RoundDecimal:   roundDecimal,
-		GroupByFieldId: groupByFieldId,
-	}, offset, nil
-}
-
-func getOutputFieldIDs(schema *schemaInfo, outputFields []string) (outputFieldIDs []UniqueID, err error) {
-	outputFieldIDs = make([]UniqueID, 0, len(outputFields))
-	for _, name := range outputFields {
-		id, ok := schema.MapFieldID(name)
-		if !ok {
-			return nil, fmt.Errorf("Field %s not exist", name)
-		}
-		outputFieldIDs = append(outputFieldIDs, id)
-	}
-	return outputFieldIDs, nil
-}
-
-
-func getNqFromSubSearch(req *milvuspb.SubSearchRequest) (int64, error) {
-	if req.GetNq() == 0 {
-		// keep compatible with older client version.
-		x := &commonpb.PlaceholderGroup{}
-		err := proto.Unmarshal(req.GetPlaceholderGroup(), x)
-		if err != nil {
-			return 0, err
-		}
-		total := int64(0)
-		for _, h := range x.GetPlaceholders() {
-			total += int64(len(h.Values))
-		}
-		return total, nil
-	}
-	return req.GetNq(), nil
-}
-
-func getNq(req *milvuspb.SearchRequest) (int64, error) {
-	if req.GetNq() == 0 {
-		// keep compatible with older client version.
-		x := &commonpb.PlaceholderGroup{}
-		err := proto.Unmarshal(req.GetPlaceholderGroup(), x)
-		if err != nil {
-			return 0, err
-		}
-		total := int64(0)
-		for _, h := range x.GetPlaceholders() {
-			total += int64(len(h.Values))
-		}
-		return total, nil
-	}
-	return req.GetNq(), nil
+	reScorers  []reScorer
+	rankParams *rankParams
 }
 
 func (t *searchTask) CanSkipAllocTimestamp() bool {
@@ -309,7 +105,7 @@ func (t *searchTask) CanSkipAllocTimestamp() bool {
 func (t *searchTask) PreExecute(ctx context.Context) error {
 	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "Proxy-Search-PreExecute")
 	defer sp.End()
-	t.isAdvanced = len(t.GetSubReqs()) > 0
+	t.SearchRequest.IsAdvanced = len(t.request.GetSubReqs()) > 0
 	t.Base.MsgType = commonpb.MsgType_Search
 	t.Base.SourceID = paramtable.GetNodeID()
 
@@ -340,7 +136,7 @@ func (t *searchTask) PreExecute(ctx context.Context) error {
 
 	if !t.partitionKeyMode && len(t.request.GetPartitionNames()) > 0 {
 		// translate partition name to partition ids. Use regex-pattern to match partition name.
-		t.PartitionIDs, err = getPartitionIDs(ctx, t.request.GetDbName(), collectionName, t.request.GetPartitionNames())
+		t.SearchRequest.PartitionIDs, err = getPartitionIDs(ctx, t.request.GetDbName(), collectionName, t.request.GetPartitionNames())
 		if err != nil {
 			log.Warn("failed to get partition ids", zap.Error(err))
 			return err
@@ -355,7 +151,80 @@ func (t *searchTask) PreExecute(ctx context.Context) error {
 	log.Debug("translate output fields",
 		zap.Strings("output fields", t.request.GetOutputFields()))
 
-	err = initSearchRequest(ctx, t)
+	// Manually update nq if not set.
+	var nq int64
+
+	if t.SearchRequest.GetIsAdvanced() {
+		// In the context of Advanced Search, it is essential to verify that the number of vectors
+		// for each individual search, denoted as nq, remains consistent.
+		nq = t.request.GetNq()
+		for _, req := range t.request.GetSubReqs() {
+			subNq, err := getNqFromSubSearch(req)
+			if err != nil {
+				log.Debug("failed to get nq", zap.Error(err))
+				return err
+			}
+			if nq == 0 {
+				nq = subNq
+				continue
+			}
+			if subNq != nq {
+				err = merr.WrapErrParameterInvalid(nq, subNq, "sub search request nq should be the same")
+				log.Debug(err.Error())
+				return err
+			}
+			req.Nq = nq
+		}
+	} else {
+		nq, err = getNq(t.request)
+		if err != nil {
+			log.Warn("failed to get nq", zap.Error(err))
+			return err
+		}
+	}
+
+	// Check if nq is valid:
+	// https://milvus.io/docs/limitations.md
+	if err = validateNQLimit(nq); err != nil {
+		return fmt.Errorf("%s [%d] is invalid, %w", NQKey, nq, err)
+	}
+
+	t.SearchRequest.Nq = nq
+	log = log.With(zap.Int64("nq", nq))
+
+	var ignoreGrowing bool
+	// parse common search params
+	for i, kv := range t.request.GetSearchParams() {
+		if kv.GetKey() == IgnoreGrowingKey {
+			ignoreGrowing, err = strconv.ParseBool(kv.GetValue())
+			if err != nil {
+				return errors.New("parse search growing failed")
+			}
+			t.request.SearchParams = append(t.request.GetSearchParams()[:i], t.request.GetSearchParams()[i+1:]...)
+			break
+		}
+	}
+	t.SearchRequest.IgnoreGrowing = ignoreGrowing
+
+	outputFieldIDs, err := getOutputFieldIDs(t.schema, t.request.GetOutputFields())
+	if err != nil {
+		log.Warn("fail to get output field ids", zap.Error(err))
+		return err
+	}
+	t.SearchRequest.OutputFieldsId = outputFieldIDs
+
+	// Currently, we get vectors by requery. Once we support getting vectors from search,
+	// searches with small result size could no longer need requery.
+	vectorOutputFields := lo.Filter(t.schema.GetFields(), func(field *schemapb.FieldSchema, _ int) bool {
+		return lo.Contains(t.request.GetOutputFields(), field.GetName()) && typeutil.IsVectorType(field.GetDataType())
+	})
+	t.requery = len(vectorOutputFields) > 0
+
+	if t.SearchRequest.GetIsAdvanced(){
+		err = t.initAdvancedSearchRequest(ctx)
+	} else {
+		err = t.initSearchRequest(ctx)
+	}
 	if err != nil {
 		log.Debug("init search request failed", zap.Error(err))
 		return err
@@ -385,12 +254,185 @@ func (t *searchTask) PreExecute(ctx context.Context) error {
 	}
 	t.SearchRequest.GuaranteeTimestamp = guaranteeTs
 
+	if deadline, ok := t.TraceCtx().Deadline(); ok {
+		t.SearchRequest.TimeoutTimestamp = tsoutil.ComposeTSByTime(deadline, 0)
+	}
+
+	// Set username of this search request for feature like task scheduling.
+	if username, _ := GetCurUserFromContext(ctx); username != "" {
+		t.SearchRequest.Username = username
+	}
+
 	log.Debug("search PreExecute done.",
 		zap.Uint64("guarantee_ts", guaranteeTs),
 		zap.Bool("use_default_consistency", useDefaultConsistency),
 		zap.Any("consistency level", consistencyLevel),
 		zap.Uint64("timeout_ts", t.SearchRequest.GetTimeoutTimestamp()))
 	return nil
+}
+
+func (t *searchTask) initAdvancedSearchRequest(ctx context.Context) error {
+	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "init advanced search request")
+	defer sp.End()
+
+	log := log.Ctx(ctx).With(zap.Int64("collID", t.GetCollectionID()), zap.String("collName", t.collectionName))
+	// fetch search_growing from search param
+	t.SearchRequest.SubReqs = make([]*internalpb.SubSearchRequest, len(t.request.GetSubReqs()))
+	for index, subReq := range t.request.GetSubReqs() {
+		plan, queryInfo, offset ,err := t.tryGeneratePlan(subReq.GetSearchParams(), subReq.GetDsl())
+		if err != nil {
+			return err
+		}
+		internalSubReq := &internalpb.SubSearchRequest{
+			Dsl:                subReq.GetDsl(),
+			PlaceholderGroup:   subReq.GetPlaceholderGroup(),
+			DslType:            subReq.GetDslType(),
+			SerializedExprPlan: nil,
+			Nq:                 subReq.GetNq(),
+			PartitionIDs:       nil,
+			Topk:               queryInfo.GetTopk(),
+			Offset:             offset,
+		}
+
+		// set PartitionIDs for sub search
+		if t.partitionKeyMode {
+			partitionIDs, err2 := t.tryParsePartitionIDsFromPlan(plan)
+			if err2 != nil {
+				return err2
+			}
+			if len(partitionIDs) > 0 {
+				internalSubReq.PartitionIDs = partitionIDs
+			}
+		} else {
+			internalSubReq.PartitionIDs = t.SearchRequest.GetPartitionIDs()
+		}
+
+		if t.requery {
+			plan.OutputFieldIds = nil
+		} else {
+			plan.OutputFieldIds = t.SearchRequest.OutputFieldsId
+		}
+
+		internalSubReq.SerializedExprPlan, err = proto.Marshal(plan)
+		if err != nil {
+			return err
+		}
+		t.SearchRequest.SubReqs[index] = internalSubReq
+		t.subQueryInfos[index] = queryInfo
+		log.Debug("proxy init search request",
+			zap.Int64s("plan.OutputFieldIds", plan.GetOutputFieldIds()),
+			zap.Stringer("plan", plan)) // may be very large if large term passed.
+	}
+	var err error
+	t.reScorers, err = NewReScorer(len(t.request.GetSubReqs()), t.request.GetSearchParams())
+	if err != nil {
+		log.Info("generate reScorer failed", zap.Any("params", t.request.GetSearchParams()), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (t *searchTask) initSearchRequest(ctx context.Context) error {
+	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "init search request")
+	defer sp.End()
+
+	log := log.Ctx(ctx).With(zap.Int64("collID", t.GetCollectionID()), zap.String("collName", t.collectionName))
+	// fetch search_growing from search param
+
+	plan, queryInfo, offset ,err := t.tryGeneratePlan(t.request.GetSearchParams(), t.request.GetDsl())
+	if err != nil {
+		return err
+	}
+	t.SearchRequest.Offset = offset
+
+	if t.partitionKeyMode{
+		partitionIDs, err2 := t.tryParsePartitionIDsFromPlan(plan)
+		if err2 != nil {
+			return err2
+		}
+		if len(partitionIDs) > 0 {
+			t.SearchRequest.PartitionIDs = partitionIDs
+		}
+	}
+
+	if t.requery {
+		plan.OutputFieldIds = nil
+	} else {
+		plan.OutputFieldIds = t.SearchRequest.OutputFieldsId
+	}
+
+	t.SearchRequest.SerializedExprPlan, err = proto.Marshal(plan)
+	if err != nil {
+		return err
+	}
+
+	t.SearchRequest.PlaceholderGroup = t.request.PlaceholderGroup
+	t.SearchRequest.Topk = queryInfo.GetTopk()
+	t.SearchRequest.MetricType = queryInfo.GetMetricType()
+	t.queryInfo = queryInfo
+	t.SearchRequest.DslType = commonpb.DslType_BoolExprV1
+
+	log.Debug("proxy init search request",
+		zap.Int64s("plan.OutputFieldIds", plan.GetOutputFieldIds()),
+		zap.Stringer("plan", plan)) // may be very large if large term passed.
+
+	return nil
+}
+
+func (t *searchTask) tryGeneratePlan(params []*commonpb.KeyValuePair, dsl string) (*planpb.PlanNode, *planpb.QueryInfo, int64, error) {
+	annsField, err := funcutil.GetAttrByKeyFromRepeatedKV(AnnsFieldKey, params)
+	if err != nil || len(annsField) == 0 {
+		vecFields := typeutil.GetVectorFieldSchemas(t.schema.CollectionSchema)
+		if len(vecFields) == 0 {
+			return nil, nil, 0, errors.New(AnnsFieldKey + " not found in schema")
+		}
+
+		if enableMultipleVectorFields && len(vecFields) > 1 {
+			return nil, nil, 0, errors.New("multiple anns_fields exist, please specify a anns_field in search_params")
+		}
+		annsField = vecFields[0].Name
+	}
+	queryInfo, offset, err2 := parseSearchInfo(params, t.schema.CollectionSchema)
+	if err2 != nil {
+		return nil, nil, 0, err2
+	}
+
+	plan, err3 := planparserv2.CreateSearchPlan(t.schema.schemaHelper, dsl, annsField, queryInfo)
+	if err3 != nil {
+		log.Warn("failed to create query plan", zap.Error(err),
+			zap.String("dsl", dsl), // may be very large if large term passed.
+			zap.String("anns field", annsField), zap.Any("query info", queryInfo))
+		return nil, nil, 0, merr.WrapErrParameterInvalidMsg("failed to create query plan: %v", err)
+	}
+	log.Debug("create query plan",
+		zap.String("dsl", t.request.Dsl), // may be very large if large term passed.
+		zap.String("anns field", annsField), zap.Any("query info", queryInfo))
+	return plan, queryInfo, offset, nil
+}
+
+func(t *searchTask) tryParsePartitionIDsFromPlan(plan * planpb.PlanNode) ([]int64, error) {
+	expr, err := ParseExprFromPlan(plan)
+	if err != nil {
+		log.Warn("failed to parse expr", zap.Error(err))
+		return nil, err
+	}
+	partitionKeys := ParsePartitionKeys(expr)
+	hashedPartitionNames, err := assignPartitionKeys(t.ctx, t.request.GetDbName(), t.collectionName, partitionKeys)
+	if err != nil {
+		log.Warn("failed to assign partition keys", zap.Error(err))
+		return nil, err
+	}
+
+	if len(hashedPartitionNames) > 0 {
+		// translate partition name to partition ids. Use regex-pattern to match partition name.
+		PartitionIDs, err2 := getPartitionIDs(t.ctx, t.request.GetDbName(), t.collectionName, hashedPartitionNames)
+		if err2 != nil {
+			log.Warn("failed to get partition ids", zap.Error(err2))
+			return nil, err2
+		}
+		return PartitionIDs, nil
+	}
+	return nil, nil
 }
 
 func (t *searchTask) Execute(ctx context.Context) error {
@@ -481,7 +523,7 @@ func (t *searchTask) PostExecute(ctx context.Context) error {
 	}
 
 	t.result, err = reduceSearchResult(ctx, NewReduceSearchResultInfo(validSearchResults, Nq, Topk,
-		MetricType, primaryFieldSchema.DataType, t.offset, t.queryInfo))
+		MetricType, primaryFieldSchema.DataType, t.SearchRequest.GetOffset(), t.queryInfo))
 	if err != nil {
 		log.Warn("failed to reduce search results", zap.Error(err))
 		return err

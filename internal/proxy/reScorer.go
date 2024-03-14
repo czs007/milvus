@@ -75,13 +75,17 @@ func (ws *weightedScorer) scorerType() rankType {
 	return weightedRankType
 }
 
-func NewReScorer(reqs []*milvuspb.SearchRequest, rankParams []*commonpb.KeyValuePair) ([]reScorer, error) {
-	res := make([]reScorer, len(reqs))
+func NewReScorer(reqCnt int, rankParams []*commonpb.KeyValuePair) ([]reScorer, error) {
+	if reqCnt == 0 {
+		return  []reScorer {}, nil
+	}
+
+	res := make([]reScorer, reqCnt)
 	rankTypeStr, err := funcutil.GetAttrByKeyFromRepeatedKV(RankTypeKey, rankParams)
 	if err != nil {
 		log.Info("rank strategy not specified, use rrf instead")
 		// if not set rank strategy, use rrf rank as default
-		for i := range reqs {
+		for i:=0; i< reqCnt; i++ {
 			res[i] = &rrfScorer{
 				baseScorer: baseScorer{
 					scorerName: "rrf",
@@ -123,7 +127,7 @@ func NewReScorer(reqs []*milvuspb.SearchRequest, rankParams []*commonpb.KeyValue
 			return nil, errors.New(fmt.Sprintf("The rank params k should be in range (0, %d)", maxRRFParamsValue))
 		}
 		log.Debug("rrf params", zap.Float64("k", k))
-		for i := range reqs {
+		for i := 0; i < reqCnt; i++{
 			res[i] = &rrfScorer{
 				baseScorer: baseScorer{
 					scorerName: "rrf",
@@ -156,10 +160,10 @@ func NewReScorer(reqs []*milvuspb.SearchRequest, rankParams []*commonpb.KeyValue
 		}
 
 		log.Debug("weights params", zap.Any("weights", weights))
-		if len(reqs) != len(weights) {
-			return nil, merr.WrapErrParameterInvalid(fmt.Sprint(len(reqs)), fmt.Sprint(len(weights)), "the length of weights param mismatch with ann search requests")
+		if reqCnt != len(weights) {
+			return nil, merr.WrapErrParameterInvalid(fmt.Sprint(reqCnt), fmt.Sprint(len(weights)), "the length of weights param mismatch with ann search requests")
 		}
-		for i := range reqs {
+		for i := 0; i < reqCnt; i ++ {
 			res[i] = &weightedScorer{
 				baseScorer: baseScorer{
 					scorerName: "weighted",

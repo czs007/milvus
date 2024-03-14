@@ -90,8 +90,11 @@ message SubSearchRequest {
   common.DslType dsl_type = 3;
   bytes serialized_expr_plan = 4;
   int64  nq = 5;
+  repeated int64 partitionIDs = 6;
+  int64  topk = 7;
+  int64 offset = 8;
+  string metricType = 9;
 }
-
 
 message SearchRequest {
   common.MsgBase base = 1;
@@ -114,6 +117,8 @@ message SearchRequest {
   bool ignoreGrowing = 17; // Optional
   string username = 18;
   repeated SubSearchRequest sub_reqs = 19;
+  bool   is_advanced = 20;
+  int64 offset = 21;
 }
 
 message HybridSearchRequest {
