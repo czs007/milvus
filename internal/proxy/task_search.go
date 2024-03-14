@@ -50,8 +50,8 @@ const (
 
 type searchTask struct {
 	Condition
-	*internalpb.SearchRequest
 	ctx context.Context
+	*internalpb.SearchRequest
 
 	result  *milvuspb.SearchResults
 	request *milvuspb.SearchRequest
@@ -67,11 +67,18 @@ type searchTask struct {
 	offset    int64
 	resultBuf *typeutil.ConcurrentSet[*internalpb.SearchResults]
 
+	multipleRecallResults *typeutil.ConcurrentSet[*milvuspb.SearchResults]
+	partitionIDsSet       *typeutil.ConcurrentSet[UniqueID]
+
 	qc              types.QueryCoordClient
 	node            types.ProxyComponent
 	lb              LBPolicy
 	queryChannelsTs map[string]Timestamp
 	queryInfo       *planpb.QueryInfo
+
+	isAdvanced	bool
+	reScorers       []reScorer
+	rankParams      *rankParams
 }
 
 func getPartitionIDs(ctx context.Context, dbName string, collectionName string, partitionNames []string) (partitionIDs []UniqueID, err error) {
@@ -239,6 +246,24 @@ func getOutputFieldIDs(schema *schemaInfo, outputFields []string) (outputFieldID
 	return outputFieldIDs, nil
 }
 
+
+func getNqFromSubSearch(req *milvuspb.SubSearchRequest) (int64, error) {
+	if req.GetNq() == 0 {
+		// keep compatible with older client version.
+		x := &commonpb.PlaceholderGroup{}
+		err := proto.Unmarshal(req.GetPlaceholderGroup(), x)
+		if err != nil {
+			return 0, err
+		}
+		total := int64(0)
+		for _, h := range x.GetPlaceholders() {
+			total += int64(len(h.Values))
+		}
+		return total, nil
+	}
+	return req.GetNq(), nil
+}
+
 func getNq(req *milvuspb.SearchRequest) (int64, error) {
 	if req.GetNq() == 0 {
 		// keep compatible with older client version.
@@ -284,7 +309,7 @@ func (t *searchTask) CanSkipAllocTimestamp() bool {
 func (t *searchTask) PreExecute(ctx context.Context) error {
 	ctx, sp := otel.Tracer(typeutil.ProxyRole).Start(ctx, "Proxy-Search-PreExecute")
 	defer sp.End()
-
+	t.isAdvanced = len(t.GetSubReqs()) > 0
 	t.Base.MsgType = commonpb.MsgType_Search
 	t.Base.SourceID = paramtable.GetNodeID()
 

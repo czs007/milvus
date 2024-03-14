@@ -82,6 +82,17 @@ message CreateIndexRequest {
   repeated common.KeyValuePair extra_params = 8;
 }
 
+
+message SubSearchRequest {
+  string dsl = 1;
+  // serialized `PlaceholderGroup`
+  bytes placeholder_group = 2;
+  common.DslType dsl_type = 3;
+  bytes serialized_expr_plan = 4;
+  int64  nq = 5;
+}
+
+
 message SearchRequest {
   common.MsgBase base = 1;
   int64 reqID = 2;
@@ -102,6 +113,7 @@ message SearchRequest {
   string metricType = 16;
   bool ignoreGrowing = 17; // Optional
   string username = 18;
+  repeated SubSearchRequest sub_reqs = 19;
 }
 
 message HybridSearchRequest {

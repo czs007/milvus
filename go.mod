@@ -247,6 +247,7 @@ replace (
 	github.com/bketelsen/crypt => github.com/bketelsen/crypt v0.0.4 // Fix security alert for core-os/etcd
 	github.com/expr-lang/expr => github.com/SimFG/expr v0.0.0-20231218130003-94d085776dc5
 	github.com/go-kit/kit => github.com/go-kit/kit v0.1.0
+	github.com/milvus-io/milvus-proto/go-api/v2 => github.com/czs007/milvus-proto/go-api/v2 v2.0.0-20240314002017-280b0410659e
 	// github.com/milvus-io/milvus-storage/go => ../milvus-storage/go
 	github.com/milvus-io/milvus/pkg => ./pkg
 	github.com/streamnative/pulsarctl => github.com/xiaofan-luan/pulsarctl v0.5.1
