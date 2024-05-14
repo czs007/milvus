@@ -62,9 +62,10 @@ func (s *CompactionPlanHandlerSuite) TestRemoveTasksByChannel() {
 
 	var ch string = "ch1"
 	handler.mu.Lock()
-	handler.plans[1] = &compactionTask{
-		plan:        &datapb.CompactionPlan{PlanID: 19530},
-		dataNodeID:  1,
+
+	handler.queueTasks[1] = &compactionTask{
+		CompactionPlan: &datapb.CompactionPlan{PlanID: 19530},
+		nodeID:  1,
 		triggerInfo: &compactionSignal{channel: ch},
 	}
 	handler.mu.Unlock()
@@ -103,13 +104,15 @@ func (s *CompactionPlanHandlerSuite) TestClean() {
 	cleanTime := tsoutil.ComposeTSByTime(time.Now().Add(-2*time.Hour), 0)
 	c := &compactionPlanHandler{
 		allocator: s.mockAlloc,
-		plans: map[int64]*compactionTask{
-			1: {
-				state: executing,
-			},
-			2: {
-				state: pipelining,
-			},
+		queueTasks: map[int64]CompactionTask{
+			1: &mixCompactionTask{
+				compactionTask: &compactionTask{
+					state:executing,
+				}},
+			2: &mixCompactionTask{
+				compactionTask: &compactionTask{
+					state:pipelining,
+				}},
 			3: {
 				state: completed,
 				plan: &datapb.CompactionPlan{
@@ -126,7 +129,7 @@ func (s *CompactionPlanHandlerSuite) TestClean() {
 	}
 
 	c.Clean()
-	s.Len(c.plans, 3)
+	s.Len(c.queueTasks, 3)
 }
 
 func (s *CompactionPlanHandlerSuite) TestHandleL0CompactionResults() {

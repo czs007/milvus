@@ -53,6 +53,7 @@ type SessionManager interface {
 	DeleteSession(node *NodeInfo)
 	GetSessionIDs() []int64
 	GetSessions() []*Session
+	GetSession(int64) (*Session, bool)
 
 	Flush(ctx context.Context, nodeID int64, req *datapb.FlushSegmentsRequest)
 	FlushChannels(ctx context.Context, nodeID int64, req *datapb.FlushChannelsRequest) error
@@ -118,6 +119,14 @@ func (c *SessionManagerImpl) AddSession(node *NodeInfo) {
 	session := NewSession(node, c.sessionCreator)
 	c.sessions.data[node.NodeID] = session
 	metrics.DataCoordNumDataNodes.WithLabelValues().Set(float64(len(c.sessions.data)))
+}
+
+// GetSession return a Session related to nodeID
+func (c *SessionManagerImpl) GetSession(nodeID int64) (*Session, bool) {
+	c.sessions.RLock()
+	defer c.sessions.RUnlock()
+	s, ok := c.sessions.data[nodeID]
+	return s, ok
 }
 
 // DeleteSession removes the node session
@@ -245,7 +254,7 @@ func (c *SessionManagerImpl) SyncSegments(nodeID int64, req *datapb.SyncSegments
 	return nil
 }
 
-// GetCompactionPlanResults returns map[planID]*pair[nodeID, *CompactionPlanResults]
+// GetCompactionPlansResults returns map[planID]*pair[nodeID, *CompactionPlanResults]
 func (c *SessionManagerImpl) GetCompactionPlansResults() (map[int64]*typeutil.Pair[int64, *datapb.CompactionPlanResult], error) {
 	ctx := context.Background()
 	errorGroup, ctx := errgroup.WithContext(ctx)

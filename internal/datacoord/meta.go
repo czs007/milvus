@@ -1136,6 +1136,14 @@ func (m *meta) SetSegmentCompacting(segmentID UniqueID, compacting bool) {
 	m.segments.SetIsCompacting(segmentID, compacting)
 }
 
+func (m *meta) SetSegmentsCompacting(segmentIDs []UniqueID, compacting bool) {
+	m.Lock()
+	defer m.Unlock()
+	for _, segmentID := range segmentIDs {
+		m.segments.SetIsCompacting(segmentID, compacting)
+	}
+}
+
 func (m *meta) CompleteCompactionMutation(plan *datapb.CompactionPlan, result *datapb.CompactionPlanResult) ([]*SegmentInfo, *segMetricMutation, error) {
 	m.Lock()
 	defer m.Unlock()
@@ -1210,7 +1218,7 @@ func (m *meta) CompleteCompactionMutation(plan *datapb.CompactionPlan, result *d
 
 			CreatedByCompaction: true,
 			CompactionFrom:      compactFromSegIDs,
-			LastExpireTime:      plan.GetStartTime(),
+			LastExpireTime:      tsoutil.ComposeTSByTime(time.Unix(plan.GetStartTime(), 0), 0),
 			Level:               datapb.SegmentLevel_L1,
 
 			StartPosition: getMinPosition(lo.Map(latestCompactFromSegments, func(info *SegmentInfo, _ int) *msgpb.MsgPosition {

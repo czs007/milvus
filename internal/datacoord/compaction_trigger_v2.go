@@ -33,8 +33,7 @@ type TriggerManager interface {
 // 2. SystemIDLE & schedulerIDLE
 // 3. Manual Compaction
 type CompactionTriggerManager struct {
-	scheduler Scheduler
-	handler   compactionPlanContext // TODO replace with scheduler
+	handler compactionPlanContext // TODO replace with scheduler
 
 	allocator allocator
 }

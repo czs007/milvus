@@ -46,6 +46,14 @@ type spyCompactionHandler struct {
 	spyChan chan *datapb.CompactionPlan
 }
 
+func (h *spyCompactionHandler) getCompactionTasksNumBySignalID(signalID int64) int {
+	return 0
+}
+
+func (h *spyCompactionHandler) getCompactionInfo(signalID int64) *compactionInfo {
+	return nil
+}
+
 var _ compactionPlanContext = (*spyCompactionHandler)(nil)
 
 func (h *spyCompactionHandler) removeTasksByChannel(channel string) {}
@@ -2000,12 +2008,12 @@ func Test_compactionTrigger_new(t *testing.T) {
 }
 
 func Test_compactionTrigger_allocTs(t *testing.T) {
-	got := newCompactionTrigger(&meta{segments: NewSegmentsInfo()}, &compactionPlanHandler{scheduler: NewCompactionScheduler(nil)}, newMockAllocator(), newMockHandler(), newMockVersionManager())
+	got := newCompactionTrigger(&meta{segments: NewSegmentsInfo()}, &compactionPlanHandler{ nil, newMockAllocator(), newMockHandler(), newMockVersionManager())
 	ts, err := got.allocTs()
 	assert.NoError(t, err)
 	assert.True(t, ts > 0)
 
-	got = newCompactionTrigger(&meta{segments: NewSegmentsInfo()}, &compactionPlanHandler{scheduler: NewCompactionScheduler(nil)}, &FailsAllocator{}, newMockHandler(), newMockVersionManager())
+	got = newCompactionTrigger(&meta{segments: NewSegmentsInfo()}, &compactionPlanHandler{ &FailsAllocator{}, newMockHandler(), newMockVersionManager())
 	ts, err = got.allocTs()
 	assert.Error(t, err)
 	assert.Equal(t, uint64(0), ts)
