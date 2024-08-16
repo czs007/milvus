@@ -51,8 +51,8 @@ type MockWALAccesser_Append_Call struct {
 }
 
 // Append is a helper method to define mock.On call
-//  - ctx context.Context
-//  - msgs ...message.MutableMessage
+//   - ctx context.Context
+//   - msgs ...message.MutableMessage
 func (_e *MockWALAccesser_Expecter) Append(ctx interface{}, msgs ...interface{}) *MockWALAccesser_Append_Call {
 	return &MockWALAccesser_Append_Call{Call: _e.mock.On("Append",
 		append([]interface{}{ctx}, msgs...)...)}
@@ -135,8 +135,8 @@ type MockWALAccesser_Read_Call struct {
 }
 
 // Read is a helper method to define mock.On call
-//  - ctx context.Context
-//  - opts streaming.ReadOption
+//   - ctx context.Context
+//   - opts streaming.ReadOption
 func (_e *MockWALAccesser_Expecter) Read(ctx interface{}, opts interface{}) *MockWALAccesser_Read_Call {
 	return &MockWALAccesser_Read_Call{Call: _e.mock.On("Read", ctx, opts)}
 }
