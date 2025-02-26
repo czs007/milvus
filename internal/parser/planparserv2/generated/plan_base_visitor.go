@@ -11,6 +11,10 @@ func (v *BasePlanVisitor) VisitIdentifierOutputField(ctx *IdentifierOutputFieldC
 	return v.VisitChildren(ctx)
 }
 
+func (v *BasePlanVisitor) VisitCountOutputField(ctx *CountOutputFieldContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
 func (v *BasePlanVisitor) VisitFunctionOutputField(ctx *FunctionOutputFieldContext) interface{} {
 	return v.VisitChildren(ctx)
 }

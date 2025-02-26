@@ -10,6 +10,9 @@ type PlanVisitor interface {
 	// Visit a parse tree produced by PlanParser#IdentifierOutputField.
 	VisitIdentifierOutputField(ctx *IdentifierOutputFieldContext) interface{}
 
+	// Visit a parse tree produced by PlanParser#CountOutputField.
+	VisitCountOutputField(ctx *CountOutputFieldContext) interface{}
+
 	// Visit a parse tree produced by PlanParser#FunctionOutputField.
 	VisitFunctionOutputField(ctx *FunctionOutputFieldContext) interface{}
 

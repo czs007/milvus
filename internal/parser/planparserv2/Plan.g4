@@ -1,7 +1,8 @@
 grammar Plan;
 
 outputFields:
-	Identifier # IdentifierOutputField
+	(Identifier|Meta|MUL) # IdentifierOutputField
+	|COUNT '(' MUL ')' #CountOutputField
 	|(Distance|Score)'(' Identifier ')' # FunctionOutputField;
 
 expr:
@@ -117,6 +118,7 @@ StringLiteral: EncodingPrefix? ('"' DoubleSCharSequence? '"' | '\'' SingleSCharS
 JSONIdentifier: (Identifier | Meta)('[' (StringLiteral | DecimalConstant) ']')+;
 Distance: 'distance' | 'Distance';
 Score:    'score' | 'SCORE';
+COUNT:    'count' | 'COUNT';
 
 fragment EncodingPrefix: 'u8' | 'u' | 'U' | 'L';
 
