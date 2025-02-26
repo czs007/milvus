@@ -1,5 +1,12 @@
 grammar Plan;
 
+outputField:
+	(Identifier|Meta) #IdOField
+	|MUL #AllField
+	|COUNT '(' MUL ')' #CntOField
+	|Distance '(' Identifier ')' #DistOField
+	|Score '(' Identifier ')' #ScoreOField;
+
 expr:
 	IntegerConstant											                     # Integer
 	| FloatingConstant										                     # Floating
@@ -111,6 +118,10 @@ Meta: '$meta';
 
 StringLiteral: EncodingPrefix? ('"' DoubleSCharSequence? '"' | '\'' SingleSCharSequence? '\'');
 JSONIdentifier: (Identifier | Meta)('[' (StringLiteral | DecimalConstant) ']')+;
+Distance: 'distance' | 'Distance';
+Score:    'score' | 'SCORE';
+COUNT:    'count' | 'COUNT';
+AS : [aA][sS];
 
 fragment EncodingPrefix: 'u8' | 'u' | 'U' | 'L';
 

@@ -243,6 +243,47 @@ message QueryPlanNode {
   int64 limit = 3;
 };
 
+message CountArgument {
+  oneof expr {
+    ValueExpr value = 1;    // const value
+    ColumnExpr column = 2;  // column
+  }
+}
+
+message CountExpr {
+  oneof count_target {
+    bool asterisk = 1;       // COUNT(*)
+    CountArgument expr = 2; // COUNT(column/value), not supported yet
+  }
+  bool enable_distinct = 3;      // COUNT(DISTINCT column), not supported yet
+}
+
+message ScoreExpr {
+  int64 field_id = 1;
+}
+
+message DistanceExpr {
+  int64 field_id = 1;
+}
+
+message OutputFieldExpr{
+  oneof expr {
+    ColumnExpr column_expr = 1;
+    CountExpr count_expr = 2;
+    ValueExpr value_expr = 3;
+    ScoreExpr score_expr = 4;
+    DistanceExpr distance_expr = 5;
+  };
+}
+
+message OutputFieldNode {
+  string alias = 1;
+  oneof  target {
+    bool select_all = 2; //  SELECT *
+    OutputFieldExpr expr = 3;
+  };
+}
+
 message PlanNode {
   oneof node {
     VectorANNS vector_anns = 1;
@@ -251,4 +292,5 @@ message PlanNode {
   }
   repeated int64 output_field_ids = 3;
   repeated string dynamic_fields = 5;
+  repeated OutputFieldNode output_fields = 6;
 }

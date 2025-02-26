@@ -1470,3 +1470,11 @@ func (v *ParserVisitor) VisitTemplateVariable(ctx *parser.TemplateVariableContex
 		},
 	}
 }
+
+func (v *ParserVisitor) VisitIdentifierOutputField(ctx *parser.IdentifierOutputFieldContext) interface{} {
+	return ctx.Identifier().GetText()
+}
+
+func (v *ParserVisitor) VisitFunctionOutputField(ctx *parser.FunctionOutputFieldContext) interface{} {
+	return nil
+}

@@ -1368,6 +1368,9 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 						if err != nil {
 							return nil, nil, nil, false, err
 						}
+						//err = planparserv2.Parse(schemaH, outputFieldName, func(expr *planpb.Expr) error {
+						//
+						//}
 						err = planparserv2.ParseIdentifier(schemaH, outputFieldName, func(expr *planpb.Expr) error {
 							if len(expr.GetColumnExpr().GetInfo().GetNestedPath()) == 1 &&
 								expr.GetColumnExpr().GetInfo().GetNestedPath()[0] == outputFieldName {
