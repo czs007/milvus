@@ -83,9 +83,10 @@ type searchTask struct {
 	queryInfos      []*planpb.QueryInfo
 	relatedDataSize int64
 
-	reScorers   []reScorer
-	rankParams  *rankParams
-	groupScorer func(group *Group) error
+	reScorers        []reScorer
+	rankParams       *rankParams
+	groupScorer      func(group *Group) error
+	funcOutputFields []*FunctionOutputField
 
 	isIterator bool
 }

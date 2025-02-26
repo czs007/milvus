@@ -7,6 +7,14 @@ type BasePlanVisitor struct {
 	*antlr.BaseParseTreeVisitor
 }
 
+func (v *BasePlanVisitor) VisitIdentifierOutputField(ctx *IdentifierOutputFieldContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitFunctionOutputField(ctx *FunctionOutputFieldContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
 func (v *BasePlanVisitor) VisitJSONIdentifier(ctx *JSONIdentifierContext) interface{} {
 	return v.VisitChildren(ctx)
 }

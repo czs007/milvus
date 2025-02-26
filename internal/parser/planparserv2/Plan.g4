@@ -1,5 +1,9 @@
 grammar Plan;
 
+outputFields:
+	Identifier # IdentifierOutputField
+	|(Distance|Score)'(' Identifier ')' # FunctionOutputField;
+
 expr:
 	IntegerConstant											                     # Integer
 	| FloatingConstant										                     # Floating
@@ -111,6 +115,8 @@ Meta: '$meta';
 
 StringLiteral: EncodingPrefix? ('"' DoubleSCharSequence? '"' | '\'' SingleSCharSequence? '\'');
 JSONIdentifier: (Identifier | Meta)('[' (StringLiteral | DecimalConstant) ']')+;
+Distance: 'distance' | 'Distance';
+Score:    'score' | 'SCORE';
 
 fragment EncodingPrefix: 'u8' | 'u' | 'U' | 'L';
 

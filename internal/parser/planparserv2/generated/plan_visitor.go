@@ -7,6 +7,12 @@ import "github.com/antlr4-go/antlr/v4"
 type PlanVisitor interface {
 	antlr.ParseTreeVisitor
 
+	// Visit a parse tree produced by PlanParser#IdentifierOutputField.
+	VisitIdentifierOutputField(ctx *IdentifierOutputFieldContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#FunctionOutputField.
+	VisitFunctionOutputField(ctx *FunctionOutputFieldContext) interface{}
+
 	// Visit a parse tree produced by PlanParser#JSONIdentifier.
 	VisitJSONIdentifier(ctx *JSONIdentifierContext) interface{}
 

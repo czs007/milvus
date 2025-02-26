@@ -773,3 +773,17 @@ func fillInEmptyResult(numQueries int64) *milvuspb.SearchResults {
 		},
 	}
 }
+
+type OutputFieldFuncType int32
+
+const (
+	OutputFieldFunc_None     OutputFieldFuncType = 0
+	OutputFieldFunc_Distance OutputFieldFuncType = 1
+	OutputFieldFunc_Score    OutputFieldFuncType = 2
+)
+
+type FunctionOutputField struct {
+	FieldName string // distance(field_name)
+	FuncType  OutputFieldFuncType
+	FieldID   int64
+}
