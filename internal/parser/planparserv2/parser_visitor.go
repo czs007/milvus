@@ -9,6 +9,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	parser "github.com/milvus-io/milvus/internal/parser/planparserv2/generated"
+	"github.com/milvus-io/milvus/pkg/v2/common"
 	"github.com/milvus-io/milvus/pkg/v2/proto/planpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
@@ -1469,4 +1470,277 @@ func (v *ParserVisitor) VisitTemplateVariable(ctx *parser.TemplateVariableContex
 			IsTemplate: true,
 		},
 	}
+}
+
+func (v *ParserVisitor) VisitFuncCallIdentifier(ctx *parser.FuncCallIdentifierContext) interface{} {
+	identifier := ctx.Identifier().GetText()
+	return &planpb.Expr{
+		Expr: &planpb.Expr_ValueExpr{
+			ValueExpr: &planpb.ValueExpr{
+				Value: &planpb.GenericValue{
+					Val: &planpb.GenericValue_StringVal{
+						StringVal: identifier,
+					},
+				},
+			},
+		},
+	}
+}
+
+func (v *ParserVisitor) VisitFuncCallMul(ctx *parser.FuncCallMulContext) interface{} {
+	return &planpb.OutputFieldNode{
+		Target: &planpb.OutputFieldNode_Expr{
+			Expr: &planpb.OutputFieldExpr{
+				Expr: &planpb.OutputFieldExpr_CountExpr{
+					CountExpr: &planpb.CountExpr{
+						CountTarget: &planpb.CountExpr_Asterisk{
+							Asterisk: true,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func (v *ParserVisitor) VisitFuncCallInteger(ctx *parser.FuncCallIntegerContext) interface{} {
+	value, _ := strconv.ParseInt(ctx.IntegerConstant().GetText(), 10, 64)
+	return &planpb.Expr{
+		Expr: &planpb.Expr_ValueExpr{
+			ValueExpr: &planpb.ValueExpr{
+				Value: &planpb.GenericValue{
+					Val: &planpb.GenericValue_Int64Val{
+						Int64Val: value,
+					},
+				},
+			},
+		},
+	}
+}
+
+func (v *ParserVisitor) VisitFuncCallFloating(ctx *parser.FuncCallFloatingContext) interface{} {
+	value, _ := strconv.ParseFloat(ctx.FloatingConstant().GetText(), 64)
+	return &planpb.Expr{
+		Expr: &planpb.Expr_ValueExpr{
+			ValueExpr: &planpb.ValueExpr{
+				Value: &planpb.GenericValue{
+					Val: &planpb.GenericValue_FloatVal{
+						FloatVal: value,
+					},
+				},
+			},
+		},
+	}
+}
+
+func (v *ParserVisitor) VisitFuncCallBoolean(ctx *parser.FuncCallBooleanContext) interface{} {
+	value, _ := strconv.ParseBool(ctx.BooleanConstant().GetText())
+	return &planpb.Expr{
+		Expr: &planpb.Expr_ValueExpr{
+			ValueExpr: &planpb.ValueExpr{
+				Value: &planpb.GenericValue{
+					Val: &planpb.GenericValue_BoolVal{
+						BoolVal: value,
+					},
+				},
+			},
+		},
+	}
+}
+
+func (v *ParserVisitor) VisitFuncCallString(ctx *parser.FuncCallStringContext) interface{} {
+	value := ctx.StringLiteral().GetText()
+	// Remove quotes
+	value = value[1 : len(value)-1]
+	return &planpb.Expr{
+		Expr: &planpb.Expr_ValueExpr{
+			ValueExpr: &planpb.ValueExpr{
+				Value: &planpb.GenericValue{
+					Val: &planpb.GenericValue_StringVal{
+						StringVal: value,
+					},
+				},
+			},
+		},
+	}
+}
+
+func (v *ParserVisitor) VisitIdentifierOField(ctx *parser.IdentifierOFieldContext) interface{} {
+	identifier := ctx.Identifier(0).GetText()
+	expr, err := v.translateIdentifier(identifier)
+	if err != nil {
+		return err
+	}
+
+	alias := identifier
+	if len(ctx.AllIdentifier()) > 1 {
+		alias = ctx.Identifier(1).GetText()
+	}
+
+	return &planpb.OutputFieldNode{
+		Target: &planpb.OutputFieldNode_Expr{
+			Expr: &planpb.OutputFieldExpr{
+				Expr: &planpb.OutputFieldExpr_ColumnExpr{
+					ColumnExpr: expr.expr.GetColumnExpr(),
+				},
+			},
+		},
+		Alias: alias,
+	}
+}
+
+func (v *ParserVisitor) VisitMetaOField(ctx *parser.MetaOFieldContext) interface{} {
+	field, err := v.schema.GetFieldFromNameDefaultJSON(common.MetaFieldName)
+	if err != nil {
+		return err
+	}
+
+	columnInfo := &planpb.ColumnInfo{
+		FieldId:         field.FieldID,
+		DataType:        field.DataType,
+		IsPrimaryKey:    field.IsPrimaryKey,
+		IsAutoID:        field.AutoID,
+		IsPartitionKey:  field.IsPartitionKey,
+		IsClusteringKey: field.IsClusteringKey,
+		ElementType:     field.GetElementType(),
+		Nullable:        field.GetNullable(),
+		IsMetaColumn:    true,
+	}
+	return &planpb.OutputFieldNode{
+		Target: &planpb.OutputFieldNode_Expr{
+			Expr: &planpb.OutputFieldExpr{
+				Expr: &planpb.OutputFieldExpr_ColumnExpr{
+					ColumnExpr: &planpb.ColumnExpr{
+						Info: columnInfo,
+					},
+				},
+			},
+		},
+		Alias: common.MetaFieldName,
+	}
+}
+
+func (v *ParserVisitor) VisitAllOField(ctx *parser.AllOFieldContext) interface{} {
+	return &planpb.OutputFieldNode{
+		Alias: "*",
+		Target: &planpb.OutputFieldNode_SelectAll{
+			SelectAll: true,
+		},
+	}
+}
+
+func (v *ParserVisitor) VisitFuncCallOField(ctx *parser.FuncCallOFieldContext) interface{} {
+	funcName := ctx.Identifier(0).GetText()
+	args := ctx.AllOutputFuncCallArgument()
+
+	// Get alias if present
+	alias := ""
+	if ctx.AS() != nil {
+		if len(ctx.AllIdentifier()) > 1 {
+			alias = ctx.Identifier(1).GetText()
+		}
+	} else {
+		alias = ctx.GetText()
+	}
+
+	switch strings.ToUpper(funcName) {
+	case "COUNT":
+		if len(args) != 1 {
+			return fmt.Errorf("COUNT function requires exactly one argument")
+		}
+
+		switch arg := args[0].(type) {
+		case *parser.FuncCallMulContext:
+			return &planpb.OutputFieldNode{
+				Target: &planpb.OutputFieldNode_Expr{
+					Expr: &planpb.OutputFieldExpr{
+						Expr: &planpb.OutputFieldExpr_CountExpr{
+							CountExpr: &planpb.CountExpr{
+								CountTarget: &planpb.CountExpr_Asterisk{
+									Asterisk: true,
+								},
+							},
+						},
+					},
+				},
+				Alias: alias,
+			}
+		case *parser.FuncCallIdentifierContext:
+			fieldName := arg.GetText()
+			field, err := v.schema.GetFieldFromNameDefaultJSON(fieldName)
+			if err != nil {
+				return fmt.Errorf("field %s not found in schema: %v", fieldName, err)
+			}
+
+			return &planpb.OutputFieldNode{
+				Target: &planpb.OutputFieldNode_Expr{
+					Expr: &planpb.OutputFieldExpr{
+						Expr: &planpb.OutputFieldExpr_CountExpr{
+							CountExpr: &planpb.CountExpr{
+								CountTarget: &planpb.CountExpr_Expr{
+									Expr: &planpb.CountArgument{
+										Expr: &planpb.CountArgument_Column{
+											Column: &planpb.ColumnExpr{
+												Info: &planpb.ColumnInfo{
+													FieldId:  field.FieldID,
+													DataType: field.DataType,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Alias: alias,
+			}
+		default:
+			return fmt.Errorf("unsupported argument type for COUNT function: %T", arg)
+		}
+	case "SCORE":
+		if len(args) == 1 {
+			fieldName := args[0].GetText()
+			field, err := v.schema.GetFieldFromNameDefaultJSON(fieldName)
+			if err != nil {
+				return err
+			}
+			return &planpb.OutputFieldNode{
+				Target: &planpb.OutputFieldNode_Expr{
+					Expr: &planpb.OutputFieldExpr{
+						Expr: &planpb.OutputFieldExpr_ScoreExpr{
+							ScoreExpr: &planpb.ScoreExpr{
+								FieldId: field.FieldID,
+								Name:    alias,
+							},
+						},
+					},
+				},
+				Alias: alias,
+			}
+		}
+	case "DISTANCE":
+		if len(args) == 1 {
+			fieldName := args[0].GetText()
+			field, err := v.schema.GetFieldFromNameDefaultJSON(fieldName)
+			if err != nil {
+				return err
+			}
+			return &planpb.OutputFieldNode{
+				Target: &planpb.OutputFieldNode_Expr{
+					Expr: &planpb.OutputFieldExpr{
+						Expr: &planpb.OutputFieldExpr_DistanceExpr{
+							DistanceExpr: &planpb.DistanceExpr{
+								FieldId: field.FieldID,
+								Name:    alias,
+							},
+						},
+					},
+				},
+				Alias: alias,
+			}
+		}
+	}
+
+	return fmt.Errorf("unsupported function call: %s", funcName)
 }

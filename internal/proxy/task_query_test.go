@@ -992,6 +992,16 @@ func Test_filterSystemFields(t *testing.T) {
 }
 
 func Test_matchCountRule(t *testing.T) {
+	schema := &schemapb.CollectionSchema{
+		Fields: []*schemapb.FieldSchema{
+			{
+				FieldID:      100,
+				Name:         "a",
+				IsPrimaryKey: true,
+				DataType:     schemapb.DataType_Int64,
+			},
+		},
+	}
 	type args struct {
 		outputs []string
 	}
@@ -1057,7 +1067,7 @@ func Test_matchCountRule(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, matchCountRule(tt.args.outputs), "matchCountRule(%v)", tt.args.outputs)
+			assert.Equalf(t, tt.want, matchCountRule(tt.args.outputs, schema), "matchCountRule(%v)", tt.args.outputs)
 		})
 	}
 }

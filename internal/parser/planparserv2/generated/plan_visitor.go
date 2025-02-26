@@ -7,6 +7,36 @@ import "github.com/antlr4-go/antlr/v4"
 type PlanVisitor interface {
 	antlr.ParseTreeVisitor
 
+	// Visit a parse tree produced by PlanParser#FuncCallIdentifier.
+	VisitFuncCallIdentifier(ctx *FuncCallIdentifierContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#FuncCallMul.
+	VisitFuncCallMul(ctx *FuncCallMulContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#FuncCallInteger.
+	VisitFuncCallInteger(ctx *FuncCallIntegerContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#FuncCallFloating.
+	VisitFuncCallFloating(ctx *FuncCallFloatingContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#FuncCallBoolean.
+	VisitFuncCallBoolean(ctx *FuncCallBooleanContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#FuncCallString.
+	VisitFuncCallString(ctx *FuncCallStringContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#IdentifierOField.
+	VisitIdentifierOField(ctx *IdentifierOFieldContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#MetaOField.
+	VisitMetaOField(ctx *MetaOFieldContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#AllOField.
+	VisitAllOField(ctx *AllOFieldContext) interface{}
+
+	// Visit a parse tree produced by PlanParser#FuncCallOField.
+	VisitFuncCallOField(ctx *FuncCallOFieldContext) interface{}
+
 	// Visit a parse tree produced by PlanParser#JSONIdentifier.
 	VisitJSONIdentifier(ctx *JSONIdentifierContext) interface{}
 

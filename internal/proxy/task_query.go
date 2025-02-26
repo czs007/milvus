@@ -59,9 +59,7 @@ type queryTask struct {
 	queryParams    *queryParams
 	schema         *schemaInfo
 
-	translatedOutputFields []string
-	userOutputFields       []string
-	userDynamicFields      []string
+	oFieldInfo *outputFieldInfo
 
 	resultBuf *typeutil.ConcurrentSet[*internalpb.RetrieveResults]
 
@@ -83,63 +81,6 @@ type queryParams struct {
 	reduceType   reduce.IReduceType
 	isIterator   bool
 	collectionID int64
-}
-
-// translateToOutputFieldIDs translates output fields name to output fields id.
-// If no output fields specified, return only pk field
-func translateToOutputFieldIDs(outputFields []string, schema *schemapb.CollectionSchema) ([]UniqueID, error) {
-	outputFieldIDs := make([]UniqueID, 0, len(outputFields)+1)
-	if len(outputFields) == 0 {
-		for _, field := range schema.Fields {
-			if field.IsPrimaryKey {
-				outputFieldIDs = append(outputFieldIDs, field.FieldID)
-			}
-		}
-	} else {
-		var pkFieldID UniqueID
-		for _, field := range schema.Fields {
-			if field.IsPrimaryKey {
-				pkFieldID = field.FieldID
-			}
-		}
-		for _, reqField := range outputFields {
-			var fieldFound bool
-			for _, field := range schema.Fields {
-				if reqField == field.Name {
-					outputFieldIDs = append(outputFieldIDs, field.FieldID)
-					fieldFound = true
-					break
-				}
-			}
-			if !fieldFound {
-				return nil, fmt.Errorf("field %s not exist", reqField)
-			}
-		}
-
-		// pk field needs to be in output field list
-		var pkFound bool
-		for _, outputField := range outputFieldIDs {
-			if outputField == pkFieldID {
-				pkFound = true
-				break
-			}
-		}
-
-		if !pkFound {
-			outputFieldIDs = append(outputFieldIDs, pkFieldID)
-		}
-	}
-	return outputFieldIDs, nil
-}
-
-func filterSystemFields(outputFieldIDs []UniqueID) []UniqueID {
-	filtered := make([]UniqueID, 0, len(outputFieldIDs))
-	for _, outputFieldID := range outputFieldIDs {
-		if !common.IsSystemField(outputFieldID) {
-			filtered = append(filtered, outputFieldID)
-		}
-	}
-	return filtered
 }
 
 // parseQueryParams get limit and offset from queryParamsPair, both are optional.
@@ -223,8 +164,19 @@ func parseQueryParams(queryParamsPair []*commonpb.KeyValuePair) (*queryParams, e
 	}, nil
 }
 
-func matchCountRule(outputs []string) bool {
-	return len(outputs) == 1 && strings.ToLower(strings.TrimSpace(outputs[0])) == "count(*)"
+func matchCountRule(outputs []string, schema *schemapb.CollectionSchema) bool {
+	if len(outputs) != 1 {
+		return false
+	}
+	schemaH, err := typeutil.CreateSchemaHelper(schema)
+	if err != nil {
+		return false
+	}
+	outputField, err := planparserv2.ParseOutputField(schemaH, outputs[0])
+	if err != nil {
+		return false
+	}
+	return outputField.GetExpr().GetCountExpr().GetAsterisk()
 }
 
 func createCntPlan(expr string, schemaHelper *typeutil.SchemaHelper, exprTemplateValues map[string]*schemapb.TemplateValue) (*planpb.PlanNode, error) {
@@ -253,13 +205,13 @@ func createCntPlan(expr string, schemaHelper *typeutil.SchemaHelper, exprTemplat
 func (t *queryTask) createPlan(ctx context.Context) error {
 	schema := t.schema
 
-	cntMatch := matchCountRule(t.request.GetOutputFields())
-	if cntMatch {
-		var err error
-		t.plan, err = createCntPlan(t.request.GetExpr(), schema.schemaHelper, t.request.GetExprTemplateValues())
-		t.userOutputFields = []string{"count(*)"}
-		return err
-	}
+	//cntMatch := matchCountRule(t.request.GetOutputFields(), schema.CollectionSchema)
+	//if cntMatch {
+	//	var err error
+	//	t.plan, err = createCntPlan(t.request.GetExpr(), schema.schemaHelper, t.request.GetExprTemplateValues())
+	//	t.userOutputFields = []string{"count(*)"}
+	//	return err
+	//}
 
 	var err error
 	if t.plan == nil {
@@ -272,19 +224,19 @@ func (t *queryTask) createPlan(ctx context.Context) error {
 		metrics.ProxyParseExpressionLatency.WithLabelValues(strconv.FormatInt(paramtable.GetNodeID(), 10), "query", metrics.SuccessLabel).Observe(float64(time.Since(start).Milliseconds()))
 	}
 
-	t.translatedOutputFields, t.userOutputFields, t.userDynamicFields, _, err = translateOutputFields(t.request.OutputFields, t.schema, false)
+	t.oFieldInfo, err = translateOutputFields(t.request.OutputFields, t.schema, false)
 	if err != nil {
 		return err
 	}
 
-	outputFieldIDs, err := translateToOutputFieldIDs(t.translatedOutputFields, schema.CollectionSchema)
+	outputFieldIDs, err := translateToOutputFieldIDs(t.oFieldInfo.resultFields, schema.CollectionSchema)
 	if err != nil {
 		return err
 	}
 	outputFieldIDs = append(outputFieldIDs, common.TimeStampField)
 	t.RetrieveRequest.OutputFieldsId = outputFieldIDs
 	t.plan.OutputFieldIds = outputFieldIDs
-	t.plan.DynamicFields = t.userDynamicFields
+	t.plan.DynamicFields = t.oFieldInfo.userDynamicFields
 	log.Ctx(ctx).Debug("translate output fields to field ids",
 		zap.Int64s("OutputFieldsID", t.OutputFieldsId),
 		zap.String("requestType", "query"))
@@ -559,7 +511,7 @@ func (t *queryTask) PostExecute(ctx context.Context) error {
 		log.Warn("fail to reduce query result", zap.Error(err))
 		return err
 	}
-	t.result.OutputFields = t.userOutputFields
+	t.result.OutputFields = t.oFieldInfo.userOutputFields
 	primaryFieldSchema, err := t.schema.GetPkField()
 	if err != nil {
 		log.Warn("failed to get primary field schema", zap.Error(err))

@@ -7,6 +7,46 @@ type BasePlanVisitor struct {
 	*antlr.BaseParseTreeVisitor
 }
 
+func (v *BasePlanVisitor) VisitFuncCallIdentifier(ctx *FuncCallIdentifierContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitFuncCallMul(ctx *FuncCallMulContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitFuncCallInteger(ctx *FuncCallIntegerContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitFuncCallFloating(ctx *FuncCallFloatingContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitFuncCallBoolean(ctx *FuncCallBooleanContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitFuncCallString(ctx *FuncCallStringContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitIdentifierOField(ctx *IdentifierOFieldContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitMetaOField(ctx *MetaOFieldContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitAllOField(ctx *AllOFieldContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BasePlanVisitor) VisitFuncCallOField(ctx *FuncCallOFieldContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
 func (v *BasePlanVisitor) VisitJSONIdentifier(ctx *JSONIdentifierContext) interface{} {
 	return v.VisitChildren(ctx)
 }

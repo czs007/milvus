@@ -1616,3 +1616,40 @@ func Test_JSONPathNullExpr(t *testing.T) {
 		assert.Equal(t, planStr, plan2Str)
 	}
 }
+
+func TestVisitFuncCallOField(t *testing.T) {
+	schema := newTestSchema(true)
+	helper, err := typeutil.CreateSchemaHelper(schema)
+	assert.NoError(t, err)
+
+	exprStrs := []string{
+		"COUNT(*)",
+		"COUNT(*) AS total",
+		"COUNT(Int64Field)",
+		"SCORE(FloatVectorField)",
+		"SCORE(FloatVectorField) as score_field",
+		"DISTANCE(FloatVectorField)",
+		"DISTANCE(FloatVectorField) as distance_field",
+		"*",
+	}
+
+	for _, exprStr := range exprStrs {
+		_, err := ParseOutputField(helper, exprStr)
+		assert.NoError(t, err, exprStr)
+	}
+
+	unsupported := []string{
+		"COUNT()",
+		"COUNT(Int64Field, FloatVectorField)",
+		"SCORE()",
+		"SCORE(FloatVectorField, Int64Field)",
+		"DISTANCE()",
+		"DISTANCE(FloatVectorField, Int64Field)",
+		"INVALID_FUNC()",
+	}
+
+	for _, exprStr := range unsupported {
+		_, err := ParseOutputField(helper, exprStr)
+		assert.Error(t, err)
+	}
+}

@@ -77,10 +77,62 @@ func handleInternal(exprStr string) (ast planparserv2.IExprContext, err error) {
 	return
 }
 
+func handleOutputField(exprStr string) (ast planparserv2.IOutputFieldContext, err error) {
+	val, ok := exprCache.Get(exprStr)
+	if ok {
+		switch v := val.(type) {
+		case planparserv2.IOutputFieldContext:
+			return v, nil
+		case error:
+			return nil, v
+		default:
+			return nil, fmt.Errorf("unknown cache error: %v", v)
+		}
+	}
+
+	defer func() {
+		if err != nil {
+			exprCache.Add(exprStr, err)
+		}
+	}()
+
+	exprNormal := convertHanToASCII(exprStr)
+	listener := &errorListenerImpl{}
+
+	inputStream := antlr.NewInputStream(exprNormal)
+	lexer := getLexer(inputStream, listener)
+	if err = listener.Error(); err != nil {
+		return
+	}
+
+	parser := getParser(lexer, listener)
+	if err = listener.Error(); err != nil {
+		return
+	}
+
+	ast = parser.OutputField()
+	if err = listener.Error(); err != nil {
+		return
+	}
+
+	if parser.GetCurrentToken().GetTokenType() != antlr.TokenEOF {
+		log.Info("invalid expression", zap.String("expr", exprStr))
+		err = fmt.Errorf("invalid output field: %s", exprStr)
+		return
+	}
+
+	putLexer(lexer)
+	putParser(parser)
+
+	exprCache.Add(exprStr, ast)
+	return
+}
+
 func handleExpr(schema *typeutil.SchemaHelper, exprStr string) interface{} {
 	if isEmptyExpression(exprStr) {
 		return trueLiteral
 	}
+
 	ast, err := handleInternal(exprStr)
 	if err != nil {
 		return err
@@ -252,4 +304,26 @@ func CreateRequeryPlan(pkField *schemapb.FieldSchema, ids *schemapb.IDs) *planpb
 			},
 		},
 	}
+}
+
+// ParseOutput parses the output field expressions and returns a list of output field nodes.
+func ParseOutputField(schema *typeutil.SchemaHelper, outputFieldStr string) (*planpb.OutputFieldNode, error) {
+	// Try to parse as output field
+	outputField, err := handleOutputField(outputFieldStr)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse output field: %s, error: %s", outputFieldStr, err)
+	}
+
+	visitor := NewParserVisitor(schema)
+	result := outputField.Accept(visitor)
+	if err := getError(result); err != nil {
+		return nil, fmt.Errorf("cannot parse output field: %s, error: %s", outputFieldStr, err)
+	}
+
+	outputFieldNode, ok := result.(*planpb.OutputFieldNode)
+	if !ok {
+		return nil, fmt.Errorf("invalid output field node type: %s", outputFieldStr)
+	}
+
+	return outputFieldNode, nil
 }

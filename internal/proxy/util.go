@@ -36,7 +36,6 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/internal/json"
-	"github.com/milvus-io/milvus/internal/parser/planparserv2"
 	"github.com/milvus-io/milvus/internal/types"
 	"github.com/milvus-io/milvus/internal/util/hookutil"
 	"github.com/milvus-io/milvus/internal/util/indexparamcheck"
@@ -1297,120 +1296,6 @@ func computeRecall(results *schemapb.SearchResultData, gts *schemapb.SearchResul
 	default:
 		return fmt.Errorf("unsupported pk type")
 	}
-}
-
-// Support wildcard in output fields:
-//
-//	"*" - all fields
-//
-// For example, A and B are scalar fields, C and D are vector fields, duplicated fields will automatically be removed.
-//
-//	output_fields=["*"] 	 ==> [A,B,C,D]
-//	output_fields=["*",A] 	 ==> [A,B,C,D]
-//	output_fields=["*",C]    ==> [A,B,C,D]
-//
-// 4th return value is true if user requested pk field explicitly or using wildcard.
-// if removePkField is true, pk field will not be include in the first(resultFieldNames)/second(userOutputFields)
-// return value.
-func translateOutputFields(outputFields []string, schema *schemaInfo, removePkField bool) ([]string, []string, []string, bool, error) {
-	var primaryFieldName string
-	var dynamicField *schemapb.FieldSchema
-	allFieldNameMap := make(map[string]*schemapb.FieldSchema)
-	resultFieldNameMap := make(map[string]bool)
-	resultFieldNames := make([]string, 0)
-	userOutputFieldsMap := make(map[string]bool)
-	userOutputFields := make([]string, 0)
-	userDynamicFieldsMap := make(map[string]bool)
-	userDynamicFields := make([]string, 0)
-	useAllDyncamicFields := false
-	for _, field := range schema.Fields {
-		if field.IsPrimaryKey {
-			primaryFieldName = field.Name
-		}
-		if field.IsDynamic {
-			dynamicField = field
-		}
-		allFieldNameMap[field.Name] = field
-	}
-
-	userRequestedPkFieldExplicitly := false
-
-	for _, outputFieldName := range outputFields {
-		outputFieldName = strings.TrimSpace(outputFieldName)
-		if outputFieldName == primaryFieldName {
-			userRequestedPkFieldExplicitly = true
-		}
-		if outputFieldName == "*" {
-			userRequestedPkFieldExplicitly = true
-			for fieldName, field := range allFieldNameMap {
-				// skip Cold field and fields that can't be output
-				if schema.IsFieldLoaded(field.GetFieldID()) && schema.CanRetrieveRawFieldData(field) {
-					resultFieldNameMap[fieldName] = true
-					userOutputFieldsMap[fieldName] = true
-				}
-			}
-			useAllDyncamicFields = true
-		} else {
-			if field, ok := allFieldNameMap[outputFieldName]; ok {
-				if !schema.CanRetrieveRawFieldData(field) {
-					return nil, nil, nil, false, fmt.Errorf("not allowed to retrieve raw data of field %s", outputFieldName)
-				}
-				if schema.IsFieldLoaded(field.GetFieldID()) {
-					resultFieldNameMap[outputFieldName] = true
-					userOutputFieldsMap[outputFieldName] = true
-				} else {
-					return nil, nil, nil, false, fmt.Errorf("field %s is not loaded", outputFieldName)
-				}
-			} else {
-				if schema.EnableDynamicField {
-					if schema.IsFieldLoaded(dynamicField.GetFieldID()) {
-						schemaH, err := typeutil.CreateSchemaHelper(schema.CollectionSchema)
-						if err != nil {
-							return nil, nil, nil, false, err
-						}
-						err = planparserv2.ParseIdentifier(schemaH, outputFieldName, func(expr *planpb.Expr) error {
-							if len(expr.GetColumnExpr().GetInfo().GetNestedPath()) == 1 &&
-								expr.GetColumnExpr().GetInfo().GetNestedPath()[0] == outputFieldName {
-								return nil
-							}
-							return fmt.Errorf("not support getting subkeys of json field yet")
-						})
-						if err != nil {
-							log.Info("parse output field name failed", zap.String("field name", outputFieldName))
-							return nil, nil, nil, false, fmt.Errorf("parse output field name failed: %s", outputFieldName)
-						}
-						resultFieldNameMap[common.MetaFieldName] = true
-						userOutputFieldsMap[outputFieldName] = true
-						userDynamicFieldsMap[outputFieldName] = true
-					} else {
-						// TODO after cold field be able to fetched with chunk cache, this check shall be removed
-						return nil, nil, nil, false, fmt.Errorf("field %s cannot be returned since dynamic field not loaded", outputFieldName)
-					}
-				} else {
-					return nil, nil, nil, false, fmt.Errorf("field %s not exist", outputFieldName)
-				}
-			}
-		}
-	}
-
-	if removePkField {
-		delete(resultFieldNameMap, primaryFieldName)
-		delete(userOutputFieldsMap, primaryFieldName)
-	}
-
-	for fieldName := range resultFieldNameMap {
-		resultFieldNames = append(resultFieldNames, fieldName)
-	}
-	for fieldName := range userOutputFieldsMap {
-		userOutputFields = append(userOutputFields, fieldName)
-	}
-	if !useAllDyncamicFields {
-		for fieldName := range userDynamicFieldsMap {
-			userDynamicFields = append(userDynamicFields, fieldName)
-		}
-	}
-
-	return resultFieldNames, userOutputFields, userDynamicFields, userRequestedPkFieldExplicitly, nil
 }
 
 func validateIndexName(indexName string) error {

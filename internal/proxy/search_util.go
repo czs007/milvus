@@ -300,18 +300,6 @@ func parseSearchInfo(searchParamsPair []*commonpb.KeyValuePair, schema *schemapb
 	}
 }
 
-func getOutputFieldIDs(schema *schemaInfo, outputFields []string) (outputFieldIDs []UniqueID, err error) {
-	outputFieldIDs = make([]UniqueID, 0, len(outputFields))
-	for _, name := range outputFields {
-		id, ok := schema.MapFieldID(name)
-		if !ok {
-			return nil, fmt.Errorf("Field %s not exist", name)
-		}
-		outputFieldIDs = append(outputFieldIDs, id)
-	}
-	return outputFieldIDs, nil
-}
-
 func getNqFromSubSearch(req *milvuspb.SubSearchRequest) (int64, error) {
 	if req.GetNq() == 0 {
 		// keep compatible with older client version.

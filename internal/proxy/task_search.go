@@ -69,9 +69,7 @@ type searchTask struct {
 	isTopkReduce           bool
 	isRecallEvaluation     bool
 
-	translatedOutputFields []string
-	userOutputFields       []string
-	userDynamicFields      []string
+	oFieldInfo *outputFieldInfo
 
 	resultBuf *typeutil.ConcurrentSet[*internalpb.SearchResults]
 
@@ -84,9 +82,10 @@ type searchTask struct {
 	queryInfos      []*planpb.QueryInfo
 	relatedDataSize int64
 
-	reScorers   []reScorer
-	rankParams  *rankParams
-	groupScorer func(group *Group) error
+	reScorers        []reScorer
+	rankParams       *rankParams
+	groupScorer      func(group *Group) error
+	funcOutputFields []*FunctionOutputField
 
 	isIterator bool
 	// we always remove pk field from output fields, as search result already contains pk field.
@@ -167,13 +166,13 @@ func (t *searchTask) PreExecute(ctx context.Context) error {
 		}
 	}
 
-	t.translatedOutputFields, t.userOutputFields, t.userDynamicFields, t.userRequestedPkFieldExplicitly, err = translateOutputFields(t.request.OutputFields, t.schema, true)
+	t.oFieldInfo, err = translateOutputFields(t.request.OutputFields, t.schema, true)
 	if err != nil {
 		log.Warn("translate output fields failed", zap.Error(err))
 		return err
 	}
 	log.Debug("translate output fields",
-		zap.Strings("output fields", t.translatedOutputFields))
+		zap.Strings("output fields", t.oFieldInfo.resultFields))
 
 	if t.SearchRequest.GetIsAdvanced() {
 		if len(t.request.GetSubReqs()) > defaultMaxSearchRequest {
@@ -201,7 +200,7 @@ func (t *searchTask) PreExecute(ctx context.Context) error {
 		return err
 	}
 
-	outputFieldIDs, err := getOutputFieldIDs(t.schema, t.translatedOutputFields)
+	outputFieldIDs, err := getOutputFieldIDs(t.schema, t.oFieldInfo.resultFields)
 	if err != nil {
 		log.Info("fail to get output field ids", zap.Error(err))
 		return err
@@ -211,11 +210,11 @@ func (t *searchTask) PreExecute(ctx context.Context) error {
 	// Currently, we get vectors by requery. Once we support getting vectors from search,
 	// searches with small result size could no longer need requery.
 	vectorOutputFields := lo.Filter(t.schema.GetFields(), func(field *schemapb.FieldSchema, _ int) bool {
-		return lo.Contains(t.translatedOutputFields, field.GetName()) && typeutil.IsVectorType(field.GetDataType())
+		return lo.Contains(t.oFieldInfo.resultFields, field.GetName()) && typeutil.IsVectorType(field.GetDataType())
 	})
 
 	if t.SearchRequest.GetIsAdvanced() {
-		t.requery = len(t.translatedOutputFields) > 0
+		t.requery = len(t.oFieldInfo.resultFields) > 0
 		err = t.initAdvancedSearchRequest(ctx)
 	} else {
 		t.requery = len(vectorOutputFields) > 0
@@ -411,7 +410,7 @@ func (t *searchTask) initAdvancedSearchRequest(ctx context.Context) error {
 			plan.DynamicFields = nil
 		} else {
 			plan.OutputFieldIds = t.SearchRequest.OutputFieldsId
-			plan.DynamicFields = t.userDynamicFields
+			plan.DynamicFields = t.oFieldInfo.userDynamicFields
 		}
 
 		internalSubReq.SerializedExprPlan, err = proto.Marshal(plan)
@@ -491,7 +490,7 @@ func (t *searchTask) initSearchRequest(ctx context.Context) error {
 		plan.OutputFieldIds = nil
 	} else {
 		plan.OutputFieldIds = t.SearchRequest.OutputFieldsId
-		plan.DynamicFields = t.userDynamicFields
+		plan.DynamicFields = t.oFieldInfo.userDynamicFields
 	}
 
 	t.SearchRequest.SerializedExprPlan, err = proto.Marshal(plan)
@@ -787,7 +786,7 @@ func (t *searchTask) PostExecute(ctx context.Context) error {
 			return err
 		}
 	}
-	t.result.Results.OutputFields = t.userOutputFields
+	t.result.Results.OutputFields = t.oFieldInfo.userOutputFields
 	t.result.CollectionName = t.request.GetCollectionName()
 	t.result.Results.PrimaryFieldName = primaryFieldSchema.GetName()
 	if t.userRequestedPkFieldExplicitly {
@@ -882,7 +881,7 @@ func (t *searchTask) searchShard(ctx context.Context, nodeID int64, qn types.Que
 
 func (t *searchTask) estimateResultSize(nq int64, topK int64) (int64, error) {
 	vectorOutputFields := lo.Filter(t.schema.GetFields(), func(field *schemapb.FieldSchema, _ int) bool {
-		return lo.Contains(t.translatedOutputFields, field.GetName()) && typeutil.IsVectorType(field.GetDataType())
+		return lo.Contains(t.oFieldInfo.userOutputFields, field.GetName()) && typeutil.IsVectorType(field.GetDataType())
 	})
 	// Currently, we get vectors by requery. Once we support getting vectors from search,
 	// searches with small result size could no longer need requery.
@@ -913,7 +912,7 @@ func (t *searchTask) Requery(span trace.Span) error {
 		ConsistencyLevel:      t.SearchRequest.GetConsistencyLevel(),
 		NotReturnAllMeta:      t.request.GetNotReturnAllMeta(),
 		Expr:                  "",
-		OutputFields:          t.translatedOutputFields,
+		OutputFields:          t.oFieldInfo.userOutputFields,
 		PartitionNames:        t.request.GetPartitionNames(),
 		UseDefaultConsistency: false,
 		GuaranteeTimestamp:    t.SearchRequest.GuaranteeTimestamp,
@@ -993,14 +992,14 @@ func (t *searchTask) Requery(span trace.Span) error {
 	}
 
 	t.result.Results.FieldsData = lo.Filter(t.result.Results.FieldsData, func(fieldData *schemapb.FieldData, i int) bool {
-		return lo.Contains(t.translatedOutputFields, fieldData.GetFieldName())
+		return lo.Contains(t.oFieldInfo.resultFields, fieldData.GetFieldName())
 	})
 	return nil
 }
 
 func (t *searchTask) fillInFieldInfo() {
-	if len(t.translatedOutputFields) != 0 && len(t.result.Results.FieldsData) != 0 {
-		for i, name := range t.translatedOutputFields {
+	if len(t.oFieldInfo.resultFields) != 0 && len(t.result.Results.FieldsData) != 0 {
+		for i, name := range t.oFieldInfo.resultFields {
 			for _, field := range t.schema.Fields {
 				if t.result.Results.FieldsData[i] != nil && field.Name == name {
 					t.result.Results.FieldsData[i].FieldName = field.Name
