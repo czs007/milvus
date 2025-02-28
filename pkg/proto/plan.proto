@@ -243,6 +243,59 @@ message QueryPlanNode {
   int64 limit = 3;
 };
 
+message BasicCountExpr {
+  oneof expr {
+    ValueExpr value = 1;
+    ColumnExpr column = 2;
+  }
+}
+
+message CountExpr {
+  bool is_asterisk = 1; // include all null values
+  repeated BasicCountExpr exprs = 2; // not supported yet
+  bool is_distinct = 3; //not supported yet
+}
+
+message ScoreExpr {
+  int64 field_id = 1;
+  schema.DataType data_type = 2;
+  bool is_primary_key = 3;
+  bool is_autoID = 4;
+  repeated string nested_path = 5;
+  bool is_partition_key = 6;
+  schema.DataType element_type = 7;
+  bool is_clustering_key = 8;
+  bool nullable = 9;
+}
+
+message DistanceExpr {
+  int64 field_id = 1;
+  schema.DataType data_type = 2;
+  bool is_primary_key = 3;
+  bool is_autoID = 4;
+  repeated string nested_path = 5;
+  bool is_partition_key = 6;
+  schema.DataType element_type = 7;
+  bool is_clustering_key = 8;
+  bool nullable = 9;
+}
+
+message OutputFieldExpr {
+  bool is_template = 1;
+  oneof expr {
+    ColumnExpr column_expr = 4;
+    CountExpr count_expr = 5;
+    ValueExpr value_expr = 6;
+    CallExpr call_expr = 7;
+  };
+}
+
+message OutputFieldInfo {
+  OutputFieldExpr expr = 1;
+  bool is_all = 2;
+  string alias = 3;
+}
+
 message PlanNode {
   oneof node {
     VectorANNS vector_anns = 1;

@@ -1430,5 +1430,5 @@ func (v *ParserVisitor) VisitIdentifierOutputField(ctx *parser.IdentifierOutputF
 }
 
 func (v *ParserVisitor) VisitFunctionOutputField(ctx *parser.FunctionOutputFieldContext) interface{} {
-
+	return nil
 }

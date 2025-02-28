@@ -1,9 +1,11 @@
 grammar Plan;
 
-outputFields:
-	(Identifier|Meta|MUL) # IdentifierOutputField
-	|COUNT '(' MUL ')' #CountOutputField
-	|(Distance|Score)'(' Identifier ')' # FunctionOutputField;
+outputField:
+	(Identifier|Meta) #IdOField
+	|MUL #AllField
+	|COUNT '(' MUL ')' #CntOField
+	|Distance '(' Identifier ')' #DistOField
+	|Score '(' Identifier ')' #ScoreOField;
 
 expr:
 	IntegerConstant											                     # Integer
