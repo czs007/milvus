@@ -21,8 +21,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -132,61 +130,6 @@ func (lcm *LocalChunkManager) MultiRead(ctx context.Context, filePaths []string)
 	}
 	return results, el
 }
-
-func (lcm *LocalChunkManager) WalkWithPrefix(ctx context.Context, prefix string, recursive bool, walkFunc ChunkObjectWalkFunc) (err error) {
-	logger := log.With(zap.String("prefix", prefix), zap.Bool("recursive", recursive))
-	logger.Info("start walk through objects")
-	defer func() {
-		if err != nil {
-			logger.Warn("failed to walk through objects", zap.Error(err))
-			return
-		}
-		logger.Info("finish walk through objects")
-	}()
-
-	if recursive {
-		dir := filepath.Dir(prefix)
-		return filepath.Walk(dir, func(filePath string, f os.FileInfo, err error) error {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			if err != nil {
-				return err
-			}
-
-			if strings.HasPrefix(filePath, prefix) && !f.IsDir() {
-				modTime, err := lcm.getModTime(filePath)
-				if err != nil {
-					return err
-				}
-				if !walkFunc(&ChunkObjectInfo{FilePath: filePath, ModifyTime: modTime}) {
-					return nil
-				}
-			}
-			return nil
-		})
-	}
-
-	globPaths, err := filepath.Glob(prefix + "*")
-	if err != nil {
-		return err
-	}
-	for _, filePath := range globPaths {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-
-		modTime, err := lcm.getModTime(filePath)
-		if err != nil {
-			return err
-		}
-		if !walkFunc(&ChunkObjectInfo{FilePath: filePath, ModifyTime: modTime}) {
-			return nil
-		}
-	}
-	return nil
-}
-
 // ReadAt reads specific position data of local storage if exists.
 func (lcm *LocalChunkManager) ReadAt(ctx context.Context, filePath string, off int64, length int64) ([]byte, error) {
 	if off < 0 || length < 0 {
@@ -241,27 +184,6 @@ func (lcm *LocalChunkManager) MultiRemove(ctx context.Context, filePaths []strin
 		errors = append(errors, err)
 	}
 	return merr.Combine(errors...)
-}
-
-func (lcm *LocalChunkManager) RemoveWithPrefix(ctx context.Context, prefix string) error {
-	// If the prefix is empty string, the ListWithPrefix() will return all files under current process work folder,
-	// MultiRemove() will delete all these files. This is a danger behavior, empty prefix is not allowed.
-	if len(prefix) == 0 {
-		errMsg := "empty prefix is not allowed for ChunkManager remove operation"
-		log.Warn(errMsg)
-		return merr.WrapErrParameterInvalidMsg(errMsg)
-	}
-	var removeErr error
-	if err := lcm.WalkWithPrefix(ctx, prefix, true, func(chunkInfo *ChunkObjectInfo) bool {
-		err := lcm.MultiRemove(ctx, []string{chunkInfo.FilePath})
-		if err != nil {
-			removeErr = err
-		}
-		return true
-	}); err != nil {
-		return err
-	}
-	return removeErr
 }
 
 func (lcm *LocalChunkManager) getModTime(filepath string) (time.Time, error) {

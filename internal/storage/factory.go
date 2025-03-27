@@ -49,8 +49,6 @@ func (f *ChunkManagerFactory) newChunkManager(ctx context.Context, engine string
 	switch engine {
 	case "local":
 		return NewLocalChunkManager(RootPath(f.config.rootPath)), nil
-	case "remote", "minio", "opendal":
-		return NewRemoteChunkManager(ctx, f.config)
 	default:
 		return nil, errors.New("no chunk manager implemented with engine: " + engine)
 	}
