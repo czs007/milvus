@@ -199,6 +199,11 @@ binlog:
 	mkdir -p $(INSTALL_PATH) && \
 		GO111MODULE=on $(GO) build -o $(INSTALL_PATH)/binlog $(PWD)/cmd/tools/binlog/main.go 1>/dev/null
 
+stats:
+	@echo "Building binlog ..."
+	mkdir -p $(INSTALL_PATH) && \
+		GO111MODULE=on $(GO) build -o $(INSTALL_PATH)/stats $(PWD)/cmd/tools/stats/main.go 1>/dev/null
+
 MIGRATION_PATH = $(PWD)/cmd/tools/migration
 meta-migration:
 	@echo "Building migration tool ..."
