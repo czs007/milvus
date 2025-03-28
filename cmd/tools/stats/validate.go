@@ -6,11 +6,16 @@ import (
 )
 
 func validatePKAndBF(chunkManager storage.ChunkManager, fileDir string) {
+	fmt.Println("start to validate ", fileDir)
+
 	pkFile, err := extractPKFileFromDir(fileDir)
 	if err != nil {
 		panic(err)
 	}
-
+	if len(pkFile) == 0 {
+		fmt.Println("empty PK file")
+		return
+	}
 	segment, err := LoadSegment(pkFile[0])
 	if err != nil {
 		panic(err)
