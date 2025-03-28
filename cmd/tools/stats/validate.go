@@ -54,6 +54,7 @@ func queryPKs(pks []int64, fileDirs []string) {
 	}
 	engine, err := NewQueryEngine(fileNames)
 	if err != nil {
+		panic(err)
 	}
 	defer engine.Close()
 
