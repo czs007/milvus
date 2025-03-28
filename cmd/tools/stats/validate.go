@@ -26,17 +26,21 @@ func validatePKAndBF(chunkManager storage.ChunkManager, fileDir string) {
 	if err != nil {
 		panic(err)
 	}
-	found_exception := false
+	found := false
 	for _, pair := range segment.Pairs {
+		//fmt.Println("len of bfs", len(bfs))
 		for _, bf := range bfs {
 			if !bf.PkExist(storage.NewInt64PrimaryKey(pair.PK)) {
-				fmt.Println(fmt.Sprintf("%s find %d not in bf", fileDir, pair.PK))
-				found_exception = true
-				break
+				continue
+				//fmt.Println(fmt.Sprintf("%s find %d not in bf", fileDir, pair.PK))
+				//found_exception = true
+				//break
+			} else {
+				found = true
 			}
 		}
-		if found_exception {
-			break
+		if !found {
+			fmt.Println(fmt.Sprintf("%s find %d not in bf", fileDir, pair.PK))
 		}
 	}
 }
@@ -76,7 +80,6 @@ func queryPKs(chunkManager storage.ChunkManager, pks []int64, fileDirs []string)
 				fmt.Println("delete %d in %d", pk, tss)
 			}
 		}
-
 	}
 }
 func queryDeltas(chunkManager storage.ChunkManager, pks []int64, fileDirs []string) {
