@@ -108,7 +108,7 @@ func countPKs(chunkManager storage.ChunkManager, fileDirs []string) {
 		}
 		if len(pkFile) == 0 {
 			fmt.Println("empty PK file")
-			return
+			continue
 		}
 		segment, err := LoadSegment(pkFile[0])
 		if err != nil {
@@ -127,6 +127,7 @@ func countPKs(chunkManager storage.ChunkManager, fileDirs []string) {
 				multiCnt += 1
 			}
 		}
+		fmt.Println("multiCnt:", multiCnt)
 	}
-	fmt.Println("multiCnt:", multiCnt)
+	fmt.Println("final multiCnt:", multiCnt)
 }
