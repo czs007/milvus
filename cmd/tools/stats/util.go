@@ -164,7 +164,7 @@ func loadDeltaFromFileDir(chunkManager storage.ChunkManager, fileDir string) (ma
 
 		}
 	}
-	fmt.Println("len of blobs:", len(blobs))
+	//fmt.Println("len of blobs:", len(blobs))
 	_, _, deltaData, err := dCodec.Deserialize(blobs)
 	if err != nil {
 		return nil, err
