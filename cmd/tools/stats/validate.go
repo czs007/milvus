@@ -97,3 +97,36 @@ func queryDeltas(chunkManager storage.ChunkManager, pks []int64, fileDirs []stri
 		}
 	}
 }
+
+func countPKs(chunkManager storage.ChunkManager, fileDirs []string) {
+	pksMap := make(map[int64]int64)
+	multiCnt := 0
+	for _, fileDir := range fileDirs {
+		pkFile, err := extractPKFileFromDir(fileDir)
+		if err != nil {
+			panic(err)
+		}
+		if len(pkFile) == 0 {
+			fmt.Println("empty PK file")
+			return
+		}
+		segment, err := LoadSegment(pkFile[0])
+		if err != nil {
+			panic(err)
+		}
+		for _, pair := range segment.Pairs {
+			cnt, exist := pksMap[pair.PK]
+			if exist {
+				pksMap[pair.PK] = cnt + 1
+			} else {
+				pksMap[pair.PK] = 1
+			}
+		}
+		for _, cnt := range pksMap {
+			if cnt > 1 {
+				multiCnt += 1
+			}
+		}
+		fmt.Println("multiCnt:", multiCnt)
+	}
+}

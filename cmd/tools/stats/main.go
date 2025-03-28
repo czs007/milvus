@@ -15,7 +15,7 @@ func main() {
 	fileNames := listFilesV1(fileDir)
 	//fmt.Println("fileNames:", fileNames)
 
-	if true {
+	if false {
 		manager := storage.NewLocalChunkManager()
 		//validatePKAndBF(manager, fileDir)
 		for _, fileDir := range fileNames {
@@ -27,7 +27,11 @@ func main() {
 		//queryPKs(manager, []int64{408629564}, fileNames)
 	}
 	if false {
-		//manager := storage.NewLocalChunkManager()
-		//queryDeltas(manager, []int64{408629564}, fileNames)
+		manager := storage.NewLocalChunkManager()
+		queryDeltas(manager, []int64{408629564}, fileNames)
+	}
+	if true {
+		manager := storage.NewLocalChunkManager()
+		countPKs(manager, fileNames)
 	}
 }
