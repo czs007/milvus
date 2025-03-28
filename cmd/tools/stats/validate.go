@@ -70,7 +70,7 @@ func queryPKs(chunkManager storage.ChunkManager, pks []int64, fileDirs []string)
 			if err != nil {
 				panic(err)
 			}
-
+			fmt.Println("len of deltas", len(ret))
 			tss, ok := ret[pk]
 			if ok {
 				fmt.Println("delete %d in %d", pk, tss)
