@@ -44,7 +44,7 @@ func validatePKAndBF(chunkManager storage.ChunkManager, fileDir string) {
 //.//456889800282293499 find 434893200 not in bf
 
 func queryPKs(pks []int64, fileDirs []string) {
-	fileNames := make([]string, len(pks))
+	fileNames := make([]string, 0, len(pks))
 	for _, fileDir := range fileDirs {
 		pkFile, err := extractPKFileFromDir(fileDir)
 		if err != nil || len(pkFile) == 0 {
@@ -66,4 +66,7 @@ func queryPKs(pks []int64, fileDirs []string) {
 			fmt.Printf("  Segment %s - TS: %v\n", info.SegmentID, info.TSList)
 		}
 	}
+}
+func queryDeltas(pks []int64, fileDirs []string) {
+
 }
