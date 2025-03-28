@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/milvus-io/milvus/internal/storage"
+	"path/filepath"
 )
 
 func validatePKAndBF(chunkManager storage.ChunkManager, fileDir string) {
@@ -43,7 +44,7 @@ func validatePKAndBF(chunkManager storage.ChunkManager, fileDir string) {
 // 3499 find 434893200 not in bf
 //.//456889800282293499 find 434893200 not in bf
 
-func queryPKs(pks []int64, fileDirs []string) {
+func queryPKs(chunkManager storage.ChunkManager, pks []int64, fileDirs []string) {
 	fileNames := make([]string, 0, len(pks))
 	for _, fileDir := range fileDirs {
 		pkFile, err := extractPKFileFromDir(fileDir)
@@ -64,7 +65,18 @@ func queryPKs(pks []int64, fileDirs []string) {
 		fmt.Printf("PK %d found in %d segments:\n", pk, len(segInfos))
 		for _, info := range segInfos {
 			fmt.Printf("  Segment %s - TS: %v\n", info.SegmentID, info.TSList)
+			parentDir := filepath.Dir(info.SegmentID)
+			ret, err := loadDeltaFromFileDir(chunkManager, parentDir)
+			if err != nil {
+				panic(err)
+			}
+
+			tss, ok := ret[pk]
+			if ok {
+				fmt.Println("delete %d in %d", pk, tss)
+			}
 		}
+
 	}
 }
 func queryDeltas(pks []int64, fileDirs []string) {
