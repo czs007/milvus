@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/milvus-io/milvus/internal/storage"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -15,16 +16,17 @@ func main() {
 	fileDir := os.Args[1]
 
 	fileNames := listFilesV1(fileDir)
-	fmt.Println("fileNames:", fileNames)
+	//fmt.Println("fileNames:", fileNames)
+	//files := []string
 
-	if false {
+	if true {
 		manager := storage.NewLocalChunkManager()
-
-		if _, err := ParseStats(manager, fileNames); err != nil {
-			fmt.Printf("error: %s\n", err.Error())
-		} else {
-			fmt.Printf("print binlog complete.\n")
+		for _, fileDir := range fileNames {
+			if _, err := LoadStatsFromDir(manager, fileDir); err != nil {
+				fmt.Printf("error: %s\n", err.Error())
+			}
 		}
+
 	}
 
 }
@@ -39,19 +41,42 @@ func listFilesV1(fileDir string) []string {
 
 	for _, entry := range entries {
 		info, _ := entry.Info() // 可选的详细信息
-		fileNames = append(fileNames, info.Name())
-		//fmt.Printf("- %-25s %8d bytes\n", entry.Name(), info.Size())
+		fileNames = append(fileNames, fmt.Sprintf("%s/%s", fileDir, info.Name()))
 	}
 	return fileNames
 }
 
-func ParseStats(chunkManager storage.ChunkManager, files []string) ([]*storage.PkStatistics, error) {
+func extractStatsFileFromDir(fileDir string) ([]string, error) {
+	entries, err := os.ReadDir(fileDir)
+	if err != nil {
+		fmt.Println("failed to read dir:", err)
+		return nil, err
+	}
 
-	if len(files) == 0 {
+	ret := make([]string, 0, len(entries))
+
+	//statsType := storage.DefaultStatsType
+	for _, entry := range entries {
+		if filepath.Ext(entry.Name()) == ".bf_1" {
+			ret = append(ret, fmt.Sprintf("%s/%s", fileDir, entry.Name()))
+		} else if filepath.Ext(entry.Name()) == ".bf_0" {
+			ret = append(ret, fmt.Sprintf("%s/%s", fileDir, entry.Name()))
+		}
+	}
+	return ret, nil
+}
+
+func LoadStatsFromDir(chunkManager storage.ChunkManager, fileDir string) ([]*storage.PkStatistics, error) {
+	bfFiles, err := extractStatsFileFromDir(fileDir)
+	if err != nil {
+		return nil, err
+	}
+	if len(bfFiles) == 0 {
 		return nil, fmt.Errorf("no files to parse")
 	}
+
 	statsType := storage.DefaultStatsType
-	for _, f := range files {
+	for _, f := range bfFiles {
 		if strings.HasSuffix(f, ".bf_0") {
 			statsType = storage.DefaultStatsType
 		} else if strings.HasSuffix(f, ".bf_1") {
@@ -60,7 +85,7 @@ func ParseStats(chunkManager storage.ChunkManager, files []string) ([]*storage.P
 	}
 
 	// read historical PK filter
-	values, err := chunkManager.MultiRead(context.Background(), files)
+	values, err := chunkManager.MultiRead(context.Background(), bfFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +108,7 @@ func ParseStats(chunkManager storage.ChunkManager, files []string) ([]*storage.P
 	}
 
 	var size uint
+	var count int
 	result := make([]*storage.PkStatistics, 0, len(stats))
 	for _, stat := range stats {
 		pkStat := &storage.PkStatistics{
@@ -90,9 +116,10 @@ func ParseStats(chunkManager storage.ChunkManager, files []string) ([]*storage.P
 			MinPK:    stat.MinPk,
 			MaxPK:    stat.MaxPk,
 		}
+		count += 1
 		size += stat.BF.Cap()
 		result = append(result, pkStat)
 	}
-	fmt.Println("Here,", size)
+	fmt.Println("Here, size:", size, " count:", count)
 	return result, nil
 }
