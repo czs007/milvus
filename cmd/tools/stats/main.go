@@ -12,16 +12,15 @@ func main() {
 	}
 	fileDir := os.Args[1]
 
-	//fileNames := listFilesV1(fileDir)
+	fileNames := listFilesV1(fileDir)
 	//fmt.Println("fileNames:", fileNames)
-	//files := []string
 
 	if true {
 		manager := storage.NewLocalChunkManager()
-		validatePKAndBF(manager, fileDir)
-		//for _, fileDir := range fileNames {
-		//	validatePKAndBF(manager, fileDir)
-		//}
+		//validatePKAndBF(manager, fileDir)
+		for _, fileDir := range fileNames {
+			validatePKAndBF(manager, fileDir)
+		}
 	}
 	if false {
 		//manager := storage.NewLocalChunkManager()
