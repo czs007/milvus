@@ -25,11 +25,36 @@ func validatePKAndBF(chunkManager storage.ChunkManager, fileDir string) {
 	if err != nil {
 		panic(err)
 	}
+	found_exception := false
 	for _, pair := range segment.Pairs {
 		for _, bf := range bfs {
 			if !bf.PkExist(storage.NewInt64PrimaryKey(pair.PK)) {
 				fmt.Println(fmt.Sprintf("%s find %d not in bf", fileDir, pair.PK))
+				found_exception = true
+				break
 			}
+		}
+		if found_exception {
+			break
 		}
 	}
 }
+
+// 3499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893200 not in bf
+//.//456889800282293499 find 434893201 not in bf
+//.//456889800282293499 find 434893201 not in bf
+//.//456889800282293499 find 434893201 not
