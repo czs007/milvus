@@ -12,14 +12,37 @@ func main() {
 	if len(os.Args) == 1 {
 		fmt.Println("usage: binlog file1 file2 ...")
 	}
-	fileList := os.Args[1:]
-	manager := storage.NewLocalChunkManager()
+	fileDir := os.Args[1]
 
-	if _, err := ParseStats(manager, fileList); err != nil {
-		fmt.Printf("error: %s\n", err.Error())
-	} else {
-		fmt.Printf("print binlog complete.\n")
+	fileNames := listFilesV1(fileDir)
+	fmt.Println("fileNames:", fileNames)
+
+	if false {
+		manager := storage.NewLocalChunkManager()
+
+		if _, err := ParseStats(manager, fileNames); err != nil {
+			fmt.Printf("error: %s\n", err.Error())
+		} else {
+			fmt.Printf("print binlog complete.\n")
+		}
 	}
+
+}
+
+func listFilesV1(fileDir string) []string {
+	entries, err := os.ReadDir(fileDir)
+	if err != nil {
+		fmt.Println("failed to read dir:", err)
+		return nil
+	}
+	fileNames := make([]string, 0, len(entries))
+
+	for _, entry := range entries {
+		info, _ := entry.Info() // 可选的详细信息
+		fileNames = append(fileNames, info.Name())
+		//fmt.Printf("- %-25s %8d bytes\n", entry.Name(), info.Size())
+	}
+	return fileNames
 }
 
 func ParseStats(chunkManager storage.ChunkManager, files []string) ([]*storage.PkStatistics, error) {
