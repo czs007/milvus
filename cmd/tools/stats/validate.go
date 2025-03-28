@@ -127,6 +127,6 @@ func countPKs(chunkManager storage.ChunkManager, fileDirs []string) {
 				multiCnt += 1
 			}
 		}
-		fmt.Println("multiCnt:", multiCnt)
 	}
+	fmt.Println("multiCnt:", multiCnt)
 }
