@@ -22,17 +22,12 @@ func main() {
 			validatePKAndBF(manager, fileDir)
 		}
 	}
-	if true {
+	if false {
 		manager := storage.NewLocalChunkManager()
-
 		queryPKs(manager, []int64{408629564}, fileNames)
 	}
-	//if true {
-	//	manager := storage.NewLocalChunkManager()
-	//	ret, err := loadDeltaFromFileDir(manager, fileDir)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//	fmt.Println(ret)
-	//}
+	if true {
+		manager := storage.NewLocalChunkManager()
+		queryDeltas(manager, []int64{408629564}, fileNames)
+	}
 }

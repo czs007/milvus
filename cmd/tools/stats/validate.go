@@ -79,6 +79,18 @@ func queryPKs(chunkManager storage.ChunkManager, pks []int64, fileDirs []string)
 
 	}
 }
-func queryDeltas(pks []int64, fileDirs []string) {
-
+func queryDeltas(chunkManager storage.ChunkManager, pks []int64, fileDirs []string) {
+	for _, fileDir := range fileDirs {
+		ret, err := loadDeltaFromFileDir(chunkManager, fileDir)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("len of deltas", len(ret))
+		for _, pk := range pks {
+			tss, ok := ret[pk]
+			if ok {
+				fmt.Println("delete %d in %d at %d", pk, fileDir, tss)
+			}
+		}
+	}
 }
