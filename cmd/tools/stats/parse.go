@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"sort"
 	"syscall"
@@ -137,21 +136,4 @@ func (e *QueryEngine) BatchQuery(pks []int64) map[int64][]QueryResult {
 	}
 
 	return result
-}
-
-func parseAll() {
-	engine, err := NewQueryEngine([]string{"seg1.bin"})
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer engine.Close()
-
-	results := engine.BatchQuery([]int64{123, 456, 789})
-
-	for pk, segInfos := range results {
-		fmt.Printf("PK %d found in %d segments:\n", pk, len(segInfos))
-		for _, info := range segInfos {
-			fmt.Printf("  Segment %s - TS: %v\n", info.SegmentID, info.TSList)
-		}
-	}
 }

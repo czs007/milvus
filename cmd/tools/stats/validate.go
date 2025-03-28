@@ -42,19 +42,27 @@ func validatePKAndBF(chunkManager storage.ChunkManager, fileDir string) {
 
 // 3499 find 434893200 not in bf
 //.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893200 not in bf
-//.//456889800282293499 find 434893201 not in bf
-//.//456889800282293499 find 434893201 not in bf
-//.//456889800282293499 find 434893201 not
+
+func queryPKs(pks []int64, fileDirs []string) {
+	fileNames := make([]string, len(pks))
+	for _, fileDir := range fileDirs {
+		pkFile, err := extractPKFileFromDir(fileDir)
+		if err != nil || len(pkFile) == 0 {
+			continue
+		}
+		fileNames = append(fileNames, pkFile[0])
+	}
+	engine, err := NewQueryEngine(fileNames)
+	if err != nil {
+	}
+	defer engine.Close()
+
+	results := engine.BatchQuery(pks)
+
+	for pk, segInfos := range results {
+		fmt.Printf("PK %d found in %d segments:\n", pk, len(segInfos))
+		for _, info := range segInfos {
+			fmt.Printf("  Segment %s - TS: %v\n", info.SegmentID, info.TSList)
+		}
+	}
+}

@@ -16,10 +16,13 @@ func main() {
 	//fmt.Println("fileNames:", fileNames)
 	//files := []string
 
-	if true {
+	if false {
 		manager := storage.NewLocalChunkManager()
 		for _, fileDir := range fileNames {
 			validatePKAndBF(manager, fileDir)
 		}
+	}
+	if true {
+		queryPKs([]int64{408629564}, fileNames)
 	}
 }
