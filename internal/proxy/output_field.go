@@ -89,11 +89,12 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 			return ret, fmt.Errorf("parse output field name failed: %s", outputFieldName)
 		}
 		curName := outputFieldNode.GetAlias()
-		if _, ok := ret.planNodes[curName]; ok {
-			return ret, fmt.Errorf("duplicated field name: %s", curName)
-		}
-		ret.planNodes[curName] = outputFieldNode
+
 		if outputFieldNode.GetSelectAll() {
+			if _, exist := ret.planNodes[curName]; exist {
+				continue
+			}
+			ret.planNodes[curName] = outputFieldNode
 			userRequestedPkFieldExplicitly = true
 			for fieldName, field := range allFieldNameMap {
 				// skip Cold field and fields that can't be output
@@ -102,10 +103,13 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 					userOutputFieldsMap[fieldName] = true
 				}
 			}
-			ret.planNodes["*"] = outputFieldNode
 			useAllDynamicFields = true
 			continue
 		}
+		if _, ok := ret.planNodes[curName]; ok {
+			return ret, fmt.Errorf("duplicated field name: %s", curName)
+		}
+		ret.planNodes[curName] = outputFieldNode
 		if field, ok := allFieldNameMap[outputFieldName]; ok {
 			if !schema.CanRetrieveRawFieldData(field) {
 				return ret, fmt.Errorf("not allowed to retrieve raw data of field %s", outputFieldName)
