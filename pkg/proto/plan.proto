@@ -280,9 +280,10 @@ message OutputFieldExpr{
 
 message OutputFieldNode {
   string alias = 1;
+  string name = 2;
   oneof  target {
-    bool select_all = 2; //  SELECT *
-    OutputFieldExpr expr = 3;
+    bool select_all = 3; //  SELECT *
+    OutputFieldExpr expr = 4;
   };
 }
 

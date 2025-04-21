@@ -1586,6 +1586,7 @@ func (v *ParserVisitor) VisitIdentifierOField(ctx *parser.IdentifierOFieldContex
 			},
 		},
 		Alias: alias,
+		Name:  identifier,
 	}
 }
 
@@ -1617,11 +1618,13 @@ func (v *ParserVisitor) VisitMetaOField(ctx *parser.MetaOFieldContext) interface
 			},
 		},
 		Alias: common.MetaFieldName,
+		Name:  common.MetaFieldName,
 	}
 }
 
 func (v *ParserVisitor) VisitAllOField(ctx *parser.AllOFieldContext) interface{} {
 	return &planpb.OutputFieldNode{
+		Name:  "*",
 		Alias: "*",
 		Target: &planpb.OutputFieldNode_SelectAll{
 			SelectAll: true,
@@ -1642,6 +1645,7 @@ func (v *ParserVisitor) VisitFuncCallOField(ctx *parser.FuncCallOFieldContext) i
 	} else {
 		alias = ctx.GetText()
 	}
+	name := ctx.GetText()
 
 	switch strings.ToUpper(funcName) {
 	case "COUNT":
@@ -1664,6 +1668,7 @@ func (v *ParserVisitor) VisitFuncCallOField(ctx *parser.FuncCallOFieldContext) i
 					},
 				},
 				Alias: alias,
+				Name:  name,
 			}
 		case *parser.FuncCallIdentifierContext:
 			fieldName := arg.GetText()
@@ -1694,6 +1699,7 @@ func (v *ParserVisitor) VisitFuncCallOField(ctx *parser.FuncCallOFieldContext) i
 					},
 				},
 				Alias: alias,
+				Name:  name,
 			}
 		default:
 			return fmt.Errorf("unsupported argument type for COUNT function: %T", arg)
@@ -1717,6 +1723,7 @@ func (v *ParserVisitor) VisitFuncCallOField(ctx *parser.FuncCallOFieldContext) i
 					},
 				},
 				Alias: alias,
+				Name:  name,
 			}
 		}
 	case "DISTANCE":
@@ -1738,6 +1745,7 @@ func (v *ParserVisitor) VisitFuncCallOField(ctx *parser.FuncCallOFieldContext) i
 					},
 				},
 				Alias: alias,
+				Name:  name,
 			}
 		}
 	}
