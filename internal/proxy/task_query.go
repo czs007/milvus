@@ -20,7 +20,6 @@ import (
 	"github.com/milvus-io/milvus/internal/util/exprutil"
 	"github.com/milvus-io/milvus/internal/util/reduce"
 	typeutil2 "github.com/milvus-io/milvus/internal/util/typeutil"
-	"github.com/milvus-io/milvus/pkg/v2/common"
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/metrics"
 	"github.com/milvus-io/milvus/pkg/v2/proto/internalpb"
@@ -230,12 +229,13 @@ func (t *queryTask) createPlan(ctx context.Context) error {
 	}
 
 	outputFieldIDs, err := translateToOutputFieldIDs(t.oFieldInfo.resultFields, schema.CollectionSchema)
-	if err != nil {
-		return err
-	}
-	outputFieldIDs = append(outputFieldIDs, common.TimeStampField)
-	t.RetrieveRequest.OutputFieldsId = outputFieldIDs
-	t.plan.OutputFieldIds = outputFieldIDs
+	//
+	//if err != nil {
+	//	return err
+	//}
+	//outputFieldIDs = append(outputFieldIDs, common.TimeStampField)
+	t.RetrieveRequest.OutputFieldsId = t.oFieldInfo.outputFieldIDs
+	t.plan.OutputFieldIds = t.oFieldInfo.outputFieldIDs
 	t.plan.DynamicFields = t.oFieldInfo.userDynamicFields
 	log.Ctx(ctx).Debug("translate output fields to field ids",
 		zap.Int64s("OutputFieldsID", t.OutputFieldsId),

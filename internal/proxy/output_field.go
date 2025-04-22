@@ -23,6 +23,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/common"
 	"github.com/milvus-io/milvus/pkg/v2/proto/planpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
+	"google.golang.org/protobuf/proto"
 	"strings"
 )
 
@@ -74,43 +75,79 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 
 	userRequestedPkFieldExplicitly := false
 
+	schemaH, err := typeutil.CreateSchemaHelper(schema.CollectionSchema)
+	if err != nil {
+		return ret, err
+	}
+
 	for _, outputFieldName := range outputFields {
 		outputFieldName = strings.TrimSpace(outputFieldName)
 		if outputFieldName == primaryFieldName {
 			userRequestedPkFieldExplicitly = true
 		}
-		schemaH, err := typeutil.CreateSchemaHelper(schema.CollectionSchema)
-		if err != nil {
-			return ret, err
-		}
-
 		outputFieldNode, err := planparserv2.ParseOutputField(schemaH, outputFieldName)
 		if err != nil {
 			return ret, fmt.Errorf("parse output field name failed: %s", outputFieldName)
 		}
-		curName := outputFieldNode.GetAlias()
+
+		alias := outputFieldNode.GetAlias()
+		if oldNode, ok := ret.planNodes[alias]; ok {
+			if !proto.Equal(outputFieldNode, oldNode) {
+				return ret, fmt.Errorf("conflict output field name: %s", alias)
+			}
+			// If the output field is identical, idempotent processing will be performed here.
+			continue
+		}
+
+		//// for different output field, alias should not conflict
+		//if _, exist := userOutputFieldsMap[alias]; exist {
+		//	return ret, fmt.Errorf("conflict output field name: %s", alias)
+		//}
 
 		if outputFieldNode.GetSelectAll() {
-			if _, exist := ret.planNodes[curName]; exist {
-				continue
-			}
-			ret.planNodes[curName] = outputFieldNode
 			userRequestedPkFieldExplicitly = true
+			useAllDynamicFields = true
 			for fieldName, field := range allFieldNameMap {
 				// skip Cold field and fields that can't be output
 				if schema.IsFieldLoaded(field.GetFieldID()) && schema.CanRetrieveRawFieldData(field) {
+					tempOutputFieldNode, err := planparserv2.ParseOutputField(schemaH, fieldName)
+
+					// for different output field, alias should not conflict
+					if exitOutputNode, exist := ret.planNodes[fieldName]; exist {
+						if exitOutputNode.GetName() != fieldName {
+							return ret, fmt.Errorf("duplicated output field name: %s", fieldName)
+						}
+					}
 					resultFieldNameMap[fieldName] = true
 					userOutputFieldsMap[fieldName] = true
 				}
 			}
-			useAllDynamicFields = true
+			ret.planNodes[alias] = outputFieldNode
 			continue
 		}
-		if _, ok := ret.planNodes[curName]; ok {
-			return ret, fmt.Errorf("duplicated field name: %s", curName)
-		}
-		ret.planNodes[curName] = outputFieldNode
-		if field, ok := allFieldNameMap[outputFieldName]; ok {
+
+		if outputFieldNode.GetExpr().GetColumnExpr() != nil {
+			field, ok := allFieldNameMap[outputFieldName]
+			if !ok {
+				if schema.EnableDynamicField {
+					if schema.IsFieldLoaded(dynamicField.GetFieldID()) {
+						if !(len(outputFieldNode.GetExpr().GetColumnExpr().GetInfo().GetNestedPath()) == 1 &&
+							outputFieldNode.GetExpr().GetColumnExpr().GetInfo().GetNestedPath()[0] == outputFieldName) {
+							return ret, fmt.Errorf("parse output field name failed: %s", outputFieldName)
+						}
+						resultFieldNameMap[common.MetaFieldName] = true
+						userOutputFieldsMap[outputFieldName] = true
+						userDynamicFieldsMap[outputFieldName] = true
+						ret.planNodes[alias] = outputFieldNode
+						continue
+					} else {
+						// TODO after cold field be able to fetched with chunk cache, this check shall be removed
+						return ret, fmt.Errorf("field %s cannot be returned since dynamic field not loaded", outputFieldName)
+					}
+				} else {
+					return ret, fmt.Errorf("field %s not exist", outputFieldName)
+				}
+			}
 			if !schema.CanRetrieveRawFieldData(field) {
 				return ret, fmt.Errorf("not allowed to retrieve raw data of field %s", outputFieldName)
 			}
@@ -120,25 +157,16 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 			} else {
 				return ret, fmt.Errorf("field %s is not loaded", outputFieldName)
 			}
-		} else {
-			if schema.EnableDynamicField {
-				if schema.IsFieldLoaded(dynamicField.GetFieldID()) {
-					if !(len(outputFieldNode.GetExpr().GetColumnExpr().GetInfo().GetNestedPath()) == 1 &&
-						outputFieldNode.GetExpr().GetColumnExpr().GetInfo().GetNestedPath()[0] == outputFieldName) {
-						return ret, fmt.Errorf("parse output field name failed: %s", outputFieldName)
-					}
-					resultFieldNameMap[common.MetaFieldName] = true
-					userOutputFieldsMap[outputFieldName] = true
-					userDynamicFieldsMap[outputFieldName] = true
-				} else {
-					// TODO after cold field be able to fetched with chunk cache, this check shall be removed
-					return ret, fmt.Errorf("field %s cannot be returned since dynamic field not loaded", outputFieldName)
-				}
-			} else {
-				return ret, fmt.Errorf("field %s not exist", outputFieldName)
-			}
+			ret.planNodes[alias] = outputFieldNode
+			continue
 		}
 
+		if outputFieldNode.GetExpr().GetCountExpr() != nil {
+			ret.planNodes[alias] = outputFieldNode
+			continue
+		}
+
+		//if out
 	}
 
 	if removePkField {

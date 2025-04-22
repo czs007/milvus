@@ -1653,3 +1653,71 @@ func TestVisitFuncCallOField(t *testing.T) {
 		assert.Error(t, err)
 	}
 }
+
+func TestOutputFieldNodeEqual(t *testing.T) {
+	schema := newTestSchema(true)
+	helper, err := typeutil.CreateSchemaHelper(schema)
+	assert.NoError(t, err)
+
+	leftStrs := []string{
+		"COUNT(*)",
+		"COUNT(*) AS total",
+		"SCORE(FloatVectorField)",
+		"SCORE(FloatVectorField) as score_field",
+		"DISTANCE(FloatVectorField)",
+		"DISTANCE(FloatVectorField) as distance_field",
+		"$meta",
+		"*",
+		"a as a",
+	}
+
+	rightStrs := []string{
+		"COUNT  (*  )",
+		"COUNT(*) AS total",
+		"SCORE(  FloatVectorField)",
+		"SCORE(FloatVectorField) as score_field",
+		"DISTANCE(FloatVectorField   )",
+		"DISTANCE(FloatVectorField   ) as distance_field",
+		"$meta",
+		" * ",
+		"a",
+	}
+
+	for i, exprStr := range leftStrs {
+		lNode, err := ParseOutputField(helper, exprStr)
+		assert.NoError(t, err, exprStr)
+		rExpr := rightStrs[i]
+		rNode, err := ParseOutputField(helper, rExpr)
+		assert.NoError(t, err, rExpr)
+		assert.True(t, proto.Equal(lNode, rNode))
+	}
+}
+
+func TestOutputFieldNodeNotEqual(t *testing.T) {
+	schema := newTestSchema(true)
+	helper, err := typeutil.CreateSchemaHelper(schema)
+	assert.NoError(t, err)
+
+	leftStrs := []string{
+		"abc",
+		"COUNT(*) AS total",
+		"SCORE(FloatVectorField)",
+		"a as a",
+	}
+
+	rightStrs := []string{
+		"bac",
+		"COUNT(*)",
+		"SCORE(FloatVectorField) as score_field",
+		"b as a",
+	}
+
+	for i, exprStr := range leftStrs {
+		lNode, err := ParseOutputField(helper, exprStr)
+		assert.NoError(t, err, exprStr)
+		rExpr := rightStrs[i]
+		rNode, err := ParseOutputField(helper, rExpr)
+		assert.NoError(t, err, rExpr)
+		assert.False(t, proto.Equal(lNode, rNode))
+	}
+}
