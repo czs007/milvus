@@ -28,12 +28,20 @@ import (
 )
 
 type outputFieldInfo struct {
-	resultFields      []string
-	userOutputFields  []string
-	userDynamicFields []string
-	pkFieldExplicit   bool
-	outputFieldIDs    []UniqueID
-	planNodes         map[string]*planpb.OutputFieldNode
+	resultFields        []string
+	userOutputFields    []string
+	userDynamicFields   []string
+	pkFieldExplicit     bool
+	outputFieldIDs      []UniqueID
+	primaryFieldName    string
+	useAllDynamicFields bool
+
+	primaryFieldID UniqueID
+	dynamicField   *schemapb.FieldSchema
+	schemaH        *typeutil.SchemaHelper
+
+	allFieldNameMap map[string]*schemapb.FieldSchema
+	planNodes       map[string]*planpb.OutputFieldNode
 }
 
 // Support wildcard in output fields:
@@ -50,9 +58,6 @@ type outputFieldInfo struct {
 // if removePkField is true, pk field will not be include in the first(resultFieldNames)/second(userOutputFields)
 // return value.
 func translateOutputFields(outputFields []string, schema *schemaInfo, removePkField bool) (*outputFieldInfo, error) {
-	var primaryFieldName string
-	var dynamicField *schemapb.FieldSchema
-	allFieldNameMap := make(map[string]*schemapb.FieldSchema)
 	resultFieldNameMap := make(map[string]bool)
 	resultFieldNames := make([]string, 0)
 	userOutputFieldsMap := make(map[string]bool)
@@ -61,117 +66,85 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 	userDynamicFields := make([]string, 0)
 	useAllDynamicFields := false
 	ret := &outputFieldInfo{
-		planNodes: make(map[string]*planpb.OutputFieldNode),
+		planNodes:       make(map[string]*planpb.OutputFieldNode),
+		allFieldNameMap: make(map[string]*schemapb.FieldSchema),
 	}
 	for _, field := range schema.Fields {
 		if field.IsPrimaryKey {
-			primaryFieldName = field.Name
+			ret.primaryFieldName = field.Name
+			ret.primaryFieldID = field.GetFieldID()
 		}
 		if field.IsDynamic {
-			dynamicField = field
+			ret.dynamicField = field
 		}
-		allFieldNameMap[field.Name] = field
+		ret.allFieldNameMap[field.Name] = field
 	}
 
-	userRequestedPkFieldExplicitly := false
-
+	ret.pkFieldExplicit = false
 	schemaH, err := typeutil.CreateSchemaHelper(schema.CollectionSchema)
 	if err != nil {
-		return ret, err
+		return nil, err
 	}
+	ret.schemaH = schemaH
 
 	for _, outputFieldName := range outputFields {
 		outputFieldName = strings.TrimSpace(outputFieldName)
-		if outputFieldName == primaryFieldName {
-			userRequestedPkFieldExplicitly = true
+		if outputFieldName == ret.primaryFieldName {
+			ret.pkFieldExplicit = true
 		}
 		outputFieldNode, err := planparserv2.ParseOutputField(schemaH, outputFieldName)
 		if err != nil {
-			return ret, fmt.Errorf("parse output field name failed: %s", outputFieldName)
+			return nil, fmt.Errorf("parse output field name failed: %s", outputFieldName)
 		}
 
 		alias := outputFieldNode.GetAlias()
 		if oldNode, ok := ret.planNodes[alias]; ok {
 			if !proto.Equal(outputFieldNode, oldNode) {
-				return ret, fmt.Errorf("conflict output field name: %s", alias)
+				return nil, fmt.Errorf("conflict output field name: %s", alias)
 			}
 			// If the output field is identical, idempotent processing will be performed here.
 			continue
 		}
 
-		//// for different output field, alias should not conflict
-		//if _, exist := userOutputFieldsMap[alias]; exist {
-		//	return ret, fmt.Errorf("conflict output field name: %s", alias)
-		//}
-
-		if outputFieldNode.GetSelectAll() {
-			userRequestedPkFieldExplicitly = true
-			useAllDynamicFields = true
-			for fieldName, field := range allFieldNameMap {
-				// skip Cold field and fields that can't be output
-				if schema.IsFieldLoaded(field.GetFieldID()) && schema.CanRetrieveRawFieldData(field) {
-					tempOutputFieldNode, err := planparserv2.ParseOutputField(schemaH, fieldName)
-
-					// for different output field, alias should not conflict
-					if exitOutputNode, exist := ret.planNodes[fieldName]; exist {
-						if exitOutputNode.GetName() != fieldName {
-							return ret, fmt.Errorf("duplicated output field name: %s", fieldName)
-						}
-					}
-					resultFieldNameMap[fieldName] = true
-					userOutputFieldsMap[fieldName] = true
+		switch {
+		case outputFieldNode.GetSelectAll():
+			err = processSelectAllOutputField(ret, outputFieldNode, schema)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			expr := outputFieldNode.GetExpr().GetExpr()
+			switch expr.(type) {
+			case *planpb.OutputFieldExpr_ColumnExpr:
+				err = processColumnOutputField(ret, outputFieldNode, schema)
+				if err != nil {
+					return nil, err
 				}
-			}
-			ret.planNodes[alias] = outputFieldNode
-			continue
-		}
-
-		if outputFieldNode.GetExpr().GetColumnExpr() != nil {
-			field, ok := allFieldNameMap[outputFieldName]
-			if !ok {
-				if schema.EnableDynamicField {
-					if schema.IsFieldLoaded(dynamicField.GetFieldID()) {
-						if !(len(outputFieldNode.GetExpr().GetColumnExpr().GetInfo().GetNestedPath()) == 1 &&
-							outputFieldNode.GetExpr().GetColumnExpr().GetInfo().GetNestedPath()[0] == outputFieldName) {
-							return ret, fmt.Errorf("parse output field name failed: %s", outputFieldName)
-						}
-						resultFieldNameMap[common.MetaFieldName] = true
-						userOutputFieldsMap[outputFieldName] = true
-						userDynamicFieldsMap[outputFieldName] = true
-						ret.planNodes[alias] = outputFieldNode
-						continue
-					} else {
-						// TODO after cold field be able to fetched with chunk cache, this check shall be removed
-						return ret, fmt.Errorf("field %s cannot be returned since dynamic field not loaded", outputFieldName)
-					}
-				} else {
-					return ret, fmt.Errorf("field %s not exist", outputFieldName)
+			case *planpb.OutputFieldExpr_CountExpr:
+				err = processCountOutputField(ret, outputFieldNode)
+				if err != nil {
+					return nil, err
 				}
+			case *planpb.OutputFieldExpr_ScoreExpr:
+				err = processScoreOutputField(ret, outputFieldNode)
+				if err != nil {
+					return nil, err
+				}
+			case *planpb.OutputFieldExpr_DistanceExpr:
+				err = processDistanceOutputField(ret, outputFieldNode)
+				if err != nil {
+					return nil, err
+				}
+			default:
+				// process unknown output field
+				return nil, fmt.Errorf("unsupported output field: %s", alias)
 			}
-			if !schema.CanRetrieveRawFieldData(field) {
-				return ret, fmt.Errorf("not allowed to retrieve raw data of field %s", outputFieldName)
-			}
-			if schema.IsFieldLoaded(field.GetFieldID()) {
-				resultFieldNameMap[outputFieldName] = true
-				userOutputFieldsMap[outputFieldName] = true
-			} else {
-				return ret, fmt.Errorf("field %s is not loaded", outputFieldName)
-			}
-			ret.planNodes[alias] = outputFieldNode
-			continue
 		}
-
-		if outputFieldNode.GetExpr().GetCountExpr() != nil {
-			ret.planNodes[alias] = outputFieldNode
-			continue
-		}
-
-		//if out
 	}
 
 	if removePkField {
-		delete(resultFieldNameMap, primaryFieldName)
-		delete(userOutputFieldsMap, primaryFieldName)
+		delete(resultFieldNameMap, ret.primaryFieldName)
+		delete(userOutputFieldsMap, ret.primaryFieldName)
 	}
 
 	for fieldName := range resultFieldNameMap {
@@ -185,7 +158,6 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 			userDynamicFields = append(userDynamicFields, fieldName)
 		}
 	}
-	ret.pkFieldExplicit = userRequestedPkFieldExplicitly
 	ret.resultFields = resultFieldNames
 	ret.userOutputFields = userOutputFields
 	ret.userDynamicFields = userDynamicFields
@@ -254,9 +226,107 @@ func getOutputFieldIDs(schema *schemaInfo, outputFields []string) (outputFieldID
 	for _, name := range outputFields {
 		id, ok := schema.MapFieldID(name)
 		if !ok {
-			return nil, fmt.Errorf("Field %s not exist", name)
+			return nil, fmt.Errorf("field %s not exist", name)
 		}
 		outputFieldIDs = append(outputFieldIDs, id)
 	}
 	return outputFieldIDs, nil
+}
+
+func processSelectAllOutputField(ret *outputFieldInfo, node *planpb.OutputFieldNode, schema *schemaInfo) error {
+	ret.pkFieldExplicit = true
+	ret.useAllDynamicFields = true
+
+	for fieldName, field := range ret.allFieldNameMap {
+		// skip Cold field and fields that can't be output
+		if schema.IsFieldLoaded(field.GetFieldID()) && schema.CanRetrieveRawFieldData(field) {
+			tempOutputFieldNode, err := planparserv2.ParseOutputField(ret.schemaH, fieldName)
+			if err != nil {
+				return fmt.Errorf("parse output field name failed: %s", fieldName)
+			}
+			// for different output field, alias should not conflict
+			if exitOutputNode, exist := ret.planNodes[fieldName]; exist {
+				if !proto.Equal(tempOutputFieldNode, exitOutputNode) {
+					return fmt.Errorf("duplicated output field name: %s", fieldName)
+				}
+				continue
+			}
+			ret.planNodes[fieldName] = tempOutputFieldNode
+		}
+	}
+	ret.planNodes[node.GetAlias()] = node
+	return nil
+}
+
+func processColumnOutputField(ret *outputFieldInfo, node *planpb.OutputFieldNode, schema *schemaInfo) error {
+	outputFieldName := node.GetName()
+	field, ok := ret.allFieldNameMap[outputFieldName]
+	if !ok {
+		if schema.EnableDynamicField {
+			if schema.IsFieldLoaded(ret.dynamicField.GetFieldID()) {
+				if !(len(node.GetExpr().GetColumnExpr().GetInfo().GetNestedPath()) == 1 &&
+					node.GetExpr().GetColumnExpr().GetInfo().GetNestedPath()[0] == outputFieldName) {
+					return fmt.Errorf("parse output field name failed: %s", outputFieldName)
+				}
+			} else {
+				// TODO after cold field be able to fetched with chunk cache, this check shall be removed
+				return fmt.Errorf("field %s cannot be returned since dynamic field not loaded", outputFieldName)
+			}
+		} else {
+			return fmt.Errorf("field %s not exist", outputFieldName)
+		}
+	} else {
+		if !schema.CanRetrieveRawFieldData(field) {
+			return fmt.Errorf("not allowed to retrieve raw data of field %s", outputFieldName)
+		}
+		if !schema.IsFieldLoaded(field.GetFieldID()) {
+			return fmt.Errorf("field %s is not loaded", outputFieldName)
+		}
+	}
+	ret.planNodes[node.GetAlias()] = node
+	return nil
+}
+
+func processCountOutputField(ret *outputFieldInfo, node *planpb.OutputFieldNode) error {
+	if !node.GetExpr().GetCountExpr().GetAsterisk() {
+		return fmt.Errorf("only count(*) is supported in the output fields")
+	}
+	// currently, we only support count(*)
+	if len(ret.planNodes) > 0 {
+		return fmt.Errorf("count must appear alone in the output fields")
+	}
+	ret.planNodes[node.GetAlias()] = node
+	return nil
+}
+
+func processDistanceOutputField(ret *outputFieldInfo, node *planpb.OutputFieldNode) error {
+	name := node.GetName()
+	expr := node.GetExpr().GetDistanceExpr()
+	fieldName := expr.GetName()
+	field, ok := ret.allFieldNameMap[fieldName]
+	if !ok {
+		return fmt.Errorf("in the %s, field %s not exist", name, fieldName)
+	}
+	dataType := field.GetDataType()
+	if !typeutil.IsVectorType(dataType) && !typeutil.IsStringType(dataType) {
+		return fmt.Errorf("in the %s, can not call distance on field %s", name, fieldName)
+	}
+	ret.planNodes[node.GetAlias()] = node
+	return nil
+}
+
+func processScoreOutputField(ret *outputFieldInfo, node *planpb.OutputFieldNode) error {
+	name := node.GetName()
+	expr := node.GetExpr().GetScoreExpr()
+	fieldName := expr.GetName()
+	field, ok := ret.allFieldNameMap[fieldName]
+	if !ok {
+		return fmt.Errorf("in the %s, field %s not exist", name, fieldName)
+	}
+	dataType := field.GetDataType()
+	if !typeutil.IsVectorType(dataType) && !typeutil.IsStringType(dataType) {
+		return fmt.Errorf("in the %s, can not call score on field %s", name, fieldName)
+	}
+	ret.planNodes[node.GetAlias()] = node
+	return nil
 }

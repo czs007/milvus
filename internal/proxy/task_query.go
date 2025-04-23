@@ -228,7 +228,7 @@ func (t *queryTask) createPlan(ctx context.Context) error {
 		return err
 	}
 
-	outputFieldIDs, err := translateToOutputFieldIDs(t.oFieldInfo.resultFields, schema.CollectionSchema)
+	//outputFieldIDs, err := translateToOutputFieldIDs(t.oFieldInfo.resultFields, schema.CollectionSchema)
 	//
 	//if err != nil {
 	//	return err
