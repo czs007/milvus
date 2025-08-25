@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
@@ -179,6 +180,10 @@ func (fs *FileSource) update(configs map[string]string) error {
 		fs.manager.EvictCacheValueByFormat(lo.Map(events, func(event *Event, _ int) string { return event.Key })...)
 	}
 
+	log.Info("Starting to fire events", zap.Int("event_count", len(events)), zap.Time("timestamp", time.Now()))
+
 	fs.configRefresher.fireEvents(events...)
+	log.Info("Finished firing events", zap.Time("timestamp", time.Now()))
+
 	return nil
 }

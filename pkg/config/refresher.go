@@ -70,6 +70,7 @@ func (r *refresher) refreshPeriodically(name string) {
 	for {
 		select {
 		case <-ticker.C:
+			log.Info("Refresher triggered", zap.String("source", name), zap.Time("timestamp", time.Now()))
 			err := r.fetchFunc()
 			if err != nil {
 				log.WithRateGroup("refresher", 1, 60).RatedWarn(60, "can not pull configs", zap.Error(err))

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
@@ -414,6 +415,14 @@ func (m *Manager) updateEvent(e *Event) error {
 
 // OnEvent Triggers actions when an event is generated
 func (m *Manager) OnEvent(event *Event) {
+	startTime := time.Now()
+	defer func() {
+		duration := time.Since(startTime)
+		log.Info("Manager handled event",
+			zap.String("key", event.Key),
+			zap.String("type", event.EventType),
+			zap.Duration("duration", duration))
+	}()
 	if m.forbiddenKeys.Contain(formatKey(event.Key)) {
 		log.Info("ignore event for forbidden key", zap.String("key", event.Key))
 		return
