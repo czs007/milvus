@@ -18,6 +18,10 @@ package config
 import (
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/milvus-io/milvus/pkg/v2/log"
+	"go.uber.org/zap"
 )
 
 type EventDispatcher struct {
@@ -54,9 +58,19 @@ func (ed *EventDispatcher) Dispatch(event *Event) {
 			}
 		}
 	}
+	dispatchStartTime := time.Now()
+	log.Info("Starting event dispatch",
+		zap.String("key", event.Key),
+		zap.Int("handler_count", len(hs)),
+		zap.Time("timestamp", dispatchStartTime))
 	for _, h := range hs {
 		h.OnEvent(event)
 	}
+	// 记录分发总耗时
+	dispatchDuration := time.Since(dispatchStartTime)
+	log.Info("Finished event dispatch",
+		zap.String("key", event.Key),
+		zap.Duration("total_duration", dispatchDuration))
 }
 
 // register a handler to watch specific config changed
