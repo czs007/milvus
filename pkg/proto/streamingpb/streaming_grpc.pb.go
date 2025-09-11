@@ -247,6 +247,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type StreamingCoordAssignmentServiceClient interface {
+	// Deprecated: Do not use.
 	// UpdateWALBalancePolicy is used to update the WAL balance policy.
 	// The policy is used to control the balance of the WAL.
 	UpdateWALBalancePolicy(ctx context.Context, in *UpdateWALBalancePolicyRequest, opts ...grpc.CallOption) (*UpdateWALBalancePolicyResponse, error)
@@ -264,6 +265,7 @@ func NewStreamingCoordAssignmentServiceClient(cc grpc.ClientConnInterface) Strea
 	return &streamingCoordAssignmentServiceClient{cc}
 }
 
+// Deprecated: Do not use.
 func (c *streamingCoordAssignmentServiceClient) UpdateWALBalancePolicy(ctx context.Context, in *UpdateWALBalancePolicyRequest, opts ...grpc.CallOption) (*UpdateWALBalancePolicyResponse, error) {
 	out := new(UpdateWALBalancePolicyResponse)
 	err := c.cc.Invoke(ctx, StreamingCoordAssignmentService_UpdateWALBalancePolicy_FullMethodName, in, out, opts...)
@@ -308,6 +310,7 @@ func (x *streamingCoordAssignmentServiceAssignmentDiscoverClient) Recv() (*Assig
 // All implementations should embed UnimplementedStreamingCoordAssignmentServiceServer
 // for forward compatibility
 type StreamingCoordAssignmentServiceServer interface {
+	// Deprecated: Do not use.
 	// UpdateWALBalancePolicy is used to update the WAL balance policy.
 	// The policy is used to control the balance of the WAL.
 	UpdateWALBalancePolicy(context.Context, *UpdateWALBalancePolicyRequest) (*UpdateWALBalancePolicyResponse, error)
