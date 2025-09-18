@@ -884,6 +884,11 @@ func (scheduler *taskScheduler) preProcess(task Task) bool {
 				// wait for new delegator becomes leader, then try to remove old leader
 				task := task.(*ChannelTask)
 				delegator := scheduler.distMgr.ChannelDistManager.GetShardLeader(task.Shard(), task.replica)
+				log.Ctx(scheduler.ctx).Info("process channelAction", zap.Bool("delegator is Nil", delegator == nil))
+				if delegator != nil {
+					log.Ctx(scheduler.ctx).Info("process channelAction", zap.Int64("delegator node", delegator.Node),
+						zap.Int64("action node", action.Node()))
+				}
 				newDelegatorReady = delegator != nil && delegator.Node == action.Node()
 			default:
 				newDelegatorReady = true
@@ -891,10 +896,11 @@ func (scheduler *taskScheduler) preProcess(task Task) bool {
 			if !newDelegatorReady {
 				log.Ctx(scheduler.ctx).
 					WithRateGroup("qcv2.preProcess", 1, 60).
-					RatedInfo(30, "Blocking reduce action in balance channel task",
+					RatedInfo(5, "Blocking reduce action in balance channel task",
 						zap.Int64("collectionID", task.CollectionID()),
 						zap.String("channelName", task.Shard()),
 						zap.Int64("taskID", task.ID()))
+
 				break
 			}
 		}

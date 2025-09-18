@@ -19,7 +19,9 @@ package meta
 import (
 	"sync"
 
+	"github.com/pingcap/log"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/milvus-io/milvus/internal/querycoordv2/session"
@@ -345,13 +347,18 @@ func (m *ChannelDistManager) updateCollectionIndex() {
 func (m *ChannelDistManager) GetShardLeader(channelName string, replica *Replica) *DmChannel {
 	m.rwmutex.RLock()
 	defer m.rwmutex.RUnlock()
-
+	logger := log.With(zap.String("channelName", channelName), zap.Int64("replicaID", replica.GetID()))
 	channels := m.collectionIndex[replica.GetCollectionID()]
 
 	var candidates *DmChannel
-	for _, channel := range channels {
+	for chIdx, channel := range channels {
+		logger := logger.With(zap.Int("channelIdx", chIdx))
+		logger.Info("process", zap.String("channel", channel.GetChannelName()),
+			zap.Int64("channelID", channel.Node), zap.Int64("channelVersion", channel.Version),
+			zap.Any("channelView", channel.View), zap.Bool("replicaContains", replica.Contains(channel.Node)))
 		if channel.GetChannelName() == channelName && replica.Contains(channel.Node) {
 			if candidates == nil {
+				logger.Info("set candidate channel", zap.String("channel", channel.GetChannelName()))
 				candidates = channel
 			} else {
 				// Prioritize serviceability first, then version number
@@ -360,11 +367,19 @@ func (m *ChannelDistManager) GetShardLeader(channelName string, replica *Replica
 
 				candidateIsStreamingNode := m.checkIfStreamingNode(candidates.Node)
 				channelIsStreamingNode := m.checkIfStreamingNode(channel.Node)
+				logger.Info("booleans",
+					zap.Bool("candidatesServiceable", candidatesServiceable),
+					zap.Bool("channelServiceable", channelServiceable),
+					zap.Bool("candidateIsStreamingNode", candidateIsStreamingNode),
+					zap.Bool("channelIsStreamingNode", channelIsStreamingNode))
+
 				if channelIsStreamingNode && !candidateIsStreamingNode {
 					// When upgrading from 2.5 to 2.6, the delegator leader may not locate at streaming node.
 					// We always use the streaming node as the delegator leader to avoid the delete data lost when loading segment.
+					logger.Info("set candidate channel", zap.String("channel", channel.GetChannelName()))
 					candidates = channel
 				} else if !channelIsStreamingNode && candidateIsStreamingNode {
+					logger.Info("continue in this")
 					// When downgrading from 2.6 to 2.5, the delegator leader may locate at non-streaming node.
 					// We always use the non-streaming node as the delegator leader to avoid the delete data lost when loading segment.
 					continue
@@ -374,11 +389,15 @@ func (m *ChannelDistManager) GetShardLeader(channelName string, replica *Replica
 					case !candidatesServiceable && channelServiceable:
 						// Current candidate is not serviceable but new channel is
 						updateNeeded = true
+						logger.Info("set updateNeeded in case 1")
 					case candidatesServiceable == channelServiceable && channel.Version > candidates.Version:
 						// Same service status but higher version
 						updateNeeded = true
+						logger.Info("set updateNeeded in case 2",
+							zap.Int64("candidates version", candidates.Version),
+							zap.Int64("channel version", channel.Version))
 					}
-
+					logger.Info("check updateNeeded", zap.Bool("updateNeeded", updateNeeded))
 					if updateNeeded {
 						candidates = channel
 					}
@@ -386,7 +405,9 @@ func (m *ChannelDistManager) GetShardLeader(channelName string, replica *Replica
 			}
 		}
 	}
-
+	logger.Info("final", zap.Any("candidates", candidates),
+		zap.Int64("candidates version", candidates.Version),
+		zap.Int64("candidates node", candidates.Node))
 	return candidates
 }
 
