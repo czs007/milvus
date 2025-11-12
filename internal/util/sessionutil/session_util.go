@@ -474,7 +474,7 @@ func (s *Session) registerService() error {
 		}
 		if txnResp != nil && !txnResp.Succeeded {
 			s.handleRestart(completeKey)
-			return fmt.Errorf("function CompareAndSwap error for compare is false for key: %s", s.ServerName)
+			return merr.WrapErrServiceInternalMsg("function CompareAndSwap error for compare is false for key: %s", s.ServerName)
 		}
 		s.Logger().Info("put session key into etcd, service registered successfully", zap.String("key", completeKey), zap.String("value", string(sessionJSON)))
 		return nil
@@ -668,18 +668,18 @@ func (s *Session) GetSessionsWithVersionRange(prefix string, r semver.Range) (ma
 
 func (s *Session) GoingStop() error {
 	if s == nil || s.etcdCli == nil || s.LeaseID == nil {
-		return errors.New("the session hasn't been init")
+		return merr.WrapErrServiceInternalMsg("the session hasn't been init")
 	}
 
 	if s.Disconnected() {
-		return errors.New("this session has disconnected")
+		return merr.WrapErrServiceInternalMsg("this session has disconnected")
 	}
 
 	completeKey := s.getCompleteKey()
 	resp, err := s.etcdCli.Get(s.ctx, completeKey, clientv3.WithCountOnly())
 	if err != nil {
 		s.Logger().Error("fail to get the session", zap.String("key", completeKey), zap.Error(err))
-		return err
+		return merr.WrapErrServiceInternalErr(err, "fail to get the session:%s", completeKey)
 	}
 	if resp.Count == 0 {
 		return nil
@@ -688,12 +688,12 @@ func (s *Session) GoingStop() error {
 	sessionJSON, err := json.Marshal(s)
 	if err != nil {
 		s.Logger().Error("fail to marshal the session", zap.String("key", completeKey))
-		return err
+		return merr.WrapErrSerializationFailed(err, "fail to marshal the session:%s", completeKey)
 	}
 	_, err = s.etcdCli.Put(s.ctx, completeKey, string(sessionJSON), clientv3.WithLease(*s.LeaseID))
 	if err != nil {
 		s.Logger().Error("fail to update the session to stopping state", zap.String("key", completeKey))
-		return err
+		return merr.WrapErrServiceInternalErr(err, "fail to update the session:%s to stopping state", completeKey)
 	}
 	return nil
 }

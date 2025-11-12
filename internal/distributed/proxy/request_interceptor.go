@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cockroachdb/errors"
 	"google.golang.org/grpc"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
@@ -118,13 +119,17 @@ func ParseShortMethodName(fullMethodName string) string {
 	return parts[len(parts)-1]
 }
 
+// ParseMetricLabel determines the final Prometheus status label based on response and error.
+// It implements Scheme Two: using composite labels (fail_input, fail_system) for precision.
 func ParseMetricLabel(resp any, err error) string {
-	// err only returned by interceptors
+	// err only returned by interceptors (e.g., context cancellation, flow control, transport issues)
 	if err != nil {
-		return metrics.RejectedLabel
+		// Scheme Two: Map generic interceptor errors (often immediate rejection/flow control)
+		// to the new precise system rejection label, replacing the old metrics.RejectedLabel.
+		return metrics.RejectedSystemLabel
 	}
 
-	// check response status code
+	// Check response status code
 	var status *commonpb.Status
 	switch resp := resp.(type) {
 	case interface{ GetStatus() *commonpb.Status }:
@@ -133,13 +138,28 @@ func ParseMetricLabel(resp any, err error) string {
 		status = resp
 	}
 
-	// check if retry
+	// Check if retry/fail
 	if !merr.Ok(status) {
-		// TODO use retriable if all set
+		// Check if retry (Logic preserved)
+		// NOTE: Assuming retryableCode is available and implemented correctly.
 		if retryableCode.Contain(status.GetCode()) {
 			return metrics.RetryLabel
 		}
-		return metrics.FailLabel
+		// 1. Convert commonpb.Status to a classified error object (merr.MilvusError).
+		//    merr.Error(status) injects classification info based on status.ExtraInfo[InputErrorFlagKey].
+		classifiedErr := merr.Error(status)
+		var classifier merr.ErrorClassifier
+		// 2. Use errors.As to extract the classifier interface.
+		if errors.As(classifiedErr, &classifier) {
+			if classifier.GetErrorType() == merr.InputError {
+				// Hard failure: user input/argument error
+				return metrics.FailInputLabel
+			}
+			// Default: Hard failure: internal system error (merr.SystemError)
+			return metrics.FailSystemLabel
+		}
+		// 3. Fallback: If merr.Error returns an unclassified error (should not happen in theory)
+		return metrics.FailSystemLabel
 	}
 	return metrics.SuccessLabel
 }

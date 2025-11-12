@@ -252,7 +252,7 @@ func convertNumpyType(typeStr string) (schemapb.DataType, error) {
 			// Note: JSON field and VARCHAR field are using string type numpy
 			return schemapb.DataType_VarChar, nil
 		}
-		return schemapb.DataType_None, fmt.Errorf("the numpy file dtype '%s' is not supported", typeStr)
+		return schemapb.DataType_None, merr.WrapErrImportSysFailed(fmt.Sprintf("the numpy file dtype '%s' is not supported", typeStr))
 	}
 }
 

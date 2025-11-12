@@ -253,11 +253,11 @@ func (t *createCollectionTask) validatePartitionKey(ctx context.Context) error {
 	for i, field := range t.schema.Fields {
 		if field.GetIsPartitionKey() {
 			if idx != -1 {
-				return fmt.Errorf("there are more than one partition key, field name = %s, %s", t.schema.Fields[idx].Name, field.Name)
+				return merr.WrapErrParameterInvalidMsg("there are more than one partition key, field name = %s, %s", t.schema.Fields[idx].Name, field.Name)
 			}
 
 			if field.GetIsPrimaryKey() {
-				return errors.New("the partition key field must not be primary field")
+				return merr.WrapErrParameterInvalidMsg("the partition key field must not be primary field")
 			}
 
 			if field.GetNullable() {
@@ -266,11 +266,11 @@ func (t *createCollectionTask) validatePartitionKey(ctx context.Context) error {
 
 			// The type of the partition key field can only be int64 and varchar
 			if field.DataType != schemapb.DataType_Int64 && field.DataType != schemapb.DataType_VarChar {
-				return errors.New("the data type of partition key should be Int64 or VarChar")
+				return merr.WrapErrParameterInvalidMsg("the data type of partition key should be Int64 or VarChar")
 			}
 
 			if t.GetNumPartitions() < 0 {
-				return errors.New("the specified partitions should be greater than 0 if partition key is used")
+				return merr.WrapErrParameterInvalidMsg("the specified partitions should be greater than 0 if partition key is used")
 			}
 
 			maxPartitionNum := Params.RootCoordCfg.MaxPartitionNum.GetAsInt64()
@@ -310,7 +310,7 @@ func (t *createCollectionTask) validatePartitionKey(ctx context.Context) error {
 
 	if idx == -1 {
 		if t.GetNumPartitions() != 0 {
-			return errors.New("num_partitions should only be specified with partition key field enabled")
+			return merr.WrapErrParameterInvalidMsg("num_partitions should only be specified with partition key field enabled")
 		}
 	} else {
 		log.Ctx(ctx).Info("create collection with partition key mode",
@@ -375,17 +375,17 @@ func (t *createCollectionTask) PreExecute(ctx context.Context) error {
 	}
 
 	if t.ShardsNum > Params.ProxyCfg.MaxShardNum.GetAsInt32() {
-		return fmt.Errorf("maximum shards's number should be limited to %d", Params.ProxyCfg.MaxShardNum.GetAsInt())
+		return merr.WrapErrParameterInvalidMsg("maximum shards's number should be limited to %d", Params.ProxyCfg.MaxShardNum.GetAsInt())
 	}
 
 	totalFieldsNum := typeutil.GetTotalFieldsNum(t.schema)
 	if totalFieldsNum > Params.ProxyCfg.MaxFieldNum.GetAsInt() {
-		return fmt.Errorf("maximum field's number should be limited to %d", Params.ProxyCfg.MaxFieldNum.GetAsInt())
+		return merr.WrapErrParameterInvalidMsg("maximum field's number should be limited to %d", Params.ProxyCfg.MaxFieldNum.GetAsInt())
 	}
 
 	vectorFields := len(typeutil.GetVectorFieldSchemas(t.schema))
 	if vectorFields > Params.ProxyCfg.MaxVectorFieldNum.GetAsInt() {
-		return fmt.Errorf("maximum vector field's number should be limited to %d", Params.ProxyCfg.MaxVectorFieldNum.GetAsInt())
+		return merr.WrapErrParameterInvalidMsg("maximum vector field's number should be limited to %d", Params.ProxyCfg.MaxVectorFieldNum.GetAsInt())
 	}
 
 	if vectorFields == 0 {
@@ -452,10 +452,7 @@ func (t *createCollectionTask) PreExecute(ctx context.Context) error {
 
 	// Transform struct field names to ensure global uniqueness
 	// This allows different structs to have fields with the same name
-	err = transformStructFieldNames(t.schema)
-	if err != nil {
-		return fmt.Errorf("failed to transform struct field names: %v", err)
-	}
+	transformStructFieldNames(t.schema)
 
 	// validate whether field names duplicates (after transformation)
 	if err := validateDuplicatedFieldName(t.schema); err != nil {
@@ -913,9 +910,7 @@ func (t *describeCollectionTask) Execute(ctx context.Context) error {
 		t.result.Schema.Functions = append(t.result.Schema.Functions, proto.Clone(function).(*schemapb.FunctionSchema))
 	}
 
-	if err := restoreStructFieldNames(t.result.Schema); err != nil {
-		return fmt.Errorf("failed to restore struct field names: %v", err)
-	}
+	restoreStructFieldNames(t.result.Schema)
 
 	return nil
 }
@@ -1022,7 +1017,7 @@ func (t *showCollectionsTask) Execute(ctx context.Context) error {
 		}
 
 		if resp == nil {
-			return errors.New("failed to show collections")
+			return merr.WrapErrServiceInternalMsg("failed to show collections")
 		}
 
 		if resp.GetStatus().GetErrorCode() != commonpb.ErrorCode_Success {
@@ -1031,7 +1026,7 @@ func (t *showCollectionsTask) Execute(ctx context.Context) error {
 			for _, collectionID := range collectionIDs {
 				newErrorReason = ReplaceID2Name(newErrorReason, collectionID, IDs2Names[collectionID])
 			}
-			return errors.New(newErrorReason)
+			return merr.WrapErrServiceInternalMsg(newErrorReason)
 		}
 
 		t.result = &milvuspb.ShowCollectionsResponse{
@@ -1616,7 +1611,7 @@ func (t *createPartitionTask) PreExecute(ctx context.Context) error {
 		return err
 	}
 	if partitionKeyMode {
-		return errors.New("disable create partition if partition key mode is used")
+		return merr.WrapErrParameterInvalidMsg("disable create partition if partition key mode is used")
 	}
 
 	if err := validatePartitionTag(partitionTag, true); err != nil {
@@ -1715,7 +1710,7 @@ func (t *dropPartitionTask) PreExecute(ctx context.Context) error {
 		return err
 	}
 	if partitionKeyMode {
-		return errors.New("disable drop partition if partition key mode is used")
+		return merr.WrapErrPolicySecurityViolationMsg("disable drop partition if partition key mode is used")
 	}
 
 	if err := validatePartitionTag(partitionTag, true); err != nil {
@@ -1744,7 +1739,7 @@ func (t *dropPartitionTask) PreExecute(ctx context.Context) error {
 			return err
 		}
 		if loaded {
-			return errors.New("partition cannot be dropped, partition is loaded, please release it first")
+			return merr.WrapErrPolicySecurityViolationMsg("partition cannot be dropped, partition is loaded, please release it first")
 		}
 	}
 
@@ -1954,7 +1949,7 @@ func (t *showPartitionsTask) Execute(ctx context.Context) error {
 			if !ok {
 				log.Ctx(ctx).Debug("Failed to get partition id.", zap.String("partitionName", partitionName),
 					zap.Int64("requestID", t.Base.MsgID), zap.String("requestType", "showPartitions"))
-				return errors.New("failed to show partitions")
+				return merr.WrapErrServiceInternalMsg("failed to show partitions")
 			}
 			partitionInfo, err := globalMetaCache.GetPartitionInfo(ctx, t.GetDbName(), collectionName, partitionName)
 			if err != nil {
@@ -2113,7 +2108,7 @@ func (t *loadCollectionTask) Execute(ctx context.Context) (err error) {
 	if len(unindexedVecFields) != 0 {
 		errMsg := fmt.Sprintf("there is no vector index on field: %v, please create index firstly", unindexedVecFields)
 		log.Debug(errMsg)
-		return errors.New(errMsg)
+		return merr.WrapErrServiceInternalMsg(errMsg)
 	}
 	request := &querypb.LoadCollectionRequest{
 		Base: commonpbutil.UpdateMsgBase(
@@ -2135,7 +2130,7 @@ func (t *loadCollectionTask) Execute(ctx context.Context) (err error) {
 		zap.Int32("priority", int32(request.GetPriority())))
 	t.result, err = t.mixCoord.LoadCollection(ctx, request)
 	if err = merr.CheckRPCCall(t.result, err); err != nil {
-		return fmt.Errorf("call query coordinator LoadCollection: %s", err)
+		return merr.WrapErrServiceInternalMsg("call query coordinator LoadCollection: %s", err)
 	}
 	return nil
 }
@@ -2304,7 +2299,7 @@ func (t *loadPartitionsTask) PreExecute(ctx context.Context) error {
 		return err
 	}
 	if partitionKeyMode {
-		return errors.New("disable load partitions if partition key mode is used")
+		return merr.WrapErrServiceInternalMsg("disable load partitions if partition key mode is used")
 	}
 
 	return nil
@@ -2370,7 +2365,7 @@ func (t *loadPartitionsTask) Execute(ctx context.Context) error {
 	if len(unindexedVecFields) != 0 {
 		errMsg := fmt.Sprintf("there is no vector index on field: %v, please create index firstly", unindexedVecFields)
 		log.Ctx(ctx).Debug(errMsg)
-		return errors.New(errMsg)
+		return merr.WrapErrServiceInternalMsg(errMsg)
 	}
 
 	for _, partitionName := range t.PartitionNames {
@@ -2381,7 +2376,7 @@ func (t *loadPartitionsTask) Execute(ctx context.Context) error {
 		partitionIDs = append(partitionIDs, partitionID)
 	}
 	if len(partitionIDs) == 0 {
-		return errors.New("failed to load partition, due to no partition specified")
+		return merr.WrapErrServiceInternalMsg("failed to load partition, due to no partition specified")
 	}
 	request := &querypb.LoadPartitionsRequest{
 		Base: commonpbutil.UpdateMsgBase(
@@ -2478,7 +2473,7 @@ func (t *releasePartitionsTask) PreExecute(ctx context.Context) error {
 		return err
 	}
 	if partitionKeyMode {
-		return errors.New("disable release partitions if partition key mode is used")
+		return merr.WrapErrPolicySecurityViolationMsg("disable release partitions if partition key mode is used")
 	}
 
 	return nil
@@ -3249,7 +3244,7 @@ func isIgnoreGrowing(params []*commonpb.KeyValuePair) (bool, error) {
 		if kv.GetKey() == IgnoreGrowingKey {
 			ignoreGrowing, err := strconv.ParseBool(kv.GetValue())
 			if err != nil {
-				return false, errors.New("parse ignore growing field failed")
+				return false, merr.WrapErrParameterMissingMsg("parse ignore growing field failed")
 			}
 			return ignoreGrowing, nil
 		}

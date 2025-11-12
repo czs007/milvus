@@ -2,7 +2,6 @@ package rootcoord
 
 import (
 	"context"
-	"fmt"
 
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
@@ -110,17 +109,18 @@ func (c *Core) validateEncryption(ctx context.Context, oldDBName string, newDBNa
 	// old and new DB names are filled in Prepare, shouldn't be empty here
 	originalDB, err := c.meta.GetDatabaseByName(ctx, oldDBName, typeutil.MaxTimestamp)
 	if err != nil {
-		return fmt.Errorf("failed to get original database: %w", err)
+		return merr.WrapErrDatabaseNotFound(oldDBName)
 	}
 
 	targetDB, err := c.meta.GetDatabaseByName(ctx, newDBName, typeutil.MaxTimestamp)
 	if err != nil {
-		return fmt.Errorf("target database %s not found: %w", newDBName, err)
+		return merr.WrapErrDatabaseNotFound(newDBName)
 	}
 
 	// Check if either database has encryption enabled
 	if hookutil.IsDBEncryptionEnabled(originalDB.Properties) || hookutil.IsDBEncryptionEnabled(targetDB.Properties) {
-		return fmt.Errorf("deny to change collection databases due to at least one database enabled encryption, original DB: %s, target DB: %s", oldDBName, newDBName)
+		return merr.WrapErrPolicySecurityViolationMsg(
+			"deny to change collection databases due to at least one database enabled encryption, original DB: %s, target DB: %s", oldDBName, newDBName)
 	}
 
 	return nil

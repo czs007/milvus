@@ -112,7 +112,7 @@ func (node *QueryNode) GetStatistics(ctx context.Context, req *querypb.GetStatis
 	)
 	log.Debug("received GetStatisticsRequest")
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return &internalpb.GetStatisticsResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -210,14 +210,14 @@ func (node *QueryNode) WatchDmChannels(ctx context.Context, req *querypb.WatchDm
 	)
 
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return merr.Status(err), nil
 	}
 	defer node.lifetime.Done()
 
 	// check index
 	if len(req.GetIndexInfoList()) == 0 {
-		err := merr.WrapErrIndexNotFoundForCollection(req.GetSchema().GetName())
+		err := merr.WrapErrAsSysError(merr.WrapErrIndexNotFoundForCollection(req.GetSchema().GetName()))
 		return merr.Status(err), nil
 	}
 
@@ -402,7 +402,7 @@ func (node *QueryNode) UnsubDmChannel(ctx context.Context, req *querypb.UnsubDmC
 	log.Info("received unsubscribe channel request")
 
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return merr.Status(err), nil
 	}
 	defer node.lifetime.Done()
@@ -466,14 +466,14 @@ func (node *QueryNode) LoadSegments(ctx context.Context, req *querypb.LoadSegmen
 		zap.Bool("needTransfer", req.GetNeedTransfer()),
 		zap.String("loadScope", req.GetLoadScope().String()))
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return merr.Status(err), nil
 	}
 	defer node.lifetime.Done()
 
 	// check index
 	if len(req.GetIndexInfoList()) == 0 {
-		err := merr.WrapErrIndexNotFoundForCollection(req.GetSchema().GetName())
+		err := merr.WrapErrAsSysError(merr.WrapErrIndexNotFoundForCollection(req.GetSchema().GetName()))
 		return merr.Status(err), nil
 	}
 
@@ -564,7 +564,7 @@ func (node *QueryNode) UpdateSchema(ctx context.Context, req *querypb.UpdateSche
 	defer node.updateDistributionModifyTS()
 
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return merr.Status(err), nil
 	}
 	defer node.lifetime.Done()
@@ -604,7 +604,7 @@ func (node *QueryNode) ReleasePartitions(ctx context.Context, req *querypb.Relea
 	log.Info("received release partitions request")
 
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return merr.Status(err), nil
 	}
 	defer node.lifetime.Done()
@@ -673,7 +673,7 @@ func (node *QueryNode) ReleaseSegments(ctx context.Context, req *querypb.Release
 
 // GetSegmentInfo returns segment information of the collection on the queryNode, and the information includes memSize, numRow, indexName, indexID ...
 func (node *QueryNode) GetSegmentInfo(ctx context.Context, in *querypb.GetSegmentInfoRequest) (*querypb.GetSegmentInfoResponse, error) {
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return &querypb.GetSegmentInfoResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -754,7 +754,7 @@ func (node *QueryNode) SearchSegments(ctx context.Context, req *querypb.SearchRe
 	resp := &internalpb.SearchResults{
 		ChannelsMvcc: channelsMvcc,
 	}
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		resp.Status = merr.Status(err)
 		return resp, nil
 	}
@@ -841,7 +841,7 @@ func (node *QueryNode) Search(ctx context.Context, req *querypb.SearchRequest) (
 
 	tr := timerecord.NewTimeRecorderWithTrace(ctx, "SearchRequest")
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return &internalpb.SearchResults{
 			Status: merr.Status(err),
 		}, nil
@@ -858,7 +858,7 @@ func (node *QueryNode) Search(ctx context.Context, req *querypb.SearchRequest) (
 	}
 
 	if len(req.GetDmlChannels()) != 1 {
-		err := merr.WrapErrParameterInvalid(1, len(req.GetDmlChannels()), "count of channel to be searched should only be 1, wrong code")
+		err := merr.WrapErrServiceInternal(fmt.Sprintf("count of channel to be searched should be 1, but got:%d", len(req.GetDmlChannels())))
 		resp.Status = merr.Status(err)
 		log.Warn("got wrong number of channels to be searched", zap.Error(err))
 		return resp, nil
@@ -909,7 +909,7 @@ func (node *QueryNode) QuerySegments(ctx context.Context, req *querypb.QueryRequ
 		zap.String("scope", req.GetScope().String()),
 	)
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		resp.Status = merr.Status(err)
 		return resp, nil
 	}
@@ -984,7 +984,7 @@ func (node *QueryNode) Query(ctx context.Context, req *querypb.QueryRequest) (*i
 	)
 	tr := timerecord.NewTimeRecorderWithTrace(ctx, "QueryRequest")
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return &internalpb.RetrieveResults{
 			Status: merr.Status(err),
 		}, nil
@@ -1074,7 +1074,7 @@ func (node *QueryNode) QueryStream(req *querypb.QueryRequest, srv querypb.QueryN
 		zap.Bool("isCount", req.GetReq().GetIsCount()),
 	)
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		concurrentSrv.Send(&internalpb.RetrieveResults{Status: merr.Status(err)})
 		return nil
 	}
@@ -1133,7 +1133,7 @@ func (node *QueryNode) QueryStreamSegments(req *querypb.QueryRequest, srv queryp
 		}
 	}()
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		resp.Status = merr.Status(err)
 		concurrentSrv.Send(resp)
 		return nil
@@ -1171,7 +1171,7 @@ func (node *QueryNode) SyncReplicaSegments(ctx context.Context, req *querypb.Syn
 
 // ShowConfigurations returns the configurations of queryNode matching req.Pattern
 func (node *QueryNode) ShowConfigurations(ctx context.Context, req *internalpb.ShowConfigurationsRequest) (*internalpb.ShowConfigurationsResponse, error) {
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		log.Ctx(ctx).Warn("QueryNode.ShowConfigurations failed",
 			zap.Int64("nodeId", node.GetNodeID()),
 			zap.String("req", req.Pattern),
@@ -1201,7 +1201,7 @@ func (node *QueryNode) ShowConfigurations(ctx context.Context, req *internalpb.S
 
 // GetMetrics return system infos of the query node, such as total memory, memory usage, cpu usage ...
 func (node *QueryNode) GetMetrics(ctx context.Context, req *milvuspb.GetMetricsRequest) (*milvuspb.GetMetricsResponse, error) {
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		log.Ctx(ctx).Warn("QueryNode.GetMetrics failed",
 			zap.Int64("nodeId", node.GetNodeID()),
 			zap.String("req", req.Request),
@@ -1234,7 +1234,7 @@ func (node *QueryNode) GetDataDistribution(ctx context.Context, req *querypb.Get
 		zap.Int64("msgID", req.GetBase().GetMsgID()),
 		zap.Int64("nodeID", node.GetNodeID()),
 	)
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		log.Warn("QueryNode.GetDataDistribution failed",
 			zap.Error(err))
 
@@ -1351,7 +1351,7 @@ func (node *QueryNode) SyncDistribution(ctx context.Context, req *querypb.SyncDi
 	log := log.Ctx(ctx).With(zap.Int64("collectionID", req.GetCollectionID()),
 		zap.String("channel", req.GetChannel()), zap.Int64("currentNodeID", node.GetNodeID()))
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return merr.Status(err), nil
 	}
 	defer node.lifetime.Done()
@@ -1459,7 +1459,7 @@ func (node *QueryNode) Delete(ctx context.Context, req *querypb.DeleteRequest) (
 	)
 
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return merr.Status(err), nil
 	}
 	defer node.lifetime.Done()
@@ -1517,7 +1517,7 @@ func (node *QueryNode) DeleteBatch(ctx context.Context, req *querypb.DeleteBatch
 	)
 
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return &querypb.DeleteBatchResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -1620,7 +1620,7 @@ func (node *QueryNode) runAnalyzer(req *querypb.RunAnalyzerRequest) ([]*milvuspb
 
 func (node *QueryNode) RunAnalyzer(ctx context.Context, req *querypb.RunAnalyzerRequest) (*milvuspb.RunAnalyzerResponse, error) {
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return &milvuspb.RunAnalyzerResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -1664,7 +1664,7 @@ func (node *QueryNode) RunAnalyzer(ctx context.Context, req *querypb.RunAnalyzer
 
 func (node *QueryNode) ValidateAnalyzer(ctx context.Context, req *querypb.ValidateAnalyzerRequest) (*commonpb.Status, error) {
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return merr.Status(err), nil
 	}
 	defer node.lifetime.Done()
@@ -1745,7 +1745,7 @@ func (node *QueryNode) DropIndex(ctx context.Context, req *querypb.DropIndexRequ
 
 func (node *QueryNode) GetHighlight(ctx context.Context, req *querypb.GetHighlightRequest) (*querypb.GetHighlightResponse, error) {
 	// check node healthy
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return &querypb.GetHighlightResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -1780,7 +1780,7 @@ func (node *QueryNode) SyncFileResource(ctx context.Context, req *internalpb.Syn
 	log := log.Ctx(ctx).With(zap.Uint64("version", req.GetVersion()))
 	log.Info("sync file resource")
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		log.Warn("failed to sync file resource, QueryNode is not healthy")
 		return merr.Status(err), nil
 	}

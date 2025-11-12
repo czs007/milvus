@@ -54,7 +54,7 @@ func CheckDelegatorDataReady(nodeMgr *session.NodeManager, targetMgr meta.Target
 	if info == nil {
 		err := merr.WrapErrNodeOffline(leader.ID)
 		log.Info("leader is not available", zap.Error(err))
-		return fmt.Errorf("leader not available: %w", err)
+		return merr.Wrap(err, "leader not available")
 	}
 
 	segmentDist := targetMgr.GetSealedSegmentsByChannel(context.TODO(), leader.CollectionID, leader.Channel, scope)

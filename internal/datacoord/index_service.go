@@ -47,6 +47,12 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
+const msgAmbiguousIndexName = "there are multiple indexes, please specify the index_name"
+
+func formatDataCoordIsUnhealthy(coordID UniqueID) string {
+	return fmt.Sprintf("DataCoord %d is not ready", coordID)
+}
+
 // serverID return the session serverID
 func (s *Server) serverID() int64 {
 	if s.session != nil {
@@ -138,7 +144,7 @@ func (s *Server) CreateIndex(ctx context.Context, req *indexpb.CreateIndexReques
 	)
 
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return merr.Status(err), nil
 	}
 	metrics.IndexRequestCounter.WithLabelValues(metrics.TotalLabel).Inc()
@@ -366,7 +372,7 @@ func (s *Server) AlterIndex(ctx context.Context, req *indexpb.AlterIndexRequest)
 	}
 
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return merr.Status(err), nil
 	}
 
@@ -485,7 +491,7 @@ func (s *Server) GetIndexState(ctx context.Context, req *indexpb.GetIndexStateRe
 	log.Info("receive GetIndexState request")
 
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return &indexpb.GetIndexStateResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -500,7 +506,7 @@ func (s *Server) GetIndexState(ctx context.Context, req *indexpb.GetIndexStateRe
 		}, nil
 	}
 	if len(indexes) > 1 {
-		log.Warn(msgAmbiguousIndexName())
+		log.Warn(msgAmbiguousIndexName)
 		err := merr.WrapErrIndexDuplicate(req.GetIndexName())
 		return &indexpb.GetIndexStateResponse{
 			Status: merr.Status(err),
@@ -537,7 +543,7 @@ func (s *Server) GetSegmentIndexState(ctx context.Context, req *indexpb.GetSegme
 	)
 
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return &indexpb.GetSegmentIndexStateResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -744,7 +750,7 @@ func (s *Server) GetIndexBuildProgress(ctx context.Context, req *indexpb.GetInde
 	log.Info("receive GetIndexBuildProgress request", zap.String("indexName", req.GetIndexName()))
 
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return &indexpb.GetIndexBuildProgressResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -760,7 +766,7 @@ func (s *Server) GetIndexBuildProgress(ctx context.Context, req *indexpb.GetInde
 	}
 
 	if len(indexes) > 1 {
-		log.Warn(msgAmbiguousIndexName())
+		log.Warn(msgAmbiguousIndexName)
 		err := merr.WrapErrIndexDuplicate(req.GetIndexName())
 		return &indexpb.GetIndexBuildProgressResponse{
 			Status: merr.Status(err),
@@ -810,7 +816,7 @@ func (s *Server) DescribeIndex(ctx context.Context, req *indexpb.DescribeIndexRe
 		zap.Uint64("timestamp", req.GetTimestamp()),
 	)
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return &indexpb.DescribeIndexResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -866,7 +872,7 @@ func (s *Server) GetIndexStatistics(ctx context.Context, req *indexpb.GetIndexSt
 	)
 	log.Info("receive GetIndexStatistics request", zap.String("indexName", req.GetIndexName()))
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return &indexpb.GetIndexStatisticsResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -944,7 +950,7 @@ func (s *Server) DropIndex(ctx context.Context, req *indexpb.DropIndexRequest) (
 		zap.Bool("drop all indexes", req.GetDropAll()))
 
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return merr.Status(err), nil
 	}
 
@@ -994,7 +1000,7 @@ func (s *Server) DropIndex(ctx context.Context, req *indexpb.DropIndexRequest) (
 	}
 
 	if !req.GetDropAll() && len(indexes) > 1 {
-		log.Warn(msgAmbiguousIndexName())
+		log.Warn(msgAmbiguousIndexName)
 		err := merr.WrapErrIndexDuplicate(req.GetIndexName())
 		return merr.Status(err), nil
 	}
@@ -1028,7 +1034,7 @@ func (s *Server) GetIndexInfos(ctx context.Context, req *indexpb.GetIndexInfoReq
 	)
 
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return &indexpb.GetIndexInfoResponse{
 			Status: merr.Status(err),
 		}, nil
@@ -1098,7 +1104,7 @@ func (s *Server) ListIndexes(ctx context.Context, req *indexpb.ListIndexesReques
 	)
 
 	if err := merr.CheckHealthy(s.GetStateCode()); err != nil {
-		log.Warn(msgDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
+		log.Warn(formatDataCoordIsUnhealthy(paramtable.GetNodeID()), zap.Error(err))
 		return &indexpb.ListIndexesResponse{
 			Status: merr.Status(err),
 		}, nil

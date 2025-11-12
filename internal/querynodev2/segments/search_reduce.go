@@ -2,7 +2,6 @@ package segments
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -93,7 +92,7 @@ func (scr *SearchCommonReduce) ReduceSearchResultData(ctx context.Context, searc
 
 		// limit search result to avoid oom
 		if retSize > maxOutputSize {
-			return nil, fmt.Errorf("search results exceed the maxOutputSize Limit %d", maxOutputSize)
+			return nil, merr.WrapErrServiceInternalMsg("search results exceed the maxOutputSize Limit %d", maxOutputSize)
 		}
 	}
 	log.Debug("skip duplicated search result", zap.Int64("count", skipDupCnt))
@@ -195,7 +194,7 @@ func (sbr *SearchGroupByReduce) ReduceSearchResultData(ctx context.Context, sear
 
 		// limit search result to avoid oom
 		if retSize > maxOutputSize {
-			return nil, fmt.Errorf("search results exceed the maxOutputSize Limit %d", maxOutputSize)
+			return nil, merr.WrapErrServiceInternalMsg("search results exceed the maxOutputSize Limit %d", maxOutputSize)
 		}
 	}
 	ret.GroupByFieldValue = gpFieldBuilder.Build()

@@ -48,7 +48,7 @@ func (node *DataNode) CreateJob(ctx context.Context, req *workerpb.CreateJobRequ
 		zap.Int64("indexBuildID", req.GetBuildID()),
 	)
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		log.Warn("index node not ready",
 			zap.Error(err),
 		)
@@ -235,7 +235,7 @@ func (node *DataNode) CreateJobV2(ctx context.Context, req *workerpb.CreateJobV2
 		zap.String("jobType", req.GetJobType().String()),
 	)
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		log.Warn("index node not ready",
 			zap.Error(err),
 		)

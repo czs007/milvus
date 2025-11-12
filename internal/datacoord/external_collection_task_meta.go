@@ -18,7 +18,6 @@ package datacoord
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"go.uber.org/zap"
@@ -138,7 +137,7 @@ func (ectm *externalCollectionTaskMeta) UpdateVersion(taskID, nodeID int64) erro
 
 	t, ok := ectm.tasks.Get(taskID)
 	if !ok {
-		return fmt.Errorf("task %d not found", taskID)
+		return merr.WrapErrServiceInternalMsg("task %d not found", taskID)
 	}
 
 	cloneT := proto.Clone(t).(*indexpb.UpdateExternalCollectionTask)
@@ -167,7 +166,7 @@ func (ectm *externalCollectionTaskMeta) UpdateTaskState(taskID int64, state inde
 
 	t, ok := ectm.tasks.Get(taskID)
 	if !ok {
-		return fmt.Errorf("task %d not found", taskID)
+		return merr.WrapErrServiceInternalMsg("task %d not found", taskID)
 	}
 
 	cloneT := proto.Clone(t).(*indexpb.UpdateExternalCollectionTask)

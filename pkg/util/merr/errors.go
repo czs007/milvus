@@ -18,6 +18,7 @@ package merr
 
 import (
 	"github.com/cockroachdb/errors"
+	"github.com/cockroachdb/errors/markers"
 	"github.com/samber/lo"
 )
 
@@ -36,6 +37,11 @@ const (
 var ErrorTypeName = map[ErrorType]string{
 	SystemError: "system_error",
 	InputError:  "input_error",
+}
+
+// ErrorClassifier defines the method to get the broad classification of a Milvus error.
+type ErrorClassifier interface {
+	GetErrorType() ErrorType
 }
 
 func (err ErrorType) String() string {
@@ -60,34 +66,41 @@ var (
 	ErrServiceUnimplemented        = newMilvusError("service unimplemented", 10, false)
 	ErrServiceTimeTickLongDelay    = newMilvusError("time tick long delay", 11, false)
 	ErrServiceResourceInsufficient = newMilvusError("service resource insufficient", 12, true)
+	ErrOldSessionExists            = newMilvusError("old session exists", 13, false)
+	ErrPolicySecurityViolation     = newMilvusError("operation denied due to policy or security configuration", 14, false, WithErrorType(InputError))
+	ErrConnectComponent            = newMilvusError("failed to connect component", 15, false)
 
 	// Collection related
-	ErrCollectionNotFound                      = newMilvusError("collection not found", 100, false)
+	ErrCollectionNotFound                      = newMilvusError("collection not found", 100, false, WithErrorType(InputError))
 	ErrCollectionNotLoaded                     = newMilvusError("collection not loaded", 101, false)
-	ErrCollectionNumLimitExceeded              = newMilvusError("exceeded the limit number of collections", 102, false)
+	ErrCollectionNumLimitExceeded              = newMilvusError("exceeded the limit number of collections", 102, false, WithErrorType(InputError))
 	ErrCollectionNotFullyLoaded                = newMilvusError("collection not fully loaded", 103, true)
-	ErrCollectionLoaded                        = newMilvusError("collection already loaded", 104, false)
-	ErrCollectionIllegalSchema                 = newMilvusError("illegal collection schema", 105, false)
+	ErrCollectionLoaded                        = newMilvusError("collection already loaded", 104, false, WithErrorType(InputError))
+	ErrCollectionIllegalSchema                 = newMilvusError("illegal collection schema", 105, false, WithErrorType(InputError))
 	ErrCollectionOnRecovering                  = newMilvusError("collection on recovering", 106, true)
-	ErrCollectionVectorClusteringKeyNotAllowed = newMilvusError("vector clustering key not allowed", 107, false)
-	ErrCollectionReplicateMode                 = newMilvusError("can't operate on the collection under standby mode", 108, false)
-	ErrCollectionSchemaMismatch                = newMilvusError("collection schema mismatch", 109, false)
+	ErrCollectionVectorClusteringKeyNotAllowed = newMilvusError("vector clustering key not allowed", 107, false, WithErrorType(InputError))
+	ErrCollectionReplicateMode                 = newMilvusError("can't operate on the collection under standby mode", 108, false, WithErrorType(InputError))
+	ErrCollectionSchemaMismatch                = newMilvusError("collection schema mismatch", 109, false, WithErrorType(InputError))
+	ErrCollectionIDNotFound                    = newMilvusError("collectionID not found", 110, false)
+	ErrCollectionExistConflict                 = newMilvusError("conflicted with exist collection", 111, false)
+
 	// Partition related
-	ErrPartitionNotFound       = newMilvusError("partition not found", 200, false)
-	ErrPartitionNotLoaded      = newMilvusError("partition not loaded", 201, false)
+	ErrPartitionNotFound       = newMilvusError("partition not found", 200, false, WithErrorType(InputError))
+	ErrPartitionNotLoaded      = newMilvusError("partition not loaded", 201, false, WithErrorType(InputError))
 	ErrPartitionNotFullyLoaded = newMilvusError("partition not fully loaded", 202, true)
+	ErrPartitionIDNotFound     = newMilvusError("partition not found", 203, false)
 
 	// General capacity related
 	ErrGeneralCapacityExceeded = newMilvusError("general capacity exceeded", 250, false)
 
 	// ResourceGroup related
-	ErrResourceGroupNotFound      = newMilvusError("resource group not found", 300, false)
-	ErrResourceGroupAlreadyExist  = newMilvusError("resource group already exist, but create with different config", 301, false)
-	ErrResourceGroupReachLimit    = newMilvusError("resource group num reach limit", 302, false)
-	ErrResourceGroupIllegalConfig = newMilvusError("resource group illegal config", 303, false)
+	ErrResourceGroupNotFound      = newMilvusError("resource group not found", 300, false, WithErrorType(InputError))
+	ErrResourceGroupAlreadyExist  = newMilvusError("resource group already exist, but create with different config", 301, false, WithErrorType(InputError))
+	ErrResourceGroupReachLimit    = newMilvusError("resource group num reach limit", 302, false, WithErrorType(InputError))
+	ErrResourceGroupIllegalConfig = newMilvusError("resource group illegal config", 303, false, WithErrorType(InputError))
 	// go:deprecated
-	ErrResourceGroupNodeNotEnough    = newMilvusError("resource group node not enough", 304, false)
-	ErrResourceGroupServiceAvailable = newMilvusError("resource group service available", 305, true)
+	ErrResourceGroupNodeNotEnough      = newMilvusError("resource group node not enough", 304, false)
+	ErrResourceGroupServiceUnAvailable = newMilvusError("resource group service available", 305, true)
 
 	// Replica related
 	ErrReplicaNotFound     = newMilvusError("replica not found", 400, false)
@@ -115,13 +128,13 @@ var (
 	// Index related
 	ErrIndexNotFound     = newMilvusError("index not found", 700, false)
 	ErrIndexNotSupported = newMilvusError("index type not supported", 701, false)
-	ErrIndexDuplicate    = newMilvusError("index duplicates", 702, false)
+	ErrIndexDuplicate    = newMilvusError("index duplicates", 702, false, WithErrorType(InputError))
 	ErrTaskDuplicate     = newMilvusError("task duplicates", 703, false)
 
 	// Database related
-	ErrDatabaseNotFound         = newMilvusError("database not found", 800, false)
-	ErrDatabaseNumLimitExceeded = newMilvusError("exceeded the limit number of database", 801, false)
-	ErrDatabaseInvalidName      = newMilvusError("invalid database name", 802, false)
+	ErrDatabaseNotFound         = newMilvusError("database not found", 800, false, WithErrorType(InputError))
+	ErrDatabaseNumLimitExceeded = newMilvusError("exceeded the limit number of database", 801, false, WithErrorType(InputError))
+	ErrDatabaseInvalidName      = newMilvusError("invalid database name", 802, false, WithErrorType(InputError))
 
 	// Node related
 	ErrNodeNotFound        = newMilvusError("node not found", 901, false)
@@ -132,14 +145,17 @@ var (
 	ErrNodeStateUnexpected = newMilvusError("node state unexpected", 906, false)
 
 	// IO related
-	ErrIoKeyNotFound = newMilvusError("key not found", 1000, false)
-	ErrIoFailed      = newMilvusError("IO failed", 1001, false)
-	ErrIoUnexpectEOF = newMilvusError("unexpected EOF", 1002, true)
+	ErrIoKeyNotFound       = newMilvusError("key not found", 1000, false)
+	ErrIoFailed            = newMilvusError("IO failed", 1001, false)
+	ErrIoUnexpectEOF       = newMilvusError("unexpected EOF", 1002, true)
+	ErrSerializationFailed = newMilvusError("data serialization or deserialization failed", 1003, false)
+	ErrStorage             = newMilvusError("storage internal error", 1004, false, WithErrorType(SystemError))
 
 	// Parameter related
-	ErrParameterInvalid  = newMilvusError("invalid parameter", 1100, false)
-	ErrParameterMissing  = newMilvusError("missing parameter", 1101, false)
-	ErrParameterTooLarge = newMilvusError("parameter too large", 1102, false)
+	ErrParameterInvalid  = newMilvusError("invalid parameter", 1100, false, WithErrorType(InputError))
+	ErrParameterMissing  = newMilvusError("missing parameter", 1101, false, WithErrorType(InputError))
+	ErrParameterTooLarge = newMilvusError("parameter too large", 1102, false, WithErrorType(InputError))
+	ErrHTTPBadRequest    = newMilvusError("HTTP request is malformed or invalid", 1103, false, WithErrorType(InputError))
 
 	// Metrics related
 	ErrMetricNotFound = newMilvusError("metric not found", 1200, false)
@@ -150,22 +166,23 @@ var (
 	ErrMqInternal      = newMilvusError("message queue internal error", 1302, false)
 	ErrDenyProduceMsg  = newMilvusError("deny to write the message to mq", 1303, false)
 
-	// Privilege related
+	// Rbac related
 	// this operation is denied because the user not authorized, user need to login in first
-	ErrPrivilegeNotAuthenticated = newMilvusError("not authenticated", 1400, false)
+	ErrPrivilegeNotAuthenticated = newMilvusError("not authenticated", 1400, false, WithErrorType(InputError))
 	// this operation is denied because the user has no permission to do this, user need higher privilege
-	ErrPrivilegeNotPermitted     = newMilvusError("privilege not permitted", 1401, false)
-	ErrPrivilegeGroupInvalidName = newMilvusError("invalid privilege group name", 1402, false)
+	ErrPrivilegeNotPermitted     = newMilvusError("privilege not permitted", 1401, false, WithErrorType(InputError))
+	ErrPrivilegeGroupInvalidName = newMilvusError("invalid privilege group name", 1402, false, WithErrorType(InputError))
+	ErrRbac                      = newMilvusError("RBAC permission/metadata error", 1403, false, WithErrorType(InputError))
 
 	// Alias related
-	ErrAliasNotFound               = newMilvusError("alias not found", 1600, false)
-	ErrAliasCollectionNameConfilct = newMilvusError("alias and collection name conflict", 1601, false)
-	ErrAliasAlreadyExist           = newMilvusError("alias already exist", 1602, false)
+	ErrAliasNotFound               = newMilvusError("alias not found", 1600, false, WithErrorType(InputError))
+	ErrAliasCollectionNameConfilct = newMilvusError("alias and collection name conflict", 1601, false, WithErrorType(InputError))
+	ErrAliasAlreadyExist           = newMilvusError("alias already exist", 1602, false, WithErrorType(InputError))
 	ErrCollectionIDOfAliasNotFound = newMilvusError("collection id of alias not found", 1603, false)
 
 	// field related
 	ErrFieldNotFound    = newMilvusError("field not found", 1700, false)
-	ErrFieldInvalidName = newMilvusError("field name invalid", 1701, false)
+	ErrFieldInvalidName = newMilvusError("field name invalid", 1701, false, WithErrorType(InputError))
 
 	// high-level restful api related
 	ErrNeedAuthenticate          = newMilvusError("user hasn't authenticated", 1800, false)
@@ -176,12 +193,6 @@ var (
 	ErrInvalidSearchResult       = newMilvusError("fail to parse search result", 1805, false)
 	ErrCheckPrimaryKey           = newMilvusError("please check the primary key and its' type can only in [int, string]", 1806, false)
 	ErrHTTPRateLimit             = newMilvusError("request is rejected by limiter", 1807, true)
-
-	// replicate related
-	ErrDenyReplicateMessage = newMilvusError("deny to use the replicate message in the normal instance", 1900, false)
-	ErrInvalidMsgBytes      = newMilvusError("invalid replicate msg bytes", 1901, false)
-	ErrNoAssignSegmentID    = newMilvusError("no assign segment id", 1902, false)
-	ErrInvalidStreamObj     = newMilvusError("invalid stream object", 1903, false)
 
 	// Segcore related
 	ErrSegcore                    = newMilvusError("segcore error", 2000, false)
@@ -198,36 +209,31 @@ var (
 	errUnexpected = newMilvusError("unexpected error", (1<<16)-1, false)
 
 	// import
-	ErrImportFailed = newMilvusError("importing data failed", 2100, false)
+	ErrImportFailed    = newMilvusError("importing data failed: error found in user input", 2100, false, WithErrorType(InputError))
+	ErrImportSysFailed = newMilvusError("Importing data failed: an internal system error occurred", 2101, false)
 
 	// Search/Query related
 	ErrInconsistentRequery = newMilvusError("inconsistent requery result", 2200, true)
+	ErrQueryPlan           = newMilvusError("query plan failed", 2201, false, WithErrorType(InputError))
 
 	// Compaction
-	ErrCompactionReadDeltaLogErr                  = newMilvusError("fail to read delta log", 2300, false)
-	ErrIllegalCompactionPlan                      = newMilvusError("compaction plan illegal", 2301, false)
-	ErrCompactionPlanConflict                     = newMilvusError("compaction plan conflict", 2302, false)
-	ErrClusteringCompactionClusterNotSupport      = newMilvusError("milvus cluster not support clustering compaction", 2303, false)
-	ErrClusteringCompactionCollectionNotSupport   = newMilvusError("collection not support clustering compaction", 2304, false)
-	ErrClusteringCompactionCollectionIsCompacting = newMilvusError("collection is compacting", 2305, false)
-	ErrClusteringCompactionNotSupportVector       = newMilvusError("vector field clustering compaction is not supported", 2306, false)
-	ErrClusteringCompactionSubmitTaskFail         = newMilvusError("fail to submit task", 2307, true)
-	ErrClusteringCompactionMetaError              = newMilvusError("fail to update meta in clustering compaction", 2308, true)
-	ErrClusteringCompactionGetCollectionFail      = newMilvusError("fail to get collection in compaction", 2309, true)
-	ErrCompactionResultNotFound                   = newMilvusError("compaction result not found", 2310, false)
-	ErrAnalyzeTaskNotFound                        = newMilvusError("analyze task not found", 2311, true)
-	ErrBuildCompactionRequestFail                 = newMilvusError("fail to build CompactionRequest", 2312, true)
-	ErrGetCompactionPlanResultFail                = newMilvusError("fail to get compaction plan", 2313, true)
-	ErrCompactionResult                           = newMilvusError("illegal compaction results", 2314, false)
-	ErrDuplicatedCompactionTask                   = newMilvusError("duplicated compaction task", 2315, false)
-	ErrCleanPartitionStatsFail                    = newMilvusError("fail to clean partition Stats", 2316, true)
+	ErrIllegalCompactionPlan                 = newMilvusError("compaction plan illegal", 2301, false)
+	ErrCompactionPlanConflict                = newMilvusError("compaction plan conflict", 2302, false)
+	ErrClusteringCompactionNotSupportVector  = newMilvusError("vector field clustering compaction is not supported", 2306, false)
+	ErrClusteringCompactionSubmitTaskFail    = newMilvusError("fail to submit task", 2307, true)
+	ErrClusteringCompactionMetaError         = newMilvusError("fail to update meta in clustering compaction", 2308, true)
+	ErrClusteringCompactionGetCollectionFail = newMilvusError("fail to get collection in compaction", 2309, true)
+	ErrAnalyzeTaskNotFound                   = newMilvusError("analyze task not found", 2311, true)
+	ErrBuildCompactionRequestFail            = newMilvusError("fail to build CompactionRequest", 2312, true)
+	ErrGetCompactionPlanResultFail           = newMilvusError("fail to get compaction plan", 2313, true)
+	ErrCompactionResult                      = newMilvusError("illegal compaction results", 2314, false)
+	ErrDuplicatedCompactionTask              = newMilvusError("duplicated compaction task", 2315, false)
+	ErrCleanPartitionStatsFail               = newMilvusError("fail to clean partition Stats", 2316, true)
 
-	ErrDataNodeSlotExhausted = newMilvusError("datanode slot exhausted", 2401, false)
-
-	// General
-	ErrOperationNotSupported = newMilvusError("unsupported operation", 3000, false)
-
-	ErrOldSessionExists = newMilvusError("old session exists", 3001, false)
+	// ErrFunctionFailed Function Execution Errors (Code 4000)
+	// ErrFunctionFailed represents an error during function execution, including schema validation,
+	// parameter checking, and external model API calls.
+	ErrFunctionFailed = newMilvusError("function execution failed", 2400, false)
 )
 
 type errorOption func(*milvusError)
@@ -241,6 +247,7 @@ func WithDetail(detail string) errorOption {
 func WithErrorType(etype ErrorType) errorOption {
 	return func(err *milvusError) {
 		err.errType = etype
+		// TODO set bit  instead of using errType
 	}
 }
 
@@ -284,6 +291,12 @@ func (e milvusError) Is(err error) bool {
 		return e.errCode == cause.errCode
 	}
 	return false
+}
+
+// GetErrorType implements the ErrorClassifier interface.
+// It returns the predefined classification of the error (SystemError or InputError).
+func (e milvusError) GetErrorType() ErrorType {
+	return e.errType
 }
 
 type multiErrors struct {
@@ -330,4 +343,16 @@ func Combine(errs ...error) error {
 	return multiErrors{
 		errs,
 	}
+}
+
+func Wrap(err error, msg string) error {
+	return errors.Wrap(err, msg)
+}
+
+func Wrapf(err error, format string, args ...interface{}) error {
+	return errors.Wrapf(err, format, args...)
+}
+
+func Mark(err error, reference error) error {
+	return markers.Mark(err, reference)
 }

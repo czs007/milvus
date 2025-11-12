@@ -136,7 +136,7 @@ func translateToOutputFieldIDs(outputFields []string, schema *schemapb.Collectio
 			}
 
 			if !fieldFound {
-				return nil, fmt.Errorf("field %s not exist", reqField)
+				return nil, merr.WrapErrParameterInvalidMsg("field %s not exist", reqField)
 			}
 		}
 
@@ -202,8 +202,7 @@ func parseQueryParams(queryParamsPair []*commonpb.KeyValuePair) (*queryParams, e
 	if err == nil {
 		collectionID, err = strconv.ParseInt(collectionIdStr, 0, 64)
 		if err != nil {
-			return nil, merr.WrapErrParameterInvalid("int value for collection_id", CollectionID,
-				"value for collection id is invalid")
+			return nil, merr.WrapErrParameterInvalidMsg("invalid value for %s", CollectionID)
 		}
 	}
 
@@ -224,7 +223,7 @@ func parseQueryParams(queryParamsPair []*commonpb.KeyValuePair) (*queryParams, e
 		isLimitProvided = true
 		limit, err = strconv.ParseInt(limitStr, 0, 64)
 		if err != nil {
-			return nil, fmt.Errorf("%s [%s] is invalid", LimitKey, limitStr)
+			return nil, merr.WrapErrParameterInvalidErr(err, "%s [%s] is invalid", LimitKey, limitStr)
 		}
 	}
 	if isLimitProvided {
@@ -233,12 +232,12 @@ func parseQueryParams(queryParamsPair []*commonpb.KeyValuePair) (*queryParams, e
 		if err == nil {
 			offset, err = strconv.ParseInt(offsetStr, 0, 64)
 			if err != nil {
-				return nil, fmt.Errorf("%s [%s] is invalid", OffsetKey, offsetStr)
+				return nil, merr.WrapErrParameterInvalidErr(err, "%s [%s] is invalid", OffsetKey, offsetStr)
 			}
 		}
 		// validate max result window.
 		if err = validateMaxQueryResultWindow(offset, limit); err != nil {
-			return nil, fmt.Errorf("invalid max query result window, %w", err)
+			return nil, merr.Wrap(err, "invalid max query result window")
 		}
 	}
 
@@ -823,7 +822,7 @@ func reduceRetrieveResults(ctx context.Context, retrieveResults []*internalpb.Re
 
 		// limit retrieve result to avoid oom
 		if retSize > maxOutputSize {
-			return nil, fmt.Errorf("query results exceed the maxOutputSize Limit %d", maxOutputSize)
+			return nil, merr.WrapErrServiceInternalMsg("query results exceed the maxOutputSize Limit %d", maxOutputSize)
 		}
 
 		cursors[sel]++
@@ -841,7 +840,7 @@ func reduceRetrieveResultsAndFillIfEmpty(ctx context.Context, retrieveResults []
 	// filter system fields.
 	filtered := filterSystemFields(outputFieldsID)
 	if err := typeutil2.FillRetrieveResultIfEmpty(typeutil2.NewMilvusResult(result), filtered, schema); err != nil {
-		return nil, fmt.Errorf("failed to fill retrieve results: %s", err.Error())
+		return nil, merr.WrapErrServiceInternalErr(err, "failed to fill retrieve results")
 	}
 
 	return result, nil

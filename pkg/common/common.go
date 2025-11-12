@@ -18,12 +18,10 @@ package common
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math/bits"
 	"strconv"
 	"strings"
 
-	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
 	"github.com/twpayne/go-geom/encoding/wkb"
 	"github.com/twpayne/go-geom/encoding/wkbcommon"
@@ -31,6 +29,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // system field id:
@@ -360,7 +359,7 @@ func IsPartitionKeyIsolationKvEnabled(kvs ...*commonpb.KeyValuePair) (bool, erro
 		if kv.Key == PartitionKeyIsolationKey {
 			val, err := strconv.ParseBool(strings.ToLower(kv.Value))
 			if err != nil {
-				return false, errors.Wrap(err, "failed to parse partition key isolation")
+				return false, merr.WrapErrParameterInvalidErr(err, "failed to parse partition key isolation")
 			}
 			return val, nil
 		}
@@ -373,7 +372,7 @@ func IsDisableFuncRuntimeCheck(kvs ...*commonpb.KeyValuePair) (bool, error) {
 		if kv.Key == DisableFuncRuntimeCheck {
 			val, err := strconv.ParseBool(strings.ToLower(kv.Value))
 			if err != nil {
-				return false, errors.Wrap(err, "failed to parse disable_func_runtime_check param")
+				return false, merr.WrapErrParameterInvalidErr(err, "failed to parse disable_func_runtime_check param")
 			}
 			return val, nil
 		}
@@ -388,7 +387,7 @@ func IsPartitionKeyIsolationPropEnabled(props map[string]string) (bool, error) {
 	}
 	iso, parseErr := strconv.ParseBool(val)
 	if parseErr != nil {
-		return false, errors.Wrap(parseErr, "failed to parse partition key isolation property")
+		return false, merr.WrapErrParameterInvalidErr(parseErr, "failed to parse partition key isolation property")
 	}
 	return iso, nil
 }
@@ -403,34 +402,33 @@ func DatabaseLevelReplicaNumber(kvs []*commonpb.KeyValuePair) (int64, error) {
 		if kv.Key == DatabaseReplicaNumber {
 			replicaNum, err := strconv.ParseInt(kv.Value, 10, 64)
 			if err != nil {
-				return 0, fmt.Errorf("invalid database property: [key=%s] [value=%s]", kv.Key, kv.Value)
+				return 0, merr.WrapErrParameterInvalidMsg("invalid collection property: [key=%s] [value=%s]", kv.Key, kv.Value)
 			}
 
 			return replicaNum, nil
 		}
 	}
 
-	return 0, fmt.Errorf("database property not found: %s", DatabaseReplicaNumber)
+	return 0, merr.WrapErrParameterInvalidMsg("database property not found: %s", DatabaseReplicaNumber)
 }
 
 func DatabaseLevelResourceGroups(kvs []*commonpb.KeyValuePair) ([]string, error) {
 	for _, kv := range kvs {
 		if kv.Key == DatabaseResourceGroups {
-			invalidPropValue := fmt.Errorf("invalid database property: [key=%s] [value=%s]", kv.Key, kv.Value)
 			if len(kv.Value) == 0 {
-				return nil, invalidPropValue
+				return nil, merr.WrapErrParameterInvalidMsg("invalid collection property: [key=%s] [value=%s]", kv.Key, kv.Value)
 			}
 
 			rgs := strings.Split(kv.Value, ",")
 			if len(rgs) == 0 {
-				return nil, invalidPropValue
+				return nil, merr.WrapErrParameterInvalidMsg("invalid collection property: [key=%s] [value=%s]", kv.Key, kv.Value)
 			}
 
 			return lo.Map(rgs, func(rg string, _ int) string { return strings.TrimSpace(rg) }), nil
 		}
 	}
 
-	return nil, fmt.Errorf("database property not found: %s", DatabaseResourceGroups)
+	return nil, merr.WrapErrParameterInvalidMsg("database property not found: %s", DatabaseResourceGroups)
 }
 
 func CollectionLevelReplicaNumber(kvs []*commonpb.KeyValuePair) (int64, error) {
@@ -438,34 +436,33 @@ func CollectionLevelReplicaNumber(kvs []*commonpb.KeyValuePair) (int64, error) {
 		if kv.Key == CollectionReplicaNumber {
 			replicaNum, err := strconv.ParseInt(kv.Value, 10, 64)
 			if err != nil {
-				return 0, fmt.Errorf("invalid collection property: [key=%s] [value=%s]", kv.Key, kv.Value)
+				return 0, merr.WrapErrParameterInvalidMsg("invalid collection property: [key=%s] [value=%s]", kv.Key, kv.Value)
 			}
 
 			return replicaNum, nil
 		}
 	}
 
-	return 0, fmt.Errorf("collection property not found: %s", CollectionReplicaNumber)
+	return 0, merr.WrapErrParameterInvalidMsg("collection property not found: %s", CollectionReplicaNumber)
 }
 
 func CollectionLevelResourceGroups(kvs []*commonpb.KeyValuePair) ([]string, error) {
 	for _, kv := range kvs {
 		if kv.Key == CollectionResourceGroups {
-			invalidPropValue := fmt.Errorf("invalid collection property: [key=%s] [value=%s]", kv.Key, kv.Value)
 			if len(kv.Value) == 0 {
-				return nil, invalidPropValue
+				return nil, merr.WrapErrParameterInvalidMsg("invalid collection property: [key=%s] [value=%s]", kv.Key, kv.Value)
 			}
 
 			rgs := strings.Split(kv.Value, ",")
 			if len(rgs) == 0 {
-				return nil, invalidPropValue
+				return nil, merr.WrapErrParameterInvalidMsg("invalid collection property: [key=%s] [value=%s]", kv.Key, kv.Value)
 			}
 
 			return lo.Map(rgs, func(rg string, _ int) string { return strings.TrimSpace(rg) }), nil
 		}
 	}
 
-	return nil, fmt.Errorf("collection property not found: %s", CollectionReplicaNumber)
+	return nil, merr.WrapErrParameterInvalidMsg("collection property not found: %s", CollectionReplicaNumber)
 }
 
 // GetCollectionLoadFields returns the load field ids according to the type params.
@@ -506,7 +503,7 @@ func ShouldFieldBeLoaded(kvs []*commonpb.KeyValuePair) (bool, error) {
 	for _, kv := range kvs {
 		if kv.GetKey() == FieldSkipLoadKey {
 			val, err := strconv.ParseBool(kv.GetValue())
-			return !val, err
+			return !val, merr.WrapErrParameterInvalidErr(err, "parse %s failed", FieldSkipLoadKey)
 		}
 	}
 	return true, nil
@@ -543,7 +540,7 @@ func IsEnableDynamicSchema(kvs []*commonpb.KeyValuePair) (found bool, value bool
 	for _, kv := range kvs {
 		if kv.GetKey() == EnableDynamicSchemaKey {
 			value, err = strconv.ParseBool(kv.GetValue())
-			return true, value, err
+			return true, value, merr.WrapErrParameterInvalidErr(err, "parse %s failed", EnableDynamicSchemaKey)
 		}
 	}
 	return false, false, nil
@@ -556,7 +553,7 @@ func ValidateAutoIndexMmapConfig(autoIndexConfigEnable, isVectorField bool, inde
 
 	_, ok := indexParams[MmapEnabledKey]
 	if ok && isVectorField {
-		return errors.New("mmap index is not supported to config for the collection in auto index mode")
+		return merr.WrapErrParameterInvalidMsg("mmap index is not supported to config for the collection in auto index mode")
 	}
 	return nil
 }
@@ -566,7 +563,7 @@ func ParseNamespaceProp(props ...*commonpb.KeyValuePair) (value bool, has bool, 
 		if p.GetKey() == NamespaceEnabledKey {
 			value, err := strconv.ParseBool(p.GetValue())
 			if err != nil {
-				return false, false, fmt.Errorf("invalid namespace prop value: %s", p.GetValue())
+				return false, false, merr.WrapErrParameterInvalidErr(err, "invalid namespace prop value: %s", p.GetValue())
 			}
 			return value, true, nil
 		}
@@ -639,9 +636,9 @@ func CheckNamespace(schema *schemapb.CollectionSchema, namespace *string) error 
 	namespaceIsSet := namespace != nil
 	if enabled != namespaceIsSet {
 		if namespaceIsSet {
-			return fmt.Errorf("namespace data is set but namespace disabled")
+			return merr.WrapErrServiceInternalMsg("namespace data is set but namespace disabled")
 		}
-		return fmt.Errorf("namespace data is not set but namespace enabled")
+		return merr.WrapErrServiceInternalMsg("namespace data is not set but namespace enabled")
 	}
 	return nil
 }

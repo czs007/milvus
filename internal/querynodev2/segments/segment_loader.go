@@ -271,7 +271,7 @@ func (loader *segmentLoader) Load(ctx context.Context,
 
 	collection := loader.manager.Collection.Get(collectionID)
 	if collection == nil {
-		err := merr.WrapErrCollectionNotFound(collectionID)
+		err := merr.WrapErrCollectionIDNotFound(collectionID)
 		log.Warn("failed to get collection", zap.Error(err))
 		return nil, err
 	}
@@ -585,7 +585,7 @@ func (loader *segmentLoader) waitSegmentLoadDone(ctx context.Context, segmentTyp
 		result, ok := loader.loadingSegments.Get(segmentID)
 		if !ok {
 			log.Warn("segment was removed from the loading map early", zap.Int64("segmentID", segmentID))
-			return errors.New("segment was removed from the loading map early")
+			return merr.WrapErrServiceInternalMsg("segment was removed from the loading map early")
 		}
 
 		log.Info("wait segment loaded...", zap.Int64("segmentID", segmentID))
@@ -669,7 +669,7 @@ func (loader *segmentLoader) loadSingleBloomFilterSet(ctx context.Context, colle
 
 	collection := loader.manager.Collection.Get(collectionID)
 	if collection == nil {
-		err := merr.WrapErrCollectionNotFound(collectionID)
+		err := merr.WrapErrCollectionIDNotFound(collectionID)
 		log.Warn("failed to get collection while loading segment", zap.Error(err))
 		return nil, err
 	}
@@ -712,7 +712,7 @@ func (loader *segmentLoader) LoadBloomFilterSet(ctx context.Context, collectionI
 
 	collection := loader.manager.Collection.Get(collectionID)
 	if collection == nil {
-		err := merr.WrapErrCollectionNotFound(collectionID)
+		err := merr.WrapErrCollectionIDNotFound(collectionID)
 		log.Warn("failed to get collection while loading segment", zap.Error(err))
 		return nil, err
 	}
@@ -988,7 +988,7 @@ func (loader *segmentLoader) LoadSegment(ctx context.Context,
 ) (err error) {
 	segment, ok := seg.(*LocalSegment)
 	if !ok {
-		return merr.WrapErrParameterInvalid("LocalSegment", fmt.Sprintf("%T", seg))
+		return merr.WrapErrServiceInternal(fmt.Sprintf("segment:%T is not LocalSegment", seg))
 	}
 	log := log.Ctx(ctx).With(
 		zap.Int64("collectionID", segment.Collection()),
@@ -1004,7 +1004,7 @@ func (loader *segmentLoader) LoadSegment(ctx context.Context,
 
 	collection := loader.manager.Collection.Get(segment.Collection())
 	if collection == nil {
-		err := merr.WrapErrCollectionNotFound(segment.Collection())
+		err := merr.WrapErrCollectionIDNotFound(segment.Collection())
 		log.Warn("failed to get collection while loading segment", zap.Error(err))
 		return err
 	}
@@ -1454,7 +1454,7 @@ func (loader *segmentLoader) patchEntryNumber(ctx context.Context, segment *Loca
 	})
 
 	if rowIDField == nil {
-		return errors.New("rowID field binlog not found")
+		return merr.WrapErrServiceInternalMsg("rowID field binlog not found")
 	}
 
 	counts := make([]int64, 0, len(rowIDField.GetBinlogs()))
@@ -1487,7 +1487,7 @@ func (loader *segmentLoader) patchEntryNumber(ctx context.Context, segment *Loca
 	var err error
 	segment.fieldIndexes.Range(func(indexID int64, info *IndexedFieldInfo) bool {
 		if len(info.FieldBinlog.GetBinlogs()) != len(counts) {
-			err = errors.New("rowID & index binlog number not matched")
+			err = merr.WrapErrServiceInternalMsg("rowID & index binlog number not matched")
 			return false
 		}
 		for i, binlog := range info.FieldBinlog.GetBinlogs() {
@@ -1608,7 +1608,7 @@ func (loader *segmentLoader) checkSegmentSize(ctx context.Context, segmentLoadIn
 
 	memUsage = memUsage + loader.committedResource.MemorySize
 	if memUsage == 0 || totalMem == 0 {
-		return 0, 0, errors.New("get memory failed when checkSegmentSize")
+		return 0, 0, merr.WrapErrServiceInternalMsg("get memory failed when checkSegmentSize")
 	}
 
 	diskUsage := uint64(localDiskUsage) + loader.committedResource.DiskSize
@@ -1672,7 +1672,7 @@ func (loader *segmentLoader) checkSegmentSize(ctx context.Context, segmentLoadIn
 			memory_bytes: C.int64_t(predictMemUsage - memUsage),
 			disk_bytes:   C.int64_t(predictDiskUsage - diskUsage),
 		}, 1000); !ok {
-			return 0, 0, fmt.Errorf("failed to reserve loading resource from caching layer, predictMemUsage = %v MB, predictDiskUsage = %v MB, memUsage = %v MB, diskUsage = %v MB, memoryThresholdFactor = %f, diskThresholdFactor = %f",
+			return 0, 0, merr.WrapErrServiceInternalMsg("failed to reserve loading resource from caching layer, predictMemUsage = %v MB, predictDiskUsage = %v MB, memUsage = %v MB, diskUsage = %v MB, memoryThresholdFactor = %f, diskThresholdFactor = %f",
 				logutil.ToMB(float64(predictMemUsage)),
 				logutil.ToMB(float64(predictDiskUsage)),
 				logutil.ToMB(float64(memUsage)),
@@ -1754,7 +1754,7 @@ func estimateLogicalResourceUsageOfSegment(schema *schemapb.CollectionSchema, lo
 				return nil
 			})
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to estimate logical resource usage of index, collection %d, segment %d, indexBuildID %d",
+				return nil, merr.WrapErrServiceInternalErr(err, "failed to estimate logical resource usage of index, collection %d, segment %d, indexBuildID %d",
 					loadInfo.GetCollectionID(),
 					loadInfo.GetSegmentID(),
 					fieldIndexInfo.GetBuildID())
@@ -1777,7 +1777,7 @@ func estimateLogicalResourceUsageOfSegment(schema *schemapb.CollectionSchema, lo
 
 			metricType, err := funcutil.GetAttrByKeyFromRepeatedKV(common.MetricTypeKey, fieldIndexInfo.IndexParams)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to estimate logical resource usage of index, metric type not found, collection %d, segment %d, indexBuildID %d",
+				return nil, merr.WrapErrServiceInternalErr(err, "failed to estimate logical resource usage of index, metric type not found, collection %d, segment %d, indexBuildID %d",
 					loadInfo.GetCollectionID(),
 					loadInfo.GetSegmentID(),
 					fieldIndexInfo.GetBuildID())
@@ -1938,7 +1938,7 @@ func estimateLoadingResourceUsageOfSegment(schema *schemapb.CollectionSchema, lo
 				return nil
 			})
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to estimate loading resource usage of index, collection %d, segment %d, indexBuildID %d",
+				return nil, merr.WrapErrServiceInternalErr(err, "failed to estimate loading resource usage of index, collection %d, segment %d, indexBuildID %d",
 					loadInfo.GetCollectionID(),
 					loadInfo.GetSegmentID(),
 					fieldIndexInfo.GetBuildID())
@@ -1975,7 +1975,7 @@ func estimateLoadingResourceUsageOfSegment(schema *schemapb.CollectionSchema, lo
 
 			metricType, err := funcutil.GetAttrByKeyFromRepeatedKV(common.MetricTypeKey, fieldIndexInfo.IndexParams)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to estimate loading resource usage of index, metric type not found, collection %d, segment %d, indexBuildID %d",
+				return nil, merr.WrapErrServiceInternalErr(err, "failed to estimate loading resource usage of index, metric type not found, collection %d, segment %d, indexBuildID %d",
 					loadInfo.GetCollectionID(),
 					loadInfo.GetSegmentID(),
 					fieldIndexInfo.GetBuildID())
@@ -2148,7 +2148,7 @@ func SupportInterimIndexDataType(dataType schemapb.DataType) bool {
 func (loader *segmentLoader) getFieldType(collectionID, fieldID int64) (schemapb.DataType, error) {
 	collection := loader.manager.Collection.Get(collectionID)
 	if collection == nil {
-		return 0, merr.WrapErrCollectionNotFound(collectionID)
+		return 0, merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 
 	for _, field := range collection.Schema().GetFields() {
@@ -2178,7 +2178,7 @@ func (loader *segmentLoader) LoadIndex(ctx context.Context,
 ) error {
 	segment, ok := seg.(*LocalSegment)
 	if !ok {
-		return merr.WrapErrParameterInvalid("LocalSegment", fmt.Sprintf("%T", seg))
+		return merr.WrapErrServiceInternal(fmt.Sprintf("segment:%T is not LocalSegment", seg))
 	}
 	log := log.Ctx(ctx).With(
 		zap.Int64("collection", segment.Collection()),
@@ -2242,7 +2242,7 @@ func (loader *segmentLoader) LoadJSONIndex(ctx context.Context,
 ) error {
 	segment, ok := seg.(*LocalSegment)
 	if !ok {
-		return merr.WrapErrParameterInvalid("LocalSegment", fmt.Sprintf("%T", seg))
+		return merr.WrapErrServiceInternal(fmt.Sprintf("segment:%T is not LocalSegment", seg))
 	}
 
 	if len(loadInfo.GetJsonKeyStatsLogs()) == 0 {

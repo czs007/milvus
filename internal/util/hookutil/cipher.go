@@ -36,6 +36,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexcgopb"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 )
 
@@ -262,7 +263,7 @@ func TidyDBCipherProperties(ezID int64, dbProperties []*commonpb.KeyValuePair) (
 			)
 			return dbProperties, nil
 		}
-		return nil, fmt.Errorf("Empty default root key for encrypted database without kms key")
+		return nil, merr.WrapErrPolicySecurityViolationMsg("Empty default root key for encrypted database without kms key")
 	}
 	return dbProperties, nil
 }
@@ -318,23 +319,23 @@ func initCipher() error {
 	log.Info("start to load cipher go plugin", zap.String("path", pathGo))
 	p, err := plugin.Open(pathGo)
 	if err != nil {
-		return fmt.Errorf("fail to open the cipher plugin, error: %s", err.Error())
+		return merr.WrapErrServiceInternalErr(err, "fail to open the cipher plugin")
 	}
 	log.Info("cipher plugin opened", zap.String("path", pathGo))
 
 	h, err := p.Lookup("CipherPlugin")
 	if err != nil {
-		return fmt.Errorf("fail to the 'CipherPlugin' object in the plugin, error: %s", err.Error())
+		return merr.WrapErrServiceInternalErr(err, "fail to the 'CipherPlugin' object in the plugin")
 	}
 
 	cipherVal, ok := h.(hook.Cipher)
 	if !ok {
-		return fmt.Errorf("fail to convert the `CipherPlugin` interface")
+		return merr.WrapErrServiceInternalMsg("fail to convert the `CipherPlugin` interface")
 	}
 
 	initConfigs := buildCipherInitConfig()
 	if err = cipherVal.Init(initConfigs); err != nil {
-		return fmt.Errorf("fail to init configs for the cipher plugin, error: %s", err.Error())
+		return merr.WrapErrServiceInternalErr(err, "fail to init configs for the cipher plugin")
 	}
 
 	registerCallback()
@@ -391,7 +392,7 @@ func reloadCipherConfig(ctx context.Context, key, oldValue, newValue string) err
 		log.Error("fail to reload cipher plugin config",
 			zap.String("key", key),
 			zap.Error(err))
-		return err
+		return merr.WrapErrServiceInternalErr(err, "fail to reload cipher plugin config, key:%s", key)
 	}
 
 	log.Info("cipher plugin config reloaded successfully", zap.String("key", key))

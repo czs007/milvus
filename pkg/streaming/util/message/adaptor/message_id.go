@@ -1,13 +1,10 @@
 package adaptor
 
 import (
-	"fmt"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	rawKafka "github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/zilliztech/woodpecker/woodpecker/log"
 
-	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/pkg/v2/mq/common"
 	"github.com/milvus-io/milvus/pkg/v2/mq/mqimpl/rocksmq/server"
 	mqkafka "github.com/milvus-io/milvus/pkg/v2/mq/msgstream/mqwrapper/kafka"
@@ -48,33 +45,6 @@ func MustGetMessageIDFromMQWrapperID(commonMessageID common.MessageID) message.M
 		return msgwoodpecker.NewWpID(id.WoodpeckerID())
 	}
 	return nil
-}
-
-// DeserializeToMQWrapperID deserializes messageID bytes to common.MessageID
-// TODO: should be removed in future after common.MessageID is removed
-func DeserializeToMQWrapperID(msgID []byte, walName string) (common.MessageID, error) {
-	switch walName {
-	case "pulsar", commonpb.WALName_Pulsar.String():
-		pulsarID, err := mqpulsar.DeserializePulsarMsgID(msgID)
-		if err != nil {
-			return nil, err
-		}
-		return mqpulsar.NewPulsarID(pulsarID), nil
-	case "rocksmq", commonpb.WALName_RocksMQ.String():
-		rID := server.DeserializeRmqID(msgID)
-		return &server.RmqID{MessageID: rID}, nil
-	case "kafka", commonpb.WALName_Kafka.String():
-		kID := mqkafka.DeserializeKafkaID(msgID)
-		return mqkafka.NewKafkaID(kID), nil
-	case "woodpecker", commonpb.WALName_WoodPecker.String():
-		wID, err := mqwoodpecker.DeserializeWoodpeckerMsgID(msgID)
-		if err != nil {
-			return nil, err
-		}
-		return mqwoodpecker.NewWoodpeckerID(wID), nil
-	default:
-		return nil, fmt.Errorf("unsupported mq type %s", walName)
-	}
 }
 
 func MustGetMessageIDFromMQWrapperIDBytes(msgIDBytes []byte) message.MessageID {

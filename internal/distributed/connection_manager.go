@@ -23,7 +23,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cockroachdb/errors"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/samber/lo"
@@ -40,6 +39,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/proto/rootcoordpb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/workerpb"
 	"github.com/milvus-io/milvus/pkg/v2/tracer"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
@@ -94,7 +94,7 @@ func NewConnectionManager(session *sessionutil.Session) *ConnectionManager {
 // AddDependency add a dependency by role name.
 func (cm *ConnectionManager) AddDependency(roleName string) error {
 	if !cm.checkroleName(roleName) {
-		return errors.New("roleName is illegal")
+		return merr.WrapErrServiceInternal("roleName is illegal")
 	}
 
 	log := log.Ctx(context.TODO())

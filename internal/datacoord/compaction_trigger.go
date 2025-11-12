@@ -227,7 +227,7 @@ func (t *compactionTrigger) getCollection(collectionID UniqueID) (*collectionInf
 	defer cancel()
 	coll, err := t.handler.GetCollection(ctx, collectionID)
 	if err != nil {
-		return nil, fmt.Errorf("collection ID %d not found, err: %w", collectionID, err)
+		return nil, merr.WrapErrServiceInternalErr(err, "collection ID %d not found", collectionID)
 	}
 	return coll, nil
 }
@@ -330,7 +330,7 @@ func (t *compactionTrigger) handleSignal(signal *compactionSignal) error {
 
 	if !signal.isForce && t.inspector.isFull() {
 		log.Warn("skip to generate compaction plan due to handler full")
-		return merr.WrapErrServiceQuotaExceeded("compaction handler full")
+		return merr.WrapErrServiceUnavailable("compaction handler full")
 	}
 
 	log.Info("handleSignal receive")
@@ -353,7 +353,7 @@ func (t *compactionTrigger) handleSignal(signal *compactionSignal) error {
 
 		if !signal.isForce && t.inspector.isFull() {
 			log.Warn("skip to generate compaction plan due to handler full")
-			return merr.WrapErrServiceQuotaExceeded("compaction handler full")
+			return merr.WrapErrServiceUnavailable("compaction handler full")
 		}
 
 		if Params.DataCoordCfg.IndexBasedCompaction.GetAsBool() {
@@ -385,7 +385,7 @@ func (t *compactionTrigger) handleSignal(signal *compactionSignal) error {
 		for _, plan := range plans {
 			if !signal.isForce && t.inspector.isFull() {
 				log.Warn("skip to generate compaction plan due to handler full")
-				return merr.WrapErrServiceQuotaExceeded("compaction handler full")
+				return merr.WrapErrServiceUnavailable("compaction handler full")
 			}
 			totalRows, inputSegmentIDs := plan.A, plan.B
 

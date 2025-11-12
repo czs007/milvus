@@ -18,7 +18,6 @@ package proxy
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/samber/lo"
@@ -60,7 +59,7 @@ func (t *flushAllTask) Execute(ctx context.Context) error {
 		FlushTargets: targets,
 	})
 	if err = merr.CheckRPCCall(resp, err); err != nil {
-		return fmt.Errorf("failed to call flush all to data coordinator: %s", err.Error())
+		return merr.WrapErrServiceInternalErr(err, "failed to call flush all to data coordinator")
 	}
 
 	dbResultsMap := lo.GroupBy(resp.GetFlushResults(), func(result *datapb.FlushResult) string {

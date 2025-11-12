@@ -12,6 +12,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	parser "github.com/milvus-io/milvus/internal/parser/planparserv2/generated"
 	"github.com/milvus-io/milvus/pkg/v2/proto/planpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/timestamptz"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
@@ -47,7 +48,7 @@ func (v *ParserVisitor) translateIdentifier(identifier string) (*ExprWithType, e
 	}
 
 	if field.DataType == schemapb.DataType_Text {
-		return nil, fmt.Errorf("filter on text field (%s) is not supported yet", field.Name)
+		return nil, merr.WrapErrQueryPlanMsg("filter on text field (%s) is not supported yet", field.Name)
 	}
 
 	return &ExprWithType{
@@ -164,7 +165,7 @@ func (v *ParserVisitor) VisitString(ctx *parser.StringContext) interface{} {
 
 func checkDirectComparisonBinaryField(columnInfo *planpb.ColumnInfo) error {
 	if typeutil.IsArrayType(columnInfo.GetDataType()) && len(columnInfo.GetNestedPath()) == 0 {
-		return errors.New("can not comparisons array fields directly")
+		return merr.WrapErrQueryPlanMsg("can not comparisons array fields directly")
 	}
 	return nil
 }
@@ -1201,7 +1202,7 @@ func (v *ParserVisitor) getColumnInfoFromJSONIdentifier(identifier string) (*pla
 	if field.GetDataType() != schemapb.DataType_JSON &&
 		field.GetDataType() != schemapb.DataType_Array {
 		errMsg := fmt.Sprintf("%s data type not supported accessed with []", field.GetDataType())
-		return nil, fmt.Errorf("%s", errMsg)
+		return nil, merr.WrapErrQueryPlanMsg("%s", errMsg)
 	}
 	if fieldName != field.Name {
 		nestedPath = append(nestedPath, fieldName)
@@ -1211,19 +1212,19 @@ func (v *ParserVisitor) getColumnInfoFromJSONIdentifier(identifier string) (*pla
 	for i := 0; i < len(ss); i++ {
 		path := strings.Trim(ss[i], "[]")
 		if path == "" {
-			return nil, fmt.Errorf("invalid identifier: %s", identifier)
+			return nil, merr.WrapErrQueryPlanMsg("invalid identifier: %s", identifier)
 		}
 		if (strings.HasPrefix(path, "\"") && strings.HasSuffix(path, "\"")) ||
 			(strings.HasPrefix(path, "'") && strings.HasSuffix(path, "'")) {
 			path = path[1 : len(path)-1]
 			if path == "" {
-				return nil, fmt.Errorf("invalid identifier: %s", identifier)
+				return nil, merr.WrapErrQueryPlanMsg("invalid identifier: %s", identifier)
 			}
 			if typeutil.IsArrayType(field.DataType) {
-				return nil, errors.New("can only access array field with integer index")
+				return nil, merr.WrapErrQueryPlanMsg("can only access array field with integer index")
 			}
 		} else if _, err := strconv.ParseInt(path, 10, 64); err != nil {
-			return nil, fmt.Errorf("json key must be enclosed in double quotes or single quotes: \"%s\"", path)
+			return nil, merr.WrapErrQueryPlan(err, "json key must be enclosed in double quotes or single quotes: \"%s\"", path)
 		}
 		nestedPath = append(nestedPath, path)
 	}
@@ -2125,14 +2126,14 @@ func validateAndExtractMinShouldMatch(minShouldMatchExpr interface{}) ([]*planpb
 	if minShouldMatchValue, ok := minShouldMatchExpr.(*ExprWithType); ok {
 		valueExpr := getValueExpr(minShouldMatchValue)
 		if valueExpr == nil || valueExpr.GetValue() == nil {
-			return nil, fmt.Errorf("minimum_should_match should be a const integer expression")
+			return nil, merr.WrapErrQueryPlanMsg("minimum_should_match should be a const integer expression")
 		}
 		minShouldMatch := valueExpr.GetValue().GetInt64Val()
 		if minShouldMatch < 1 {
-			return nil, fmt.Errorf("minimum_should_match should be >= 1, got %d", minShouldMatch)
+			return nil, merr.WrapErrQueryPlanMsg("minimum_should_match should be >= 1, got %d", minShouldMatch)
 		}
 		if minShouldMatch > 1000 {
-			return nil, fmt.Errorf("minimum_should_match should be <= 1000, got %d", minShouldMatch)
+			return nil, merr.WrapErrQueryPlanMsg("minimum_should_match should be <= 1000, got %d", minShouldMatch)
 		}
 		return []*planpb.GenericValue{NewInt(minShouldMatch)}, nil
 	}
