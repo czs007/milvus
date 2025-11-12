@@ -1691,7 +1691,6 @@ func (c *Core) AllocID(ctx context.Context, in *rootcoordpb.AllocIDRequest) (*ro
 	}, nil
 }
 
-// UpdateChannelTimeTick used to handle ChannelTimeTickMsg
 func (c *Core) UpdateChannelTimeTick(ctx context.Context, in *internalpb.ChannelTimeTickMsg) (*commonpb.Status, error) {
 	log := log.Ctx(ctx)
 	if err := merr.CheckHealthy(c.GetStateCode()); err != nil {

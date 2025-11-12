@@ -216,7 +216,7 @@ func (node *QueryNode) WatchDmChannels(ctx context.Context, req *querypb.WatchDm
 
 	// check index
 	if len(req.GetIndexInfoList()) == 0 {
-		err := merr.WrapErrIndexNotFoundForCollection(req.GetSchema().GetName())
+		err := merr.WrapErrAsSysError(merr.WrapErrIndexNotFoundForCollection(req.GetSchema().GetName()))
 		return merr.Status(err), nil
 	}
 
@@ -472,7 +472,7 @@ func (node *QueryNode) LoadSegments(ctx context.Context, req *querypb.LoadSegmen
 
 	// check index
 	if len(req.GetIndexInfoList()) == 0 {
-		err := merr.WrapErrIndexNotFoundForCollection(req.GetSchema().GetName())
+		err := merr.WrapErrAsSysError(merr.WrapErrIndexNotFoundForCollection(req.GetSchema().GetName()))
 		return merr.Status(err), nil
 	}
 
@@ -857,7 +857,7 @@ func (node *QueryNode) Search(ctx context.Context, req *querypb.SearchRequest) (
 	}
 
 	if len(req.GetDmlChannels()) != 1 {
-		err := merr.WrapErrParameterInvalid(1, len(req.GetDmlChannels()), "count of channel to be searched should only be 1, wrong code")
+		err := merr.WrapErrServiceInternal(fmt.Sprintf("count of channel to be searched should be 1, but got:%d", len(req.GetDmlChannels())))
 		resp.Status = merr.Status(err)
 		log.Warn("got wrong number of channels to be searched", zap.Error(err))
 		return resp, nil

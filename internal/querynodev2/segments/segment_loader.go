@@ -270,7 +270,7 @@ func (loader *segmentLoader) Load(ctx context.Context,
 
 	collection := loader.manager.Collection.Get(collectionID)
 	if collection == nil {
-		err := merr.WrapErrCollectionNotFound(collectionID)
+		err := merr.WrapErrCollectionIDNotFound(collectionID)
 		log.Warn("failed to get collection", zap.Error(err))
 		return nil, err
 	}
@@ -668,7 +668,7 @@ func (loader *segmentLoader) loadSingleBloomFilterSet(ctx context.Context, colle
 
 	collection := loader.manager.Collection.Get(collectionID)
 	if collection == nil {
-		err := merr.WrapErrCollectionNotFound(collectionID)
+		err := merr.WrapErrCollectionIDNotFound(collectionID)
 		log.Warn("failed to get collection while loading segment", zap.Error(err))
 		return nil, err
 	}
@@ -711,7 +711,7 @@ func (loader *segmentLoader) LoadBloomFilterSet(ctx context.Context, collectionI
 
 	collection := loader.manager.Collection.Get(collectionID)
 	if collection == nil {
-		err := merr.WrapErrCollectionNotFound(collectionID)
+		err := merr.WrapErrCollectionIDNotFound(collectionID)
 		log.Warn("failed to get collection while loading segment", zap.Error(err))
 		return nil, err
 	}
@@ -987,7 +987,7 @@ func (loader *segmentLoader) LoadSegment(ctx context.Context,
 ) (err error) {
 	segment, ok := seg.(*LocalSegment)
 	if !ok {
-		return merr.WrapErrParameterInvalid("LocalSegment", fmt.Sprintf("%T", seg))
+		return merr.WrapErrServiceInternal(fmt.Sprintf("segment:%T is not LocalSegment", seg))
 	}
 	log := log.Ctx(ctx).With(
 		zap.Int64("collectionID", segment.Collection()),
@@ -1003,7 +1003,7 @@ func (loader *segmentLoader) LoadSegment(ctx context.Context,
 
 	collection := loader.manager.Collection.Get(segment.Collection())
 	if collection == nil {
-		err := merr.WrapErrCollectionNotFound(segment.Collection())
+		err := merr.WrapErrCollectionIDNotFound(segment.Collection())
 		log.Warn("failed to get collection while loading segment", zap.Error(err))
 		return err
 	}
@@ -2122,7 +2122,7 @@ func SupportInterimIndexDataType(dataType schemapb.DataType) bool {
 func (loader *segmentLoader) getFieldType(collectionID, fieldID int64) (schemapb.DataType, error) {
 	collection := loader.manager.Collection.Get(collectionID)
 	if collection == nil {
-		return 0, merr.WrapErrCollectionNotFound(collectionID)
+		return 0, merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 
 	for _, field := range collection.Schema().GetFields() {
@@ -2152,7 +2152,7 @@ func (loader *segmentLoader) LoadIndex(ctx context.Context,
 ) error {
 	segment, ok := seg.(*LocalSegment)
 	if !ok {
-		return merr.WrapErrParameterInvalid("LocalSegment", fmt.Sprintf("%T", seg))
+		return merr.WrapErrServiceInternal(fmt.Sprintf("segment:%T is not LocalSegment", seg))
 	}
 	log := log.Ctx(ctx).With(
 		zap.Int64("collection", segment.Collection()),
@@ -2216,7 +2216,7 @@ func (loader *segmentLoader) LoadJSONIndex(ctx context.Context,
 ) error {
 	segment, ok := seg.(*LocalSegment)
 	if !ok {
-		return merr.WrapErrParameterInvalid("LocalSegment", fmt.Sprintf("%T", seg))
+		return merr.WrapErrServiceInternal(fmt.Sprintf("segment:%T is not LocalSegment", seg))
 	}
 
 	if len(loadInfo.GetJsonKeyStatsLogs()) == 0 {

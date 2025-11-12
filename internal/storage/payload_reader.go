@@ -13,7 +13,6 @@ import (
 	"github.com/apache/arrow/go/v17/parquet"
 	"github.com/apache/arrow/go/v17/parquet/file"
 	"github.com/apache/arrow/go/v17/parquet/pqarrow"
-	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 
@@ -39,7 +38,7 @@ var _ PayloadReaderInterface = (*PayloadReader)(nil)
 
 func NewPayloadReader(colType schemapb.DataType, buf []byte, nullable bool) (*PayloadReader, error) {
 	if len(buf) == 0 {
-		return nil, errors.New("create Payload reader failed, buffer is empty")
+		return nil, merr.WrapErrStorageMsg("create Payload reader failed, buffer is empty")
 	}
 	parquetReader, err := file.NewParquetReader(bytes.NewReader(buf))
 	if err != nil {
@@ -56,32 +55,32 @@ func NewPayloadReader(colType schemapb.DataType, buf []byte, nullable bool) (*Pa
 	if colType == schemapb.DataType_ArrayOfVector {
 		arrowReader, err := pqarrow.NewFileReader(parquetReader, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create arrow reader for VectorArray: %w", err)
+			return nil, merr.WrapErrStorage(err, "failed to create arrow reader for VectorArray")
 		}
 
 		arrowSchema, err := arrowReader.Schema()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get arrow schema for VectorArray: %w", err)
+			return nil, merr.WrapErrStorage(err, "failed to get arrow schema for VectorArray")
 		}
 
 		if arrowSchema.NumFields() != 1 {
-			return nil, fmt.Errorf("VectorArray should have exactly 1 field, got %d", arrowSchema.NumFields())
+			return nil, merr.WrapErrStorageMsg("VectorArray should have exactly 1 field, got %d", arrowSchema.NumFields())
 		}
 
 		field := arrowSchema.Field(0)
 		if !field.HasMetadata() {
-			return nil, errors.New("VectorArray field is missing metadata")
+			return nil, merr.WrapErrStorageMsg("VectorArray field is missing metadata")
 		}
 
 		metadata := field.Metadata
 
 		elementTypeStr, ok := metadata.GetValue("elementType")
 		if !ok {
-			return nil, errors.New("VectorArray metadata missing required 'elementType' field")
+			return nil, merr.WrapErrStorageMsg("VectorArray metadata missing required 'elementType' field")
 		}
 		elementTypeInt, err := strconv.ParseInt(elementTypeStr, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("invalid elementType in VectorArray metadata: %s", elementTypeStr)
+			return nil, merr.WrapErrStorage(err, "invalid elementType in VectorArray metadata: %s", elementTypeStr)
 		}
 
 		elementType := schemapb.DataType(elementTypeInt)
@@ -94,19 +93,19 @@ func NewPayloadReader(colType schemapb.DataType, buf []byte, nullable bool) (*Pa
 			schemapb.DataType_SparseFloatVector:
 			reader.elementType = elementType
 		default:
-			return nil, fmt.Errorf("invalid vector type for VectorArray: %s", elementType.String())
+			return nil, merr.WrapErrStorageMsg("invalid vector type for VectorArray: %s", elementType.String())
 		}
 
 		dimStr, ok := metadata.GetValue("dim")
 		if !ok {
-			return nil, errors.New("VectorArray metadata missing required 'dim' field")
+			return nil, merr.WrapErrStorageMsg("VectorArray metadata missing required 'dim' field")
 		}
 		dimVal, err := strconv.ParseInt(dimStr, 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("invalid dim in VectorArray metadata: %s", dimStr)
+			return nil, merr.WrapErrStorage(err, "invalid dim in VectorArray metadata: %s", dimStr)
 		}
 		if dimVal <= 0 {
-			return nil, fmt.Errorf("VectorArray dim must be positive, got %d", dimVal)
+			return nil, merr.WrapErrStorageMsg("VectorArray dim must be positive, got %d", dimVal)
 		}
 		reader.dim = dimVal
 	}
@@ -114,14 +113,16 @@ func NewPayloadReader(colType schemapb.DataType, buf []byte, nullable bool) (*Pa
 	return reader, nil
 }
 
-// GetDataFromPayload returns data,length from payload, returns err if failed
-// Return:
+// GetDataFromPayload deserializes the data stored in the PayloadReader based on its column type.
 //
-
-//		`interface{}`: all types.
-//	 `[]bool`: validData, only meaningful to ScalarField.
-//		`int`: dim, only meaningful to FLOAT/BINARY VECTOR type.
-//		`error`: error.
+// It handles various scalar, string, and vector data types defined in the schema.
+//
+// Returns:
+//   - data: (interface{}) The deserialized data (e.g., []int64, [][]byte, etc.).
+//   - validData: ([]bool) A slice indicating the validity (non-null status) of each element.
+//     Only meaningful for Scalar and String/VarChar fields. Returns nil for Vector fields.
+//   - dim: (int) The dimension of the vector. Only meaningful for Vector fields. Returns 0 otherwise.
+//   - error: Returns an error if the column type is unknown or if the underlying payload reading fails.
 func (r *PayloadReader) GetDataFromPayload() (interface{}, []bool, int, error) {
 	switch r.colType {
 	case schemapb.DataType_Bool:
@@ -182,7 +183,7 @@ func (r *PayloadReader) GetDataFromPayload() (interface{}, []bool, int, error) {
 		val, validData, err := r.GetGeometryFromPayload()
 		return val, validData, 0, err
 	default:
-		return nil, nil, 0, merr.WrapErrParameterInvalidMsg("unknown type")
+		return nil, nil, 0, merr.WrapErrServiceInternal("unknown type")
 	}
 }
 
@@ -194,7 +195,7 @@ func (r *PayloadReader) ReleasePayloadReader() error {
 // GetBoolFromPayload returns bool slice from payload.
 func (r *PayloadReader) GetBoolFromPayload() ([]bool, []bool, error) {
 	if r.colType != schemapb.DataType_Bool {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get bool from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get bool from datatype %v", r.colType.String()))
 	}
 
 	values := make([]bool, r.numRows)
@@ -206,7 +207,7 @@ func (r *PayloadReader) GetBoolFromPayload() ([]bool, []bool, error) {
 			return nil, nil, err
 		}
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 		return values, validData, nil
 	}
@@ -215,7 +216,7 @@ func (r *PayloadReader) GetBoolFromPayload() ([]bool, []bool, error) {
 		return nil, nil, err
 	}
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 	return values, nil, nil
 }
@@ -223,7 +224,7 @@ func (r *PayloadReader) GetBoolFromPayload() ([]bool, []bool, error) {
 // GetByteFromPayload returns byte slice from payload
 func (r *PayloadReader) GetByteFromPayload() ([]byte, []bool, error) {
 	if r.colType != schemapb.DataType_Int8 {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get byte from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get byte from datatype %v", r.colType.String()))
 	}
 
 	if r.nullable {
@@ -234,7 +235,7 @@ func (r *PayloadReader) GetByteFromPayload() ([]byte, []bool, error) {
 			return nil, nil, err
 		}
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 		ret := make([]byte, r.numRows)
 		for i := int64(0); i < r.numRows; i++ {
@@ -249,7 +250,7 @@ func (r *PayloadReader) GetByteFromPayload() ([]byte, []bool, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 
 	ret := make([]byte, r.numRows)
@@ -261,7 +262,7 @@ func (r *PayloadReader) GetByteFromPayload() ([]byte, []bool, error) {
 
 func (r *PayloadReader) GetInt8FromPayload() ([]int8, []bool, error) {
 	if r.colType != schemapb.DataType_Int8 {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get int8 from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get int8 from datatype %v", r.colType.String()))
 	}
 
 	if r.nullable {
@@ -273,7 +274,7 @@ func (r *PayloadReader) GetInt8FromPayload() ([]int8, []bool, error) {
 		}
 
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 
 		return values, validData, nil
@@ -285,7 +286,7 @@ func (r *PayloadReader) GetInt8FromPayload() ([]int8, []bool, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 
 	ret := make([]int8, r.numRows)
@@ -297,7 +298,7 @@ func (r *PayloadReader) GetInt8FromPayload() ([]int8, []bool, error) {
 
 func (r *PayloadReader) GetInt16FromPayload() ([]int16, []bool, error) {
 	if r.colType != schemapb.DataType_Int16 {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get int16 from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get int16 from datatype %v", r.colType.String()))
 	}
 
 	if r.nullable {
@@ -309,7 +310,7 @@ func (r *PayloadReader) GetInt16FromPayload() ([]int16, []bool, error) {
 		}
 
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 		return values, validData, nil
 	}
@@ -320,7 +321,7 @@ func (r *PayloadReader) GetInt16FromPayload() ([]int16, []bool, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 
 	ret := make([]int16, r.numRows)
@@ -332,7 +333,7 @@ func (r *PayloadReader) GetInt16FromPayload() ([]int16, []bool, error) {
 
 func (r *PayloadReader) GetInt32FromPayload() ([]int32, []bool, error) {
 	if r.colType != schemapb.DataType_Int32 {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get int32 from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get int32 from datatype %v", r.colType.String()))
 	}
 
 	values := make([]int32, r.numRows)
@@ -344,7 +345,7 @@ func (r *PayloadReader) GetInt32FromPayload() ([]int32, []bool, error) {
 		}
 
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 		return values, validData, nil
 	}
@@ -354,14 +355,14 @@ func (r *PayloadReader) GetInt32FromPayload() ([]int32, []bool, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 	return values, nil, nil
 }
 
 func (r *PayloadReader) GetInt64FromPayload() ([]int64, []bool, error) {
 	if r.colType != schemapb.DataType_Int64 {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get int64 from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get int64 from datatype %v", r.colType.String()))
 	}
 
 	values := make([]int64, r.numRows)
@@ -373,7 +374,7 @@ func (r *PayloadReader) GetInt64FromPayload() ([]int64, []bool, error) {
 		}
 
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 
 		return values, validData, nil
@@ -384,7 +385,7 @@ func (r *PayloadReader) GetInt64FromPayload() ([]int64, []bool, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 
 	return values, nil, nil
@@ -392,7 +393,7 @@ func (r *PayloadReader) GetInt64FromPayload() ([]int64, []bool, error) {
 
 func (r *PayloadReader) GetFloatFromPayload() ([]float32, []bool, error) {
 	if r.colType != schemapb.DataType_Float {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get float32 from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get float32 from datatype %v", r.colType.String()))
 	}
 
 	values := make([]float32, r.numRows)
@@ -403,7 +404,7 @@ func (r *PayloadReader) GetFloatFromPayload() ([]float32, []bool, error) {
 			return nil, nil, err
 		}
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 		return values, validData, nil
 	}
@@ -412,14 +413,14 @@ func (r *PayloadReader) GetFloatFromPayload() ([]float32, []bool, error) {
 		return nil, nil, err
 	}
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 	return values, nil, nil
 }
 
 func (r *PayloadReader) GetDoubleFromPayload() ([]float64, []bool, error) {
 	if r.colType != schemapb.DataType_Double {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get double from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get double from datatype %v", r.colType.String()))
 	}
 
 	values := make([]float64, r.numRows)
@@ -431,7 +432,7 @@ func (r *PayloadReader) GetDoubleFromPayload() ([]float64, []bool, error) {
 		}
 
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 		return values, validData, nil
 	}
@@ -441,14 +442,14 @@ func (r *PayloadReader) GetDoubleFromPayload() ([]float64, []bool, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 	return values, nil, nil
 }
 
 func (r *PayloadReader) GetTimestamptzFromPayload() ([]int64, []bool, error) {
 	if r.colType != schemapb.DataType_Timestamptz {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get timestamptz from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get timestamptz from datatype %v", r.colType.String()))
 	}
 
 	values := make([]int64, r.numRows)
@@ -460,7 +461,7 @@ func (r *PayloadReader) GetTimestamptzFromPayload() ([]int64, []bool, error) {
 		}
 
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 
 		return values, validData, nil
@@ -471,7 +472,7 @@ func (r *PayloadReader) GetTimestamptzFromPayload() ([]int64, []bool, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 
 	return values, nil, nil
@@ -479,7 +480,7 @@ func (r *PayloadReader) GetTimestamptzFromPayload() ([]int64, []bool, error) {
 
 func (r *PayloadReader) GetStringFromPayload() ([]string, []bool, error) {
 	if r.colType != schemapb.DataType_String && r.colType != schemapb.DataType_VarChar {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get string from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get string from datatype %v", r.colType.String()))
 	}
 
 	if r.nullable {
@@ -491,7 +492,7 @@ func (r *PayloadReader) GetStringFromPayload() ([]string, []bool, error) {
 		}
 
 		if valuesRead != r.numRows {
-			return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+			return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 		}
 		return values, validData, nil
 	}
@@ -506,7 +507,7 @@ func (r *PayloadReader) GetStringFromPayload() ([]string, []bool, error) {
 
 func (r *PayloadReader) GetArrayFromPayload() ([]*schemapb.ScalarField, []bool, error) {
 	if r.colType != schemapb.DataType_Array {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get array from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get array from datatype %v", r.colType.String()))
 	}
 
 	if r.nullable {
@@ -529,7 +530,7 @@ func (r *PayloadReader) GetArrayFromPayload() ([]*schemapb.ScalarField, []bool, 
 
 func (r *PayloadReader) GetVectorArrayFromPayload() ([]*schemapb.VectorField, error) {
 	if r.colType != schemapb.DataType_ArrayOfVector {
-		return nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get vector from datatype %v", r.colType.String()))
+		return nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get vector from datatype %v", r.colType.String()))
 	}
 
 	return readVectorArrayFromListArray(r)
@@ -537,7 +538,7 @@ func (r *PayloadReader) GetVectorArrayFromPayload() ([]*schemapb.VectorField, er
 
 func (r *PayloadReader) GetJSONFromPayload() ([][]byte, []bool, error) {
 	if r.colType != schemapb.DataType_JSON {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get json from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get json from datatype %v", r.colType.String()))
 	}
 
 	if r.nullable {
@@ -556,7 +557,7 @@ func (r *PayloadReader) GetJSONFromPayload() ([][]byte, []bool, error) {
 
 func (r *PayloadReader) GetGeometryFromPayload() ([][]byte, []bool, error) {
 	if r.colType != schemapb.DataType_Geometry {
-		return nil, nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("failed to get Geometry from datatype %v", r.colType.String()))
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get Geometry from datatype %v", r.colType.String()))
 	}
 
 	if r.nullable {
@@ -575,7 +576,7 @@ func (r *PayloadReader) GetGeometryFromPayload() ([][]byte, []bool, error) {
 
 func (r *PayloadReader) GetByteArrayDataSet() (*DataSet[parquet.ByteArray, *file.ByteArrayColumnChunkReader], error) {
 	if r.colType != schemapb.DataType_String && r.colType != schemapb.DataType_VarChar {
-		return nil, fmt.Errorf("failed to get string from datatype %v", r.colType.String())
+		return nil, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get string from datatype %v", r.colType.String()))
 	}
 
 	return NewDataSet[parquet.ByteArray, *file.ByteArrayColumnChunkReader](r.reader, 0, r.numRows), nil
@@ -610,7 +611,7 @@ func readVectorArrayFromListArray(r *PayloadReader) ([]*schemapb.VectorField, er
 	defer table.Release()
 
 	if table.NumCols() != 1 {
-		return nil, fmt.Errorf("expected 1 column, got %d", table.NumCols())
+		return nil, merr.WrapErrStorageMsg("expected 1 column, got %d", table.NumCols())
 	}
 
 	column := table.Column(0)
@@ -625,17 +626,17 @@ func readVectorArrayFromListArray(r *PayloadReader) ([]*schemapb.VectorField, er
 	for _, chunk := range column.Data().Chunks() {
 		listArray, ok := chunk.(*array.List)
 		if !ok {
-			return nil, fmt.Errorf("expected ListArray, got %T", chunk)
+			return nil, merr.WrapErrStorageMsg("expected ListArray, got %T", chunk)
 		}
 
 		for i := 0; i < listArray.Len(); i++ {
 			value, ok := deserializeArrayOfVector(listArray, i, elementType, dim, true)
 			if !ok {
-				return nil, fmt.Errorf("failed to deserialize VectorArray at row %d", len(result))
+				return nil, merr.WrapErrStorageMsg("failed to deserialize VectorArray at row %d", len(result))
 			}
 			vectorField, _ := value.(*schemapb.VectorField)
 			if vectorField == nil {
-				return nil, fmt.Errorf("null value in VectorArray")
+				return nil, merr.WrapErrStorageMsg("null value in VectorArray")
 			}
 			result = append(result, vectorField)
 		}
@@ -653,7 +654,7 @@ func readNullableByteAndConvert[T any](r *PayloadReader, convert func([]byte) T)
 	}
 
 	if valuesRead != r.numRows {
-		return nil, nil, merr.WrapErrParameterInvalid(r.numRows, valuesRead, "valuesRead is not equal to rows")
+		return nil, nil, merr.WrapErrServiceInternal(fmt.Sprintf("valuesRead(%d) is not equal to rows(%d)", r.numRows, valuesRead))
 	}
 
 	ret := make([]T, r.numRows)
@@ -671,7 +672,7 @@ func readByteAndConvert[T any](r *PayloadReader, convert func(parquet.ByteArray)
 	}
 
 	if valuesRead != r.numRows {
-		return nil, fmt.Errorf("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
+		return nil, merr.WrapErrStorageMsg("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
 	}
 
 	ret := make([]T, r.numRows)
@@ -684,7 +685,7 @@ func readByteAndConvert[T any](r *PayloadReader, convert func(parquet.ByteArray)
 // GetBinaryVectorFromPayload returns vector, dimension, error
 func (r *PayloadReader) GetBinaryVectorFromPayload() ([]byte, int, error) {
 	if r.colType != schemapb.DataType_BinaryVector {
-		return nil, -1, fmt.Errorf("failed to get binary vector from datatype %v", r.colType.String())
+		return nil, -1, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get binary vector from datatype %v", r.colType.String()))
 	}
 
 	col, err := r.reader.RowGroup(0).Column(0)
@@ -699,7 +700,7 @@ func (r *PayloadReader) GetBinaryVectorFromPayload() ([]byte, int, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, -1, fmt.Errorf("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
+		return nil, -1, merr.WrapErrStorageMsg("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
 	}
 
 	ret := make([]byte, int64(dim)*r.numRows)
@@ -712,7 +713,7 @@ func (r *PayloadReader) GetBinaryVectorFromPayload() ([]byte, int, error) {
 // GetFloat16VectorFromPayload returns vector, dimension, error
 func (r *PayloadReader) GetFloat16VectorFromPayload() ([]byte, int, error) {
 	if r.colType != schemapb.DataType_Float16Vector {
-		return nil, -1, fmt.Errorf("failed to get float vector from datatype %v", r.colType.String())
+		return nil, -1, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get float vector from datatype %v", r.colType.String()))
 	}
 	col, err := r.reader.RowGroup(0).Column(0)
 	if err != nil {
@@ -726,7 +727,7 @@ func (r *PayloadReader) GetFloat16VectorFromPayload() ([]byte, int, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, -1, fmt.Errorf("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
+		return nil, -1, merr.WrapErrStorageMsg("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
 	}
 
 	ret := make([]byte, int64(dim*2)*r.numRows)
@@ -739,7 +740,7 @@ func (r *PayloadReader) GetFloat16VectorFromPayload() ([]byte, int, error) {
 // GetBFloat16VectorFromPayload returns vector, dimension, error
 func (r *PayloadReader) GetBFloat16VectorFromPayload() ([]byte, int, error) {
 	if r.colType != schemapb.DataType_BFloat16Vector {
-		return nil, -1, fmt.Errorf("failed to get float vector from datatype %v", r.colType.String())
+		return nil, -1, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get float vector from datatype %v", r.colType.String()))
 	}
 	col, err := r.reader.RowGroup(0).Column(0)
 	if err != nil {
@@ -753,7 +754,7 @@ func (r *PayloadReader) GetBFloat16VectorFromPayload() ([]byte, int, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, -1, fmt.Errorf("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
+		return nil, -1, merr.WrapErrStorageMsg("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
 	}
 
 	ret := make([]byte, int64(dim*2)*r.numRows)
@@ -766,7 +767,7 @@ func (r *PayloadReader) GetBFloat16VectorFromPayload() ([]byte, int, error) {
 // GetFloatVectorFromPayload returns vector, dimension, error
 func (r *PayloadReader) GetFloatVectorFromPayload() ([]float32, int, error) {
 	if r.colType != schemapb.DataType_FloatVector {
-		return nil, -1, fmt.Errorf("failed to get float vector from datatype %v", r.colType.String())
+		return nil, -1, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get float vector from datatype %v", r.colType.String()))
 	}
 	col, err := r.reader.RowGroup(0).Column(0)
 	if err != nil {
@@ -782,7 +783,7 @@ func (r *PayloadReader) GetFloatVectorFromPayload() ([]float32, int, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, -1, fmt.Errorf("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
+		return nil, -1, merr.WrapErrStorageMsg("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
 	}
 
 	ret := make([]float32, int64(dim)*r.numRows)
@@ -794,7 +795,7 @@ func (r *PayloadReader) GetFloatVectorFromPayload() ([]float32, int, error) {
 
 func (r *PayloadReader) GetSparseFloatVectorFromPayload() (*SparseFloatVectorFieldData, int, error) {
 	if !typeutil.IsSparseFloatVectorType(r.colType) {
-		return nil, -1, fmt.Errorf("failed to get sparse float vector from datatype %v", r.colType.String())
+		return nil, -1, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get sparse float vector from datatype %v", r.colType.String()))
 	}
 	values := make([]parquet.ByteArray, r.numRows)
 	valuesRead, err := ReadDataFromAllRowGroups[parquet.ByteArray, *file.ByteArrayColumnChunkReader](r.reader, values, 0, r.numRows)
@@ -802,14 +803,14 @@ func (r *PayloadReader) GetSparseFloatVectorFromPayload() (*SparseFloatVectorFie
 		return nil, -1, err
 	}
 	if valuesRead != r.numRows {
-		return nil, -1, fmt.Errorf("expect %d binary, but got = %d", r.numRows, valuesRead)
+		return nil, -1, merr.WrapErrStorageMsg("expect %d binary, but got = %d", r.numRows, valuesRead)
 	}
 
 	fieldData := &SparseFloatVectorFieldData{}
 
 	for _, value := range values {
 		if len(value)%8 != 0 {
-			return nil, -1, errors.New("invalid bytesData length")
+			return nil, -1, merr.WrapErrStorageMsg("invalid bytesData length")
 		}
 
 		fieldData.Contents = append(fieldData.Contents, value)
@@ -825,7 +826,7 @@ func (r *PayloadReader) GetSparseFloatVectorFromPayload() (*SparseFloatVectorFie
 // GetInt8VectorFromPayload returns vector, dimension, error
 func (r *PayloadReader) GetInt8VectorFromPayload() ([]int8, int, error) {
 	if r.colType != schemapb.DataType_Int8Vector {
-		return nil, -1, fmt.Errorf("failed to get int8 vector from datatype %v", r.colType.String())
+		return nil, -1, merr.WrapErrServiceInternal(fmt.Sprintf("failed to get int8 vector from datatype %v", r.colType.String()))
 	}
 	col, err := r.reader.RowGroup(0).Column(0)
 	if err != nil {
@@ -841,7 +842,7 @@ func (r *PayloadReader) GetInt8VectorFromPayload() ([]int8, int, error) {
 	}
 
 	if valuesRead != r.numRows {
-		return nil, -1, fmt.Errorf("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
+		return nil, -1, merr.WrapErrStorageMsg("expect %d rows, but got valuesRead = %d", r.numRows, valuesRead)
 	}
 
 	ret := make([]int8, int64(dim)*r.numRows)
@@ -870,7 +871,7 @@ func ReadDataFromAllRowGroups[T any, E interface {
 
 	for i := 0; i < reader.NumRowGroups(); i++ {
 		if columnIdx >= reader.RowGroup(i).NumColumns() {
-			return -1, fmt.Errorf("try to fetch %d-th column of reader but row group has only %d column(s)", columnIdx, reader.RowGroup(i).NumColumns())
+			return -1, merr.WrapErrStorageMsg("try to fetch %d-th column of reader but row group has only %d column(s)", columnIdx, reader.RowGroup(i).NumColumns())
 		}
 		column, err := reader.RowGroup(i).Column(columnIdx)
 		if err != nil {
@@ -879,7 +880,7 @@ func ReadDataFromAllRowGroups[T any, E interface {
 
 		cReader, ok := column.(E)
 		if !ok {
-			return -1, fmt.Errorf("expect type %T, but got %T", *new(E), column)
+			return -1, merr.WrapErrStorageMsg("expect type %T, but got %T", *new(E), column)
 		}
 
 		_, valuesRead, err := cReader.ReadBatch(numRows, values[offset:], nil, nil)
@@ -922,7 +923,7 @@ func (s *DataSet[T, E]) nextGroup() error {
 
 	cReader, ok := column.(E)
 	if !ok {
-		return fmt.Errorf("expect type %T, but got %T", *new(E), column)
+		return merr.WrapErrStorageMsg("expect type %T, but got %T", *new(E), column)
 	}
 	s.groupID++
 	s.cReader = cReader
@@ -938,7 +939,7 @@ func (s *DataSet[T, E]) HasNext() bool {
 
 func (s *DataSet[T, E]) NextBatch(batch int64) ([]T, error) {
 	if s.groupID > s.reader.NumRowGroups() || (s.groupID == s.reader.NumRowGroups() && s.cnt >= s.numRows) || s.numRows == 0 {
-		return nil, errors.New("has no more data")
+		return nil, merr.WrapErrStorageMsg("has no more data")
 	}
 
 	if s.groupID == 0 || s.cnt >= s.numRows {

@@ -223,7 +223,7 @@ func (rm *ResourceManager) updateResourceGroups(ctx context.Context, rgs map[str
 				zap.Error(err),
 			)
 		}
-		return merr.WrapErrResourceGroupServiceAvailable()
+		return merr.WrapErrResourceGroupServiceUnAvailable()
 	}
 
 	// Commit updates to memory.
@@ -350,7 +350,7 @@ func (rm *ResourceManager) DropResourceGroup(ctx context.Context, rgName string)
 			zap.String("rgName", rgName),
 			zap.Error(err),
 		)
-		return merr.WrapErrResourceGroupServiceAvailable()
+		return merr.WrapErrResourceGroupServiceUnAvailable()
 	}
 
 	// After recovering, all node assigned to these rg has been removed.
@@ -920,7 +920,7 @@ func (rm *ResourceManager) transferNode(ctx context.Context, rgName string, node
 			zap.Int64("node", node),
 			zap.Error(err),
 		)
-		return merr.WrapErrResourceGroupServiceAvailable()
+		return merr.WrapErrResourceGroupServiceUnAvailable()
 	}
 
 	// Commit updates to memory.

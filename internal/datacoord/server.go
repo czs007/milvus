@@ -1152,7 +1152,7 @@ func (s *Server) loadCollectionFromRootCoord(ctx context.Context, collectionID i
 		return err
 	}
 	if !has {
-		return merr.WrapErrCollectionNotFound(collectionID)
+		return merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 
 	resp, err := s.broker.DescribeCollectionInternal(ctx, collectionID)

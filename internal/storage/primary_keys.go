@@ -17,6 +17,8 @@
 package storage
 
 import (
+	"fmt"
+
 	"github.com/samber/lo"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
@@ -52,7 +54,7 @@ func (pks *Int64PrimaryKeys) Append(values ...PrimaryKey) error {
 	for _, pk := range values {
 		iPk, ok := pk.(*Int64PrimaryKey)
 		if !ok {
-			return merr.WrapErrParameterInvalid("Int64PrimaryKey", "non-int64 pk")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect *Int64PrimaryKey", pk))
 		}
 		iValues = append(iValues, iPk.Value)
 	}
@@ -120,7 +122,7 @@ func (pks *VarcharPrimaryKeys) Append(values ...PrimaryKey) error {
 	for _, pk := range values {
 		iPk, ok := pk.(*VarCharPrimaryKey)
 		if !ok {
-			return merr.WrapErrParameterInvalid("Int64PrimaryKey", "non-int64 pk")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect *VarCharPrimaryKey", pk))
 		}
 		sValues = append(sValues, iPk.Value)
 	}

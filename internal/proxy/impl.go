@@ -3937,7 +3937,7 @@ func (node *Proxy) AlterAlias(ctx context.Context, request *milvuspb.AlterAliasR
 // CalcDistance calculates the distances between vectors.
 func (node *Proxy) CalcDistance(ctx context.Context, request *milvuspb.CalcDistanceRequest) (*milvuspb.CalcDistanceResults, error) {
 	return &milvuspb.CalcDistanceResults{
-		Status: merr.Status(merr.WrapErrServiceUnavailable("CalcDistance deprecated")),
+		Status: merr.Status(merr.WrapErrAsInputError(merr.WrapErrServiceUnavailable("CalcDistance deprecated"))),
 	}, nil
 }
 

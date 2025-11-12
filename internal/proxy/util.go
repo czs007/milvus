@@ -196,7 +196,7 @@ func validateMaxQueryResultWindow(offset int64, limit int64) error {
 func validateLimit(limit int64) error {
 	topKLimit := Params.QuotaConfig.TopKLimit.GetAsInt64()
 	if limit <= 0 || limit > topKLimit {
-		return fmt.Errorf("it should be in range [1, %d], but got %d", topKLimit, limit)
+		return merr.WrapErrParameterInvalidMsg("it should be in range [1, %d], but got %d", topKLimit, limit)
 	}
 	return nil
 }
@@ -204,7 +204,7 @@ func validateLimit(limit int64) error {
 func validateNQLimit(limit int64) error {
 	nqLimit := Params.QuotaConfig.NQLimit.GetAsInt64()
 	if limit <= 0 || limit > nqLimit {
-		return fmt.Errorf("nq (number of search vector per search request) should be in range [1, %d], but got %d", nqLimit, limit)
+		return merr.WrapErrParameterInvalidMsg("nq (number of search vector per search request) should be in range [1, %d], but got %d", nqLimit, limit)
 	}
 	return nil
 }
@@ -2387,7 +2387,7 @@ func verifyDynamicFieldData(schema *schemapb.CollectionSchema, insertMsg *msgstr
 						zap.ByteString("data", rowData),
 						zap.Error(err),
 					)
-					return merr.WrapErrIoFailedReason(err.Error())
+					return merr.WrapErrParameterInvalidMsg(err.Error())
 				}
 				if _, ok := jsonData[common.MetaFieldName]; ok {
 					return fmt.Errorf("cannot set json key to: %s", common.MetaFieldName)

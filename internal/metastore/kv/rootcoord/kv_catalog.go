@@ -252,7 +252,7 @@ func (kc *Catalog) loadCollectionFromDb(ctx context.Context, dbID int64, collect
 	collKey := BuildCollectionKey(dbID, collectionID)
 	collVal, err := kc.Snapshot.Load(ctx, collKey, ts)
 	if err != nil {
-		return nil, merr.WrapErrCollectionNotFound(collectionID, err.Error())
+		return nil, merr.WrapErrCollectionIDNotFound(collectionID, err.Error())
 	}
 
 	collMeta := &pb.CollectionInfo{}

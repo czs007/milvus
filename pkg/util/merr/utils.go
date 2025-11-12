@@ -309,6 +309,14 @@ func WrapErrAsInputError(err error) error {
 	return err
 }
 
+func WrapErrAsSysError(err error) error {
+	if merr, ok := err.(milvusError); ok {
+		WithErrorType(SystemError)(&merr)
+		return merr
+	}
+	return err
+}
+
 func WrapErrAsInputErrorWhen(err error, targets ...milvusError) error {
 	if merr, ok := err.(milvusError); ok {
 		for _, target := range targets {
@@ -467,6 +475,14 @@ func WrapErrCollectionNotFound(collection any, msg ...string) error {
 	return err
 }
 
+func WrapErrCollectionIDNotFound(collection any, msg ...string) error {
+	err := wrapFields(ErrCollectionIDNotFound, value("collection", collection))
+	if len(msg) > 0 {
+		err = errors.Wrap(err, strings.Join(msg, "->"))
+	}
+	return err
+}
+
 func WrapErrCollectionNotFoundWithDB(db any, collection any, msg ...string) error {
 	err := wrapFields(ErrCollectionNotFound,
 		value("database", db),
@@ -598,6 +614,14 @@ func WrapErrPartitionNotFound(partition any, msg ...string) error {
 	return err
 }
 
+func WrapErrPartitionIDNotFound(partition any, msg ...string) error {
+	err := wrapFields(ErrPartitionIDNotFound, value("partition", partition))
+	if len(msg) > 0 {
+		err = errors.Wrap(err, strings.Join(msg, "->"))
+	}
+	return err
+}
+
 func WrapErrPartitionNotLoaded(partition any, msg ...string) error {
 	err := wrapFields(ErrPartitionNotLoaded, value("partition", partition))
 	if len(msg) > 0 {
@@ -678,9 +702,9 @@ func WrapErrResourceGroupNodeNotEnough(rg any, current any, expected any, msg ..
 	return err
 }
 
-// WrapErrResourceGroupServiceAvailable wraps ErrResourceGroupServiceAvailable with resource group
-func WrapErrResourceGroupServiceAvailable(msg ...string) error {
-	err := wrapFields(ErrResourceGroupServiceAvailable)
+// WrapErrResourceGroupServiceUnAvailable wraps ErrResourceGroupServiceUnAvailable with resource group
+func WrapErrResourceGroupServiceUnAvailable(msg ...string) error {
+	err := wrapFields(ErrResourceGroupServiceUnAvailable)
 	if len(msg) > 0 {
 		err = errors.Wrap(err, strings.Join(msg, "->"))
 	}
@@ -789,7 +813,7 @@ func WrapErrIndexNotFound(indexName string, msg ...string) error {
 	if len(msg) > 0 {
 		err = errors.Wrap(err, strings.Join(msg, "->"))
 	}
-	return err
+	return WrapErrAsInputError(err)
 }
 
 func WrapErrIndexNotFoundForSegments(segmentIDs []int64, msg ...string) error {
@@ -805,7 +829,7 @@ func WrapErrIndexNotFoundForCollection(collection string, msg ...string) error {
 	if len(msg) > 0 {
 		err = errors.Wrap(err, strings.Join(msg, "->"))
 	}
-	return err
+	return WrapErrAsInputError(err)
 }
 
 func WrapErrIndexNotSupported(indexType string, msg ...string) error {
@@ -927,6 +951,29 @@ func WrapErrIoUnexpectEOF(key string, err error) error {
 }
 
 // Parameter related
+
+// WrapErrParameterInvalidErr wraps an existing error 'err' with ErrParameterInvalid (Code 1005).
+// This is used when an underlying error (e.g., from parsing, validation utility, or dependency)
+// causes a parameter check to fail, and you need to provide extra context
+// in 'format' and 'args'.
+func WrapErrParameterInvalidErr(err error, format string, args ...any) error {
+	if err == nil {
+		// If the underlying error is nil, we fall back to the message-only version.
+		return WrapErrParameterInvalidMsg(format, args...)
+	}
+
+	// 1. Create the contextual message chain: "Context message" -> "Original error message"
+	contextualMsg := fmt.Sprintf(format, args...)
+
+	// 2. Wrap the underlying error first to include the context.
+	errWithContext := errors.Wrap(err, contextualMsg)
+
+	// 3. Wrap the resulting error chain with the Milvus constant (ErrParameterInvalid)
+	// to ensure 'merr.Is(err, merr.ErrParameterInvalid)' works correctly and the code (1005) is preserved.
+	// This makes ErrParameterInvalid the topmost error in the Milvus system for parameter issues.
+	return errors.Wrap(ErrParameterInvalid, errWithContext.Error())
+}
+
 func WrapErrParameterInvalid[T any](expected, actual T, msg ...string) error {
 	err := wrapFields(ErrParameterInvalid,
 		value("expected", expected),
@@ -960,6 +1007,10 @@ func WrapErrParameterMissing[T any](param T, msg ...string) error {
 		err = errors.Wrap(err, strings.Join(msg, "->"))
 	}
 	return err
+}
+
+func WrapErrParameterMissingMsg(fmt string, args ...any) error {
+	return errors.Wrapf(ErrParameterMissing, fmt, args...)
 }
 
 func WrapErrParameterTooLarge(name string, msg ...string) error {
@@ -1113,6 +1164,14 @@ func WrapErrImportFailed(msg ...string) error {
 	return err
 }
 
+func WrapErrImportSysFailed(msg ...string) error {
+	err := error(ErrImportSysFailed)
+	if len(msg) > 0 {
+		err = errors.Wrap(err, strings.Join(msg, "->"))
+	}
+	return err
+}
+
 func WrapErrInconsistentRequery(msg ...string) error {
 	err := error(ErrInconsistentRequery)
 	if len(msg) > 0 {
@@ -1236,10 +1295,139 @@ func WrapErrDuplicatedCompactionTask(msg ...string) error {
 	return err
 }
 
-func WrapErrOldSessionExists(msg ...string) error {
-	err := error(ErrOldSessionExists)
-	if len(msg) > 0 {
-		err = errors.Wrap(err, strings.Join(msg, "->"))
+// WrapErrSerializationFailedMsg creates a new ErrSerializationFailed with a detail message (Code 1003).
+// This is used when the serialization fails directly without an underlying Go error to wrap.
+func WrapErrSerializationFailedMsg(format string, args ...any) error {
+	detail := fmt.Sprintf(format, args...)
+	// Since this is the message-only path, we wrap the constant error with the formatted message.
+	return errors.Wrap(ErrSerializationFailed, detail)
+}
+
+// WrapErrSerializationFailed wraps an existing error 'err' with ErrSerializationFailed (Code 1003).
+// This is used when an underlying error (e.g., from io or a library) caused the serialization/deserialization to fail,
+// and you need to provide extra context in 'format' and 'args'.
+func WrapErrSerializationFailed(err error, format string, args ...any) error {
+	if err == nil {
+		// If the underlying error is nil, we fall back to the message-only version.
+		return WrapErrSerializationFailedMsg(format, args...)
 	}
-	return err
+
+	// 1. Create the contextual message chain: "Context message" -> "Original error message"
+	contextualMsg := fmt.Sprintf(format, args...)
+
+	// 2. Wrap the underlying error first to include the context.
+	errWithContext := errors.Wrap(err, contextualMsg)
+
+	// 3. Wrap the resulting error chain with the Milvus constant (ErrSerializationFailed)
+	// to ensure 'merr.Is(err, merr.ErrSerializationFailed)' works correctly.
+	// This makes ErrSerializationFailed the topmost error in the Milvus system.
+	return errors.Wrap(ErrSerializationFailed, errWithContext.Error())
+}
+
+// WrapErrFunctionFailedMsg creates a new ErrFunctionFailed with a detail message (Code 4000).
+// This is used when the function execution fails directly without an underlying Go error to wrap.
+func WrapErrFunctionFailedMsg(format string, args ...any) error {
+	detail := fmt.Sprintf(format, args...)
+	// Since this is the message-only path, we wrap the constant error with the formatted message.
+	return errors.Wrap(ErrFunctionFailed, detail)
+}
+
+// WrapErrFunctionFailed wraps an existing error 'err' with ErrFunctionFailed (Code 4000).
+// This is used when an underlying error (e.g., from an external API call or a dependency)
+// caused the function execution to fail, and you need to provide extra context in 'format' and 'args'.
+func WrapErrFunctionFailed(err error, format string, args ...any) error {
+	if err == nil {
+		// If the underlying error is nil, we fall back to the message-only version.
+		return WrapErrFunctionFailedMsg(format, args...)
+	}
+
+	// 1. Create the contextual message chain: "Context message" -> "Original error message"
+	contextualMsg := fmt.Sprintf(format, args...)
+
+	// 2. Wrap the underlying error first to include the context.
+	errWithContext := errors.Wrap(err, contextualMsg)
+
+	// 3. Wrap the resulting error chain with the Milvus constant (ErrFunctionFailed)
+	// to ensure 'merr.Is(err, merr.ErrFunctionFailed)' works correctly.
+	// This makes ErrFunctionFailed the topmost error in the Milvus system.
+	return errors.Wrap(ErrFunctionFailed, errWithContext.Error())
+}
+
+// WrapErrQueryPlanMsg creates a new ErrQueryPlan with a detail message (Code 4100).
+// This is used when the query plan parsing/validation fails directly
+// without an underlying Go error to wrap.
+func WrapErrQueryPlanMsg(format string, args ...any) error {
+	detail := fmt.Sprintf(format, args...)
+	// Since this is the message-only path, we wrap the constant error with the formatted message.
+	return errors.Wrap(ErrQueryPlan, detail)
+}
+
+// WrapErrQueryPlan wraps an existing error 'err' with ErrQueryPlan (Code 4100).
+// This is used when an underlying error (e.g., from a lower-level component or dependency)
+// caused the query plan process to fail, and you need to provide extra context
+// in 'format' and 'args'.
+func WrapErrQueryPlan(err error, format string, args ...any) error {
+	if err == nil {
+		// If the underlying error is nil, we fall back to the message-only version.
+		return WrapErrQueryPlanMsg(format, args...)
+	}
+
+	// 1. Create the contextual message chain: "Context message" -> "Original error message"
+	contextualMsg := fmt.Sprintf(format, args...)
+
+	// 2. Wrap the underlying error first to include the context.
+	errWithContext := errors.Wrap(err, contextualMsg)
+
+	// 3. Wrap the resulting error chain with the Milvus constant (ErrQueryPlan)
+	// to ensure 'merr.Is(err, merr.ErrQueryPlan)' works correctly.
+	// This makes ErrQueryPlan the topmost error in the Milvus system.
+	return errors.Wrap(ErrQueryPlan, errWithContext.Error())
+}
+
+// WrapErrStorageMsg creates a new ErrStorage with a detail message (Code 4200).
+// This is used when a logical internal error occurs in the storage layer (e.g., invalid state,
+// corrupted data structure check, nil data) and there is no underlying Go error to wrap.
+func WrapErrStorageMsg(format string, args ...any) error {
+	detail := fmt.Sprintf(format, args...)
+	// Since this is the message-only path, we wrap the constant error with the formatted message.
+	return errors.Wrap(ErrStorage, detail)
+}
+
+// WrapErrStorage wraps an existing underlying error 'err' with ErrStorage (Code 4200).
+// This is used for I/O errors, underlying file system failures, Arrow library errors,
+// or chunk manager communication failures, preserving the error chain and adding context.
+func WrapErrStorage(err error, format string, args ...any) error {
+	if err == nil {
+		// If the underlying error is nil, we fall back to the message-only version.
+		return WrapErrStorageMsg(format, args...)
+	}
+
+	// 1. Create the contextual message chain: "Context message" -> "Original error message"
+	contextualMsg := fmt.Sprintf(format, args...)
+
+	// 2. Wrap the underlying error first to include the context.
+	errWithContext := errors.Wrap(err, contextualMsg)
+
+	// 3. Wrap the resulting error chain with the Milvus constant (ErrStorage)
+	// to ensure 'merr.Is(err, merr.ErrStorage)' works correctly and the code (4200) is preserved.
+	// This makes ErrStorage the topmost error in the Milvus system for storage issues.
+	return errors.Wrap(ErrStorage, errWithContext.Error())
+}
+
+// WrapErrRbacMsg creates a new ErrRbac with a detail message (Code 1800).
+// This is used for RBAC validation errors (e.g., role not found, invalid username)
+// where no underlying Go error exists.
+func WrapErrRbacMsg(format string, args ...any) error {
+	detail := fmt.Sprintf(format, args...)
+	return errors.Wrap(ErrRbac, detail)
+}
+
+// WrapErrRbac wraps an existing error 'err' with ErrRbac (Code 1800).
+func WrapErrRbac(err error, format string, args ...any) error {
+	if err == nil {
+		return WrapErrRbacMsg(format, args...)
+	}
+	contextualMsg := fmt.Sprintf(format, args...)
+	errWithContext := errors.Wrap(err, contextualMsg)
+	return errors.Wrap(ErrRbac, errWithContext.Error())
 }

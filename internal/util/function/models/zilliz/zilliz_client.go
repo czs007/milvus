@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -34,6 +33,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/milvus-io/milvus/pkg/v2/proto/modelservicepb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 type clientConfig struct {
@@ -69,14 +69,14 @@ type clientManager struct {
 func loadConfig(config map[string]string) (*clientConfig, error) {
 	endpoint := config["endpoint"]
 	if endpoint == "" {
-		return nil, fmt.Errorf("Zilliz client config error, lost endpoint config")
+		return nil, merr.WrapErrFunctionFailedMsg("Zilliz client config error, lost endpoint config")
 	}
 	enableTLSStr := config["enableTLS"]
 	enableTLS := false
 	if enableTLSStr != "" {
 		var err error
 		if enableTLS, err = strconv.ParseBool(enableTLSStr); err != nil {
-			return nil, fmt.Errorf("Zilliz client config err: enableTLS:%s is not bool, err:%w", enableTLSStr, err)
+			return nil, merr.WrapErrFunctionFailed(err, "Zilliz client config err: enableTLS:%s is not bool", enableTLSStr)
 		}
 	}
 	if enableTLS {
@@ -187,7 +187,7 @@ func NewZilliClient(modelDeploymentID string, clusterID string, dbName string, i
 	}
 	conn, err := mgr.GetConn(clientConf)
 	if err != nil {
-		return nil, fmt.Errorf("Connect model serving failed, err:%w", err)
+		return nil, merr.WrapErrFunctionFailed(err, "Connect model serving failed")
 	}
 	return &ZillizClient{
 		modelDeploymentID: modelDeploymentID,

@@ -52,7 +52,7 @@ func newEmbeddingNode(collectionID int64, channelName string, manager *DataManag
 	collection := manager.Collection.Get(collectionID)
 	if collection == nil {
 		log.Error("embeddingNode init failed with collection not exist", zap.Int64("collection", collectionID))
-		return nil, merr.WrapErrCollectionNotFound(collectionID)
+		return nil, merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 
 	if len(collection.Schema().GetFunctions()) == 0 {

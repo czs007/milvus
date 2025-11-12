@@ -162,7 +162,7 @@ func (policy *singleCompactionPolicy) triggerSortCompaction(
 	}
 	if collection == nil {
 		log.Warn("fail to apply triggerSegmentSortCompaction, collection not exist")
-		return nil, merr.WrapErrCollectionNotFound(collectionID)
+		return nil, merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 	isPartitionIsolationEnabled := IsPartitionKeySortCompactionEnabled(collection.Properties)
 	triggerableSegments := policy.meta.SelectSegments(ctx, WithCollection(collectionID),

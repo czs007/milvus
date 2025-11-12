@@ -189,7 +189,7 @@ func NewAzureObjectStorageClient(ctx context.Context, c *Config) (*service.Clien
 		return nil, err
 	}
 	if c.BucketName == "" {
-		return nil, merr.WrapErrParameterInvalidMsg("invalid empty bucket name")
+		return nil, merr.WrapErrServiceInternal("invalid empty bucket name")
 	}
 	// check valid in first query
 	checkBucketFn := func() error {
@@ -248,7 +248,7 @@ func NewGcpObjectStorageClient(ctx context.Context, c *Config) (*storage.Client,
 	}
 
 	if c.BucketName == "" {
-		return nil, merr.WrapErrParameterInvalidMsg("invalid empty bucket name")
+		return nil, merr.WrapErrServiceInternal("invalid empty bucket name")
 	}
 	// Check bucket validity
 	checkBucketFn := func() error {

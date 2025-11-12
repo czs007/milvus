@@ -59,7 +59,7 @@ func NewInsertDataWithFunctionOutputField(schema *schemapb.CollectionSchema) (*I
 
 func NewInsertDataWithCap(schema *schemapb.CollectionSchema, cap int, withFunctionOutput bool) (*InsertData, error) {
 	if schema == nil {
-		return nil, merr.WrapErrParameterMissing("collection schema")
+		return nil, merr.WrapErrServiceInternal("missing collection schema")
 	}
 
 	idata := &InsertData{
@@ -68,17 +68,17 @@ func NewInsertDataWithCap(schema *schemapb.CollectionSchema, cap int, withFuncti
 
 	appendField := func(field *schemapb.FieldSchema) error {
 		if field.IsPrimaryKey && field.GetNullable() {
-			return merr.WrapErrParameterInvalidMsg(fmt.Sprintf("primary key field should not be nullable (field: %s)", field.Name))
+			return merr.WrapErrServiceInternal(fmt.Sprintf("primary key field should not be nullable (field: %s)", field.Name))
 		}
 		if field.IsPartitionKey && field.GetNullable() {
-			return merr.WrapErrParameterInvalidMsg(fmt.Sprintf("partition key field should not be nullable (field: %s)", field.Name))
+			return merr.WrapErrServiceInternal(fmt.Sprintf("partition key field should not be nullable (field: %s)", field.Name))
 		}
 		if field.IsFunctionOutput {
 			if field.IsPrimaryKey || field.IsPartitionKey {
-				return merr.WrapErrParameterInvalidMsg(fmt.Sprintf("function output field should not be primary key or partition key (field: %s)", field.Name))
+				return merr.WrapErrServiceInternal(fmt.Sprintf("function output field should not be primary key or partition key (field: %s)", field.Name))
 			}
 			if field.GetNullable() {
-				return merr.WrapErrParameterInvalidMsg(fmt.Sprintf("function output field should not be nullable (field: %s)", field.Name))
+				return merr.WrapErrServiceInternal(fmt.Sprintf("function output field should not be nullable (field: %s)", field.Name))
 			}
 			if !withFunctionOutput {
 				return nil
@@ -148,11 +148,11 @@ func (i *InsertData) Append(row map[FieldID]interface{}) error {
 	for fID, v := range row {
 		field, ok := i.Data[fID]
 		if !ok {
-			return fmt.Errorf("Missing field when appending row, got %d", fID)
+			return merr.WrapErrServiceInternal(fmt.Sprintf("Missing field when appending row, got %d", fID))
 		}
 
 		if err := field.AppendRow(v); err != nil {
-			return merr.WrapErrParameterInvalidMsg(fmt.Sprintf("append data for field %d failed, err=%s", fID, err.Error()))
+			return merr.WrapErrServiceInternal(fmt.Sprintf("append data for field %d failed, err=%s", fID, err.Error()))
 		}
 	}
 
@@ -196,7 +196,7 @@ func NewFieldData(dataType schemapb.DataType, fieldSchema *schemapb.FieldSchema,
 	switch dataType {
 	case schemapb.DataType_Float16Vector:
 		if fieldSchema.GetNullable() {
-			return nil, merr.WrapErrParameterInvalidMsg("vector not support null")
+			return nil, merr.WrapErrServiceInternal("vector not support null")
 		}
 		dim, err := GetDimFromParams(typeParams)
 		if err != nil {
@@ -208,7 +208,7 @@ func NewFieldData(dataType schemapb.DataType, fieldSchema *schemapb.FieldSchema,
 		}, nil
 	case schemapb.DataType_BFloat16Vector:
 		if fieldSchema.GetNullable() {
-			return nil, merr.WrapErrParameterInvalidMsg("vector not support null")
+			return nil, merr.WrapErrServiceInternal("vector not support null")
 		}
 		dim, err := GetDimFromParams(typeParams)
 		if err != nil {
@@ -220,7 +220,7 @@ func NewFieldData(dataType schemapb.DataType, fieldSchema *schemapb.FieldSchema,
 		}, nil
 	case schemapb.DataType_FloatVector:
 		if fieldSchema.GetNullable() {
-			return nil, merr.WrapErrParameterInvalidMsg("vector not support null")
+			return nil, merr.WrapErrServiceInternal("vector not support null")
 		}
 		dim, err := GetDimFromParams(typeParams)
 		if err != nil {
@@ -232,7 +232,7 @@ func NewFieldData(dataType schemapb.DataType, fieldSchema *schemapb.FieldSchema,
 		}, nil
 	case schemapb.DataType_BinaryVector:
 		if fieldSchema.GetNullable() {
-			return nil, merr.WrapErrParameterInvalidMsg("vector not support null")
+			return nil, merr.WrapErrServiceInternal("vector not support null")
 		}
 		dim, err := GetDimFromParams(typeParams)
 		if err != nil {
@@ -244,12 +244,12 @@ func NewFieldData(dataType schemapb.DataType, fieldSchema *schemapb.FieldSchema,
 		}, nil
 	case schemapb.DataType_SparseFloatVector:
 		if fieldSchema.GetNullable() {
-			return nil, merr.WrapErrParameterInvalidMsg("vector not support null")
+			return nil, merr.WrapErrServiceInternal("vector not support null")
 		}
 		return &SparseFloatVectorFieldData{}, nil
 	case schemapb.DataType_Int8Vector:
 		if fieldSchema.GetNullable() {
-			return nil, merr.WrapErrParameterInvalidMsg("vector not support null")
+			return nil, merr.WrapErrServiceInternal("vector not support null")
 		}
 		dim, err := GetDimFromParams(typeParams)
 		if err != nil {
@@ -387,7 +387,7 @@ func NewFieldData(dataType schemapb.DataType, fieldSchema *schemapb.FieldSchema,
 		}
 		return data, nil
 	default:
-		return nil, fmt.Errorf("Unexpected schema data type: %d", dataType)
+		return nil, merr.WrapErrStorageMsg("Unexpected schema data type: %d", dataType)
 	}
 }
 
@@ -662,7 +662,7 @@ func (data *BoolFieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("bool", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect bool", row))
 	}
 	data.Data = append(data.Data, v)
 	if data.GetNullable() {
@@ -679,7 +679,7 @@ func (data *Int8FieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(int8)
 	if !ok {
-		return merr.WrapErrParameterInvalid("int8", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect int8", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -696,7 +696,7 @@ func (data *Int16FieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(int16)
 	if !ok {
-		return merr.WrapErrParameterInvalid("int16", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect int16", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -713,7 +713,7 @@ func (data *Int32FieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(int32)
 	if !ok {
-		return merr.WrapErrParameterInvalid("int32", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect int32", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -730,7 +730,7 @@ func (data *Int64FieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(int64)
 	if !ok {
-		return merr.WrapErrParameterInvalid("int64", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect int64", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -747,7 +747,7 @@ func (data *FloatFieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(float32)
 	if !ok {
-		return merr.WrapErrParameterInvalid("float32", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect float32", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -764,7 +764,7 @@ func (data *DoubleFieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(float64)
 	if !ok {
-		return merr.WrapErrParameterInvalid("float64", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect float64", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -781,7 +781,7 @@ func (data *TimestamptzFieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(int64)
 	if !ok {
-		return merr.WrapErrParameterInvalid("timestamptz", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect timestamptz", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -798,7 +798,7 @@ func (data *StringFieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(string)
 	if !ok {
-		return merr.WrapErrParameterInvalid("string", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect string", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -815,7 +815,7 @@ func (data *ArrayFieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.(*schemapb.ScalarField)
 	if !ok {
-		return merr.WrapErrParameterInvalid("*schemapb.ScalarField", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect *schemapb.ScalarField", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -832,7 +832,7 @@ func (data *JSONFieldData) AppendRow(row interface{}) error {
 	}
 	v, ok := row.([]byte)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]byte", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []byte", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -853,7 +853,7 @@ func (data *GeometryFieldData) AppendRow(row interface{}) error {
 	case string:
 		data.Data = append(data.Data, []byte(v))
 	default:
-		return merr.WrapErrParameterInvalid("[]byte", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []byte", row))
 	}
 	if data.GetNullable() {
 		data.ValidData = append(data.ValidData, true)
@@ -864,7 +864,7 @@ func (data *GeometryFieldData) AppendRow(row interface{}) error {
 func (data *BinaryVectorFieldData) AppendRow(row interface{}) error {
 	v, ok := row.([]byte)
 	if !ok || len(v) != data.Dim/8 {
-		return merr.WrapErrParameterInvalid("[]byte", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []byte", row))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -873,7 +873,7 @@ func (data *BinaryVectorFieldData) AppendRow(row interface{}) error {
 func (data *FloatVectorFieldData) AppendRow(row interface{}) error {
 	v, ok := row.([]float32)
 	if !ok || len(v) != data.Dim {
-		return merr.WrapErrParameterInvalid("[]float32", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []float32", row))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -882,7 +882,7 @@ func (data *FloatVectorFieldData) AppendRow(row interface{}) error {
 func (data *Float16VectorFieldData) AppendRow(row interface{}) error {
 	v, ok := row.([]byte)
 	if !ok || len(v) != data.Dim*2 {
-		return merr.WrapErrParameterInvalid("[]byte", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []byte", row))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -891,7 +891,7 @@ func (data *Float16VectorFieldData) AppendRow(row interface{}) error {
 func (data *BFloat16VectorFieldData) AppendRow(row interface{}) error {
 	v, ok := row.([]byte)
 	if !ok || len(v) != data.Dim*2 {
-		return merr.WrapErrParameterInvalid("[]byte", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []byte", row))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -900,7 +900,7 @@ func (data *BFloat16VectorFieldData) AppendRow(row interface{}) error {
 func (data *SparseFloatVectorFieldData) AppendRow(row interface{}) error {
 	v, ok := row.([]byte)
 	if !ok {
-		return merr.WrapErrParameterInvalid("SparseFloatVectorRowData", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect SparseFloatVectorRowData", row))
 	}
 	if err := typeutil.ValidateSparseFloatRows(v); err != nil {
 		return err
@@ -916,7 +916,7 @@ func (data *SparseFloatVectorFieldData) AppendRow(row interface{}) error {
 func (data *Int8VectorFieldData) AppendRow(row interface{}) error {
 	v, ok := row.([]int8)
 	if !ok || len(v) != data.Dim {
-		return merr.WrapErrParameterInvalid("[]int8", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []int8", row))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -925,7 +925,7 @@ func (data *Int8VectorFieldData) AppendRow(row interface{}) error {
 func (data *VectorArrayFieldData) AppendRow(row interface{}) error {
 	v, ok := row.(*schemapb.VectorField)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]*schemapb.VectorField", row, "Wrong row type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []*schemapb.VectorField", row))
 	}
 	data.Data = append(data.Data, v)
 	return nil
@@ -1090,7 +1090,7 @@ func (data *VectorArrayFieldData) AppendRows(dataRows interface{}, validDataRows
 func (data *BoolFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1099,7 +1099,7 @@ func (data *BoolFieldData) AppendDataRows(rows interface{}) error {
 func (data *Int8FieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]int8)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]int8", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []int8", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1108,7 +1108,7 @@ func (data *Int8FieldData) AppendDataRows(rows interface{}) error {
 func (data *Int16FieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]int16)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]int16", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []int16", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1117,7 +1117,7 @@ func (data *Int16FieldData) AppendDataRows(rows interface{}) error {
 func (data *Int32FieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]int32)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]int32", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []int32", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1126,7 +1126,7 @@ func (data *Int32FieldData) AppendDataRows(rows interface{}) error {
 func (data *Int64FieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]int64)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]int64", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []int64", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1135,7 +1135,7 @@ func (data *Int64FieldData) AppendDataRows(rows interface{}) error {
 func (data *FloatFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]float32)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]float32", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []float32", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1144,7 +1144,7 @@ func (data *FloatFieldData) AppendDataRows(rows interface{}) error {
 func (data *DoubleFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]float64)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]float64", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []float64", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1153,7 +1153,7 @@ func (data *DoubleFieldData) AppendDataRows(rows interface{}) error {
 func (data *TimestamptzFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]int64)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]timestamptz", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []int64", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1162,7 +1162,7 @@ func (data *TimestamptzFieldData) AppendDataRows(rows interface{}) error {
 func (data *StringFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]string)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]string", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []string", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1171,7 +1171,7 @@ func (data *StringFieldData) AppendDataRows(rows interface{}) error {
 func (data *ArrayFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]*schemapb.ScalarField)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]*schemapb.ScalarField", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []*schemapb.ScalarField", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1180,7 +1180,7 @@ func (data *ArrayFieldData) AppendDataRows(rows interface{}) error {
 func (data *JSONFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([][]byte)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[][]byte", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect [][]byte", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1195,7 +1195,7 @@ func (data *GeometryFieldData) AppendDataRows(rows interface{}) error {
 			data.Data = append(data.Data, []byte(row))
 		}
 	default:
-		return merr.WrapErrParameterInvalid("[][]byte", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect [][]byte", rows))
 	}
 	return nil
 }
@@ -1204,10 +1204,10 @@ func (data *GeometryFieldData) AppendDataRows(rows interface{}) error {
 func (data *BinaryVectorFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]byte)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]byte", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []byte", rows))
 	}
 	if len(v)%(data.Dim/8) != 0 {
-		return merr.WrapErrParameterInvalid(data.Dim/8, len(v), "Wrong vector size")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong vector size, expect %d got %d", data.Dim/8, len(v)))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1217,10 +1217,10 @@ func (data *BinaryVectorFieldData) AppendDataRows(rows interface{}) error {
 func (data *FloatVectorFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]float32)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]float32", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []float32", rows))
 	}
 	if len(v)%(data.Dim) != 0 {
-		return merr.WrapErrParameterInvalid(data.Dim, len(v), "Wrong vector size")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong vector size, expect %d got %d", data.Dim, len(v)))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1230,10 +1230,10 @@ func (data *FloatVectorFieldData) AppendDataRows(rows interface{}) error {
 func (data *Float16VectorFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]byte)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]byte", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []byte", rows))
 	}
 	if len(v)%(data.Dim*2) != 0 {
-		return merr.WrapErrParameterInvalid(data.Dim*2, len(v), "Wrong vector size")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong vector size, expect %d got %d", data.Dim*2, len(v)))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1243,10 +1243,10 @@ func (data *Float16VectorFieldData) AppendDataRows(rows interface{}) error {
 func (data *BFloat16VectorFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]byte)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]byte", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []byte", rows))
 	}
 	if len(v)%(data.Dim*2) != 0 {
-		return merr.WrapErrParameterInvalid(data.Dim*2, len(v), "Wrong vector size")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong vector size, expect %d got %d", data.Dim*2, len(v)))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1255,7 +1255,7 @@ func (data *BFloat16VectorFieldData) AppendDataRows(rows interface{}) error {
 func (data *SparseFloatVectorFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.(*SparseFloatVectorFieldData)
 	if !ok {
-		return merr.WrapErrParameterInvalid("SparseFloatVectorFieldData", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect *SparseFloatVectorFieldData", rows))
 	}
 	data.Contents = append(data.SparseFloatArray.Contents, v.Contents...)
 	if data.Dim < v.Dim {
@@ -1267,10 +1267,10 @@ func (data *SparseFloatVectorFieldData) AppendDataRows(rows interface{}) error {
 func (data *Int8VectorFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]int8)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]int8", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []int8", rows))
 	}
 	if len(v)%(data.Dim) != 0 {
-		return merr.WrapErrParameterInvalid(data.Dim, len(v), "Wrong vector size")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong vector size, expect %d got %d", data.Dim, len(v)))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1279,7 +1279,7 @@ func (data *Int8VectorFieldData) AppendDataRows(rows interface{}) error {
 func (data *VectorArrayFieldData) AppendDataRows(rows interface{}) error {
 	v, ok := rows.([]*schemapb.VectorField)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]*schemapb.VectorField", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []*schemapb.VectorField", rows))
 	}
 	data.Data = append(data.Data, v...)
 	return nil
@@ -1291,7 +1291,7 @@ func (data *BoolFieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1303,7 +1303,7 @@ func (data *Int8FieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1315,7 +1315,7 @@ func (data *Int16FieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1327,7 +1327,7 @@ func (data *Int32FieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1339,7 +1339,7 @@ func (data *Int64FieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1351,7 +1351,7 @@ func (data *FloatFieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1363,7 +1363,7 @@ func (data *DoubleFieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1375,7 +1375,7 @@ func (data *TimestamptzFieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1387,7 +1387,7 @@ func (data *StringFieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1399,7 +1399,7 @@ func (data *ArrayFieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1411,7 +1411,7 @@ func (data *JSONFieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1423,7 +1423,7 @@ func (data *GeometryFieldData) AppendValidDataRows(rows interface{}) error {
 	}
 	v, ok := rows.([]bool)
 	if !ok {
-		return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+		return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 	}
 	data.ValidData = append(data.ValidData, v...)
 	return nil
@@ -1434,10 +1434,10 @@ func (data *BinaryVectorFieldData) AppendValidDataRows(rows interface{}) error {
 	if rows != nil {
 		v, ok := rows.([]bool)
 		if !ok {
-			return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 		}
 		if len(v) != 0 {
-			return merr.WrapErrParameterInvalidMsg("not support Nullable in vector")
+			return merr.WrapErrServiceInternal("not support Nullable in vector")
 		}
 	}
 	return nil
@@ -1447,10 +1447,10 @@ func (data *VectorArrayFieldData) AppendValidDataRows(rows interface{}) error {
 	if rows != nil {
 		v, ok := rows.([]bool)
 		if !ok {
-			return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 		}
 		if len(v) != 0 {
-			return merr.WrapErrParameterInvalidMsg("not support Nullable in vector")
+			return merr.WrapErrServiceInternal("not support Nullable in vector")
 		}
 	}
 	return nil
@@ -1461,10 +1461,10 @@ func (data *FloatVectorFieldData) AppendValidDataRows(rows interface{}) error {
 	if rows != nil {
 		v, ok := rows.([]bool)
 		if !ok {
-			return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 		}
 		if len(v) != 0 {
-			return merr.WrapErrParameterInvalidMsg("not support Nullable in vector")
+			return merr.WrapErrServiceInternal("not support Nullable in vector")
 		}
 	}
 	return nil
@@ -1475,10 +1475,10 @@ func (data *Float16VectorFieldData) AppendValidDataRows(rows interface{}) error 
 	if rows != nil {
 		v, ok := rows.([]bool)
 		if !ok {
-			return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 		}
 		if len(v) != 0 {
-			return merr.WrapErrParameterInvalidMsg("not support Nullable in vector")
+			return merr.WrapErrServiceInternal("not support Nullable in vector")
 		}
 	}
 	return nil
@@ -1489,10 +1489,10 @@ func (data *BFloat16VectorFieldData) AppendValidDataRows(rows interface{}) error
 	if rows != nil {
 		v, ok := rows.([]bool)
 		if !ok {
-			return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 		}
 		if len(v) != 0 {
-			return merr.WrapErrParameterInvalidMsg("not support Nullable in vector")
+			return merr.WrapErrServiceInternal("not support Nullable in vector")
 		}
 	}
 	return nil
@@ -1502,10 +1502,10 @@ func (data *SparseFloatVectorFieldData) AppendValidDataRows(rows interface{}) er
 	if rows != nil {
 		v, ok := rows.([]bool)
 		if !ok {
-			return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 		}
 		if len(v) != 0 {
-			return merr.WrapErrParameterInvalidMsg("not support Nullable in vector")
+			return merr.WrapErrServiceInternal("not support Nullable in vector")
 		}
 	}
 	return nil
@@ -1515,10 +1515,10 @@ func (data *Int8VectorFieldData) AppendValidDataRows(rows interface{}) error {
 	if rows != nil {
 		v, ok := rows.([]bool)
 		if !ok {
-			return merr.WrapErrParameterInvalid("[]bool", rows, "Wrong rows type")
+			return merr.WrapErrServiceInternal(fmt.Sprintf("wrong data type:%T, expect []bool", rows))
 		}
 		if len(v) != 0 {
-			return merr.WrapErrParameterInvalidMsg("not support Nullable in vector")
+			return merr.WrapErrServiceInternal("not support Nullable in vector")
 		}
 	}
 	return nil

@@ -174,17 +174,13 @@ func (node *DataNode) CompactionV2(ctx context.Context, req *datapb.CompactionPl
 	}
 
 	if req.GetBeginLogID() == 0 {
-		return merr.Status(merr.WrapErrParameterInvalidMsg("invalid beginLogID")), nil
+		return merr.Status(merr.WrapErrServiceInternal("invalid beginLogID")), nil
 	}
 
 	if req.GetPreAllocatedLogIDs().GetBegin() == 0 || req.GetPreAllocatedLogIDs().GetEnd() == 0 {
-		return merr.Status(merr.WrapErrParameterInvalidMsg(fmt.Sprintf("invalid beginID %d or invalid endID %d", req.GetPreAllocatedLogIDs().GetBegin(), req.GetPreAllocatedLogIDs().GetEnd()))), nil
+		return merr.Status(merr.WrapErrServiceInternal(fmt.Sprintf("invalid beginID %d or invalid endID %d", req.GetPreAllocatedLogIDs().GetBegin(), req.GetPreAllocatedLogIDs().GetEnd()))), nil
 	}
 
-	/*
-		spanCtx := trace.SpanContextFromContext(ctx)
-
-		taskCtx := trace.ContextWithSpanContext(node.ctx, spanCtx)*/
 	taskCtx := tracer.Propagate(ctx, node.ctx)
 	compactionParams, err := compaction.ParseParamsFromJSON(req.GetJsonParams())
 	if err != nil {
@@ -212,7 +208,7 @@ func (node *DataNode) CompactionV2(ctx context.Context, req *datapb.CompactionPl
 		)
 	case datapb.CompactionType_MixCompaction:
 		if req.GetPreAllocatedSegmentIDs() == nil || req.GetPreAllocatedSegmentIDs().GetBegin() == 0 {
-			return merr.Status(merr.WrapErrParameterInvalidMsg("invalid pre-allocated segmentID range")), nil
+			return merr.Status(merr.WrapErrServiceInternal("invalid pre-allocated segmentID range")), nil
 		}
 		pk, err := typeutil.GetPrimaryFieldSchema(req.GetSchema())
 		if err != nil {
@@ -227,7 +223,7 @@ func (node *DataNode) CompactionV2(ctx context.Context, req *datapb.CompactionPl
 		)
 	case datapb.CompactionType_ClusteringCompaction:
 		if req.GetPreAllocatedSegmentIDs() == nil || req.GetPreAllocatedSegmentIDs().GetBegin() == 0 {
-			return merr.Status(merr.WrapErrParameterInvalidMsg("invalid pre-allocated segmentID range")), nil
+			return merr.Status(merr.WrapErrServiceInternal("invalid pre-allocated segmentID range")), nil
 		}
 		task = compactor.NewClusteringCompactionTask(
 			taskCtx,
@@ -237,7 +233,7 @@ func (node *DataNode) CompactionV2(ctx context.Context, req *datapb.CompactionPl
 		)
 	case datapb.CompactionType_SortCompaction:
 		if req.GetPreAllocatedSegmentIDs() == nil || req.GetPreAllocatedSegmentIDs().GetBegin() == 0 {
-			return merr.Status(merr.WrapErrParameterInvalidMsg("invalid pre-allocated segmentID range")), nil
+			return merr.Status(merr.WrapErrServiceInternal("invalid pre-allocated segmentID range")), nil
 		}
 		pk, err := typeutil.GetPrimaryFieldSchema(req.GetSchema())
 		if err != nil {
@@ -252,7 +248,7 @@ func (node *DataNode) CompactionV2(ctx context.Context, req *datapb.CompactionPl
 		)
 	case datapb.CompactionType_PartitionKeySortCompaction:
 		if req.GetPreAllocatedSegmentIDs() == nil || req.GetPreAllocatedSegmentIDs().GetBegin() == 0 {
-			return merr.Status(merr.WrapErrParameterInvalidMsg("invalid pre-allocated segmentID range")), nil
+			return merr.Status(merr.WrapErrServiceInternal("invalid pre-allocated segmentID range")), nil
 		}
 		pk, err := typeutil.GetPartitionKeyFieldSchema(req.GetSchema())
 		partitionkey, err := typeutil.GetPartitionKeyFieldSchema(req.GetSchema())
@@ -270,7 +266,7 @@ func (node *DataNode) CompactionV2(ctx context.Context, req *datapb.CompactionPl
 		// TODO
 	default:
 		log.Warn("Unknown compaction type", zap.String("type", req.GetType().String()))
-		return merr.Status(merr.WrapErrParameterInvalidMsg("Unknown compaction type: %v", req.GetType().String())), nil
+		return merr.Status(merr.WrapErrServiceInternal("Unknown compaction type: %v", req.GetType().String())), nil
 	}
 
 	succeed, err := node.compactionExecutor.Enqueue(task)

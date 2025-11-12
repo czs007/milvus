@@ -668,14 +668,14 @@ func (mt *MetaTable) getLatestCollectionByIDInternal(ctx context.Context, collec
 	coll, ok := mt.collID2Meta[collectionID]
 	if !ok || coll == nil {
 		log.Warn("not found collection", zap.Int64("collectionID", collectionID))
-		return nil, merr.WrapErrCollectionNotFound(collectionID)
+		return nil, merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 	if allowUnavailable {
 		return coll.Clone(), nil
 	}
 	if !coll.Available() {
 		log.Warn("collection not available", zap.Int64("collectionID", collectionID), zap.Any("state", coll.State))
-		return nil, merr.WrapErrCollectionNotFound(collectionID)
+		return nil, merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 	return filterUnavailable(coll), nil
 }
@@ -705,7 +705,7 @@ func (mt *MetaTable) getCollectionByIDInternal(ctx context.Context, dbName strin
 
 	if coll == nil {
 		// use coll.Name to match error message of regression. TODO: remove this after error code is ready.
-		return nil, merr.WrapErrCollectionNotFound(collectionID)
+		return nil, merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 
 	if allowUnavailable {

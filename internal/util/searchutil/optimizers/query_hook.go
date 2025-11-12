@@ -39,7 +39,7 @@ func OptimizeSearchParams(ctx context.Context, req *querypb.SearchRequest, query
 	// plan not found
 	if serializedPlan == nil {
 		log.Warn("serialized plan not found")
-		return req, merr.WrapErrParameterInvalid("serialized search plan", "nil")
+		return req, merr.WrapErrServiceInternal("serialized search plan is nil")
 	}
 
 	channelNum := req.GetTotalChannelNum()
@@ -52,7 +52,7 @@ func OptimizeSearchParams(ctx context.Context, req *querypb.SearchRequest, query
 	err := proto.Unmarshal(serializedPlan, &plan)
 	if err != nil {
 		log.Warn("failed to unmarshal plan", zap.Error(err))
-		return nil, merr.WrapErrParameterInvalid("valid serialized search plan", "no unmarshalable one", err.Error())
+		return nil, merr.WrapErrServiceInternal("invalid serialized search plan", err.Error())
 	}
 
 	switch plan.GetNode().(type) {
@@ -88,7 +88,7 @@ func OptimizeSearchParams(ctx context.Context, req *querypb.SearchRequest, query
 		serializedExprPlan, err := proto.Marshal(&plan)
 		if err != nil {
 			log.Warn("failed to marshal optimized plan", zap.Error(err))
-			return nil, merr.WrapErrParameterInvalid("marshalable search plan", "plan with marshal error", err.Error())
+			return nil, merr.WrapErrServiceInternal("fail to marshalable search plan", err.Error())
 		}
 		req.Req.SerializedExprPlan = serializedExprPlan
 		req.Req.IsTopkReduce = isTopkReduce

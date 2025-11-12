@@ -308,7 +308,7 @@ func (t *clusteringCompactionTask) retryableProcess(ctx context.Context) error {
 	if coll == nil {
 		// not-retryable fail fast if collection is dropped
 		log.Warn("collection not found, it may be dropped, stop clustering compaction task", zap.Int64("collectionID", t.GetTaskProto().GetCollectionID()))
-		return merr.WrapErrCollectionNotFound(t.GetTaskProto().GetCollectionID())
+		return merr.WrapErrCollectionIDNotFound(t.GetTaskProto().GetCollectionID())
 	}
 
 	switch t.GetTaskProto().State {

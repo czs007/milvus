@@ -855,12 +855,12 @@ func (v *validateUtil) checkGeometryFieldData(field *schemapb.FieldData, fieldSc
 		geomT, err := wkt.Unmarshal(wktdata)
 		if err != nil {
 			log.Warn("insert invalid Geometry data!! The wkt data has errors", zap.Error(err))
-			return merr.WrapErrIoFailedReason(err.Error())
+			return merr.WrapErrParameterInvalidMsg(err.Error())
 		}
 		wkbArray[index], err = wkb.Marshal(geomT, wkb.NDR, wkbcommon.WKBOptionEmptyPointHandling(wkbcommon.EmptyPointHandlingNaN))
 		if err != nil {
 			log.Warn("insert invalid Geometry data!! Transform to wkb failed, has errors", zap.Error(err))
-			return merr.WrapErrIoFailedReason(err.Error())
+			return merr.WrapErrParameterInvalidMsg(err.Error())
 		}
 	}
 	// replace the field data with wkb data array

@@ -222,7 +222,7 @@ func CreateInsertData(schema *schemapb.CollectionSchema, rows int, nullPercent .
 		}
 		if f.GetNullable() {
 			if len(nullPercent) > 1 {
-				return nil, merr.WrapErrParameterInvalidMsg("the length of nullPercent is wrong")
+				return nil, merr.WrapErrServiceInternal("the length of nullPercent is wrong")
 			}
 			if len(nullPercent) == 0 || nullPercent[0] == 50 {
 				insertData.Data[f.FieldID].AppendValidDataRows(testutils.GenerateBoolArray(rows))
@@ -235,7 +235,7 @@ func CreateInsertData(schema *schemapb.CollectionSchema, rows int, nullPercent .
 				}
 				insertData.Data[f.FieldID].AppendValidDataRows(validData)
 			} else {
-				return nil, merr.WrapErrParameterInvalidMsg(fmt.Sprintf("not support the number of nullPercent(%d)", nullPercent))
+				return nil, merr.WrapErrServiceInternal(fmt.Sprintf("not support the number of nullPercent(%d)", nullPercent))
 			}
 		}
 	}
@@ -299,7 +299,7 @@ func CreateFieldWithDefaultValue(dataType schemapb.DataType, id int64, nullable 
 		}
 	default:
 		msg := fmt.Sprintf("type (%s) not support default_value", field.GetDataType().String())
-		return nil, merr.WrapErrParameterInvalidMsg(msg)
+		return nil, merr.WrapErrServiceInternal(msg)
 	}
 	return field, nil
 }
@@ -330,13 +330,13 @@ func BuildSparseVectorData(mem *memory.GoAllocator, contents [][]byte, arrowType
 		indicesField, ok1 := stType.FieldByName("indices")
 		valuesField, ok2 := stType.FieldByName("values")
 		if !ok1 || !ok2 {
-			return nil, merr.WrapErrParameterInvalidMsg("Indices type or values type is missed for sparse vector")
+			return nil, merr.WrapErrServiceInternal("Indices type or values type is missed for sparse vector")
 		}
 
 		indicesList, ok1 := indicesField.Type.(*arrow.ListType)
 		valuesList, ok2 := valuesField.Type.(*arrow.ListType)
 		if !ok1 || !ok2 {
-			return nil, merr.WrapErrParameterInvalidMsg("Indices type and values type of sparse vector should be list")
+			return nil, merr.WrapErrServiceInternal("Indices type and values type of sparse vector should be list")
 		}
 		indexType := indicesList.Elem().ID()
 		valueType := valuesList.Elem().ID()
@@ -413,7 +413,7 @@ func BuildSparseVectorData(mem *memory.GoAllocator, contents [][]byte, arrowType
 		return builder.NewStructArray(), nil
 	}
 
-	return nil, merr.WrapErrParameterInvalidMsg("Invalid arrow data type for sparse vector")
+	return nil, merr.WrapErrServiceInternal("Invalid arrow data type for sparse vector")
 }
 
 func BuildArrayData(schema *schemapb.CollectionSchema, insertData *storage.InsertData, useNullType bool) ([]arrow.Array, error) {
