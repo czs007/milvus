@@ -18,6 +18,7 @@ package rootcoord
 
 import (
 	"context"
+	"github.com/milvus-io/milvus/pkg/v2/util/timestamptz"
 
 	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
@@ -55,7 +56,7 @@ func (c *Core) broadcastAlterDatabase(ctx context.Context, req *rootcoordpb.Alte
 
 	// Validate timezone
 	tz, exist := funcutil.TryGetAttrByKeyFromRepeatedKV(common.TimezoneKey, req.GetProperties())
-	if exist && !funcutil.IsTimezoneValid(tz) {
+	if exist && !timestamptz.IsTimezoneValid(tz) {
 		return merr.WrapErrParameterInvalidMsg("unknown or invalid IANA Time Zone ID: %s", tz)
 	}
 

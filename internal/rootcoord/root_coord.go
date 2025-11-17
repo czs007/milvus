@@ -19,6 +19,7 @@ package rootcoord
 import (
 	"context"
 	"fmt"
+	"github.com/milvus-io/milvus/pkg/v2/util/timestamptz"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -1106,15 +1107,15 @@ func rewriteTimestampTzDefaultValueToString(resp *milvuspb.DescribeCollectionRes
 		// 3. Check if the default value is stored in the internal int64 (LongData) format.
 		// If it's not LongData, we assume it's either unset or already a string (which shouldn't happen
 		// if the creation flow worked correctly).
-		utcMicro, ok := defaultValue.GetData().(*schemapb.ValueField_LongData)
+		utcMicro, ok := defaultValue.GetData().(*schemapb.ValueField_TimestamptzData)
 		if !ok {
 			continue // Skip if not stored as LongData (int64)
 		}
 
-		ts := utcMicro.LongData
+		ts := utcMicro.TimestamptzData
 
 		// 4. Convert the int64 microsecond value back to a timezone-aware string.
-		tzString, err := funcutil.ConvertUnixMicroToTimezoneString(ts, timezone)
+		tzString, err := timestamptz.ConvertUnixMicroToTimezoneString(ts, timezone)
 		if err != nil {
 			// In a real system, you might log the error and use the raw int64 as a fallback string,
 			// but here we'll set a placeholder string to avoid crashing.

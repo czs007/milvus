@@ -65,6 +65,10 @@ std::pair<milvus::cachinglayer::ResourceUsage,
 DefaultValueChunkTranslator::estimated_byte_size_of_cell(
     milvus::cachinglayer::cid_t cid) const {
     int64_t value_size = 0;
+        LOG_INFO(
+                "czs estimated_byte_size_of_cell empty field  (data type {}) for sealed segment ",
+                field_meta_.get_data_type());
+
     switch (field_meta_.get_data_type()) {
         case milvus::DataType::BOOL:
             value_size = sizeof(bool);
@@ -131,13 +135,24 @@ DefaultValueChunkTranslator::get_cells(
     auto builder =
         milvus::storage::CreateArrowBuilder(field_meta_.get_data_type());
     arrow::Status ast;
+            LOG_INFO(
+                    "czs estimated_byte_size_of_cell empty field (data type {}) for sealed segment ",
+                    field_meta_.get_data_type());
     if (field_meta_.default_value().has_value()) {
         ast = builder->Reserve(num_rows);
         AssertInfo(ast.ok(), "reserve arrow build failed: {}", ast.ToString());
         auto scalar = storage::CreateArrowScalarFromDefaultValue(field_meta_);
+                    LOG_INFO(
+                            "czs111 estimated_byte_size_of_cell empty field (data type {}) for sealed segment ",
+                            field_meta_.get_data_type()
+                            );
+                            std::cout<<"czs333: "<<scalar<<std::endl;
         ast = builder->AppendScalar(*scalar, num_rows);
     } else {
         ast = builder->AppendNulls(num_rows);
+                            LOG_INFO(
+                                    "czs22 estimated_byte_size_of_cell empty field (data type {}) for sealed segment ",
+                                    field_meta_.get_data_type());
     }
     AssertInfo(ast.ok(),
                "append null/default values to arrow builder failed: {}",

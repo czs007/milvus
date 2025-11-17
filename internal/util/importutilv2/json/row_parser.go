@@ -18,6 +18,7 @@ package json
 
 import (
 	"fmt"
+	"github.com/milvus-io/milvus/pkg/v2/util/timestamptz"
 	"strconv"
 
 	"github.com/samber/lo"
@@ -27,7 +28,6 @@ import (
 	"github.com/milvus-io/milvus/internal/util/importutilv2/common"
 	"github.com/milvus-io/milvus/internal/util/nullutil"
 	pkgcommon "github.com/milvus-io/milvus/pkg/v2/common"
-	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/parameterutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
@@ -571,7 +571,7 @@ func (r *rowParser) parseEntity(fieldID int64, obj any) (any, error) {
 		if !ok {
 			return nil, r.wrapTypeError(obj, fieldID)
 		}
-		tz, err := funcutil.ValidateAndReturnUnixMicroTz(strValue, r.timezone)
+		tz, err := timestamptz.ValidateAndReturnUnixMicroTz(strValue, r.timezone)
 		if err != nil {
 			return nil, err
 		}

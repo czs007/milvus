@@ -19,6 +19,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"github.com/milvus-io/milvus/pkg/v2/util/timestamptz"
 	"reflect"
 	"strconv"
 	"strings"
@@ -2901,7 +2902,7 @@ func timestamptzUTC2IsoStr(results []*schemapb.FieldData, colTimezone string) er
 			localTime := t.In(location)
 
 			// 3. Format using the optimized logic (max 6 digits, no trailing zeros)
-			isoStrings[i] = funcutil.FormatTimeMicroWithoutTrailingZeros(localTime)
+			isoStrings[i] = timestamptz.FormatTimeMicroWithoutTrailingZeros(localTime)
 		}
 
 		// Replace the TimestamptzData with the new StringData in place.

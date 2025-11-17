@@ -490,6 +490,9 @@ CreateArrowScalarFromDefaultValue(const FieldMeta& field_meta) {
             return std::make_shared<arrow::DoubleScalar>(
                 default_value.double_data());
         case DataType::TIMESTAMPTZ:
+        std::cout << "czs444:" << default_value.timestamptz_data() << std::endl;
+        std::cout << "czs555:" << default_value.string_data() << std::endl;
+
             return std::make_shared<arrow::Int64Scalar>(
                 default_value.timestamptz_data());
         case DataType::VARCHAR:

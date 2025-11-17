@@ -2,6 +2,11 @@ package rootcoord
 
 import (
 	"context"
+	"github.com/milvus-io/milvus/pkg/v2/common"
+	"github.com/milvus-io/milvus/pkg/v2/log"
+	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/timestamptz"
+	"go.uber.org/zap"
 
 	"github.com/cockroachdb/errors"
 	"google.golang.org/protobuf/proto"
@@ -39,6 +44,15 @@ func (c *Core) broadcastAlterCollectionForAddField(ctx context.Context, req *mil
 	if err := checkFieldSchema([]*schemapb.FieldSchema{fieldSchema}); err != nil {
 		return errors.Wrap(err, "failed to check field schema")
 	}
+
+	if fieldSchema.GetDataType() == schemapb.DataType_Timestamptz {
+		timezone, exist := funcutil.TryGetAttrByKeyFromRepeatedKV(common.TimezoneKey, coll.Properties)
+		if !exist {
+			timezone = common.DefaultTimezone
+		}
+		timestamptz.CheckAndRewriteTimestampTzDefaultValueForFieldSchema(fieldSchema, timezone)
+	}
+
 	// check if the field already exists
 	for _, field := range coll.Fields {
 		if field.Name == fieldSchema.Name {
@@ -91,5 +105,61 @@ func (c *Core) broadcastAlterCollectionForAddField(ctx context.Context, req *mil
 	if _, err := broadcaster.Broadcast(ctx, msg); err != nil {
 		return err
 	}
+	return nil
+}
+
+// checkAndRewriteTimestampTzDefaultValueForFieldSchema processes a single FieldSchema
+// to validate and rewrite the default value specifically for TIMESTAMPTZ fields.
+//
+// The function ensures the default value (initially a string) is correctly converted
+// and stored internally as an absolute UTC microsecond (int64) value.
+//
+// Parameters:
+//
+//	fieldSchema: The specific FieldSchema object to be processed.
+//	collectionTimezone: The collection-level default timezone string (e.g., "UTC", "Asia/Shanghai")
+//	                    used to parse timestamps without an explicit offset.
+//
+// Returns:
+//
+//	error: An error if validation fails (e.g., invalid timestamp format or illegal offset range), otherwise nil.
+func checkAndRewriteTimestampTzDefaultValueForFieldSchema(
+	fieldSchema *schemapb.FieldSchema,
+	collectionTimezone string) error {
+
+	defaultValue := fieldSchema.GetDefaultValue()
+	if defaultValue == nil {
+		return nil
+	}
+	log.Info("czsKKK111")
+
+	// 2. Read the default value as a string (the initial user-provided format).
+	// The default value is expected to be stored in string_data initially.
+	stringTz := defaultValue.GetStringData()
+	if stringTz == "" {
+		// Skip or handle empty string default values if necessary.
+		log.Info("czsKKK222")
+		return nil
+	}
+
+	// 3. Validate the string and convert it to UTC microsecond (int64).
+	// The validation function also applies the collectionTimezone if no offset is present
+	// in the input stringTz, and performs offset range checks.
+	utcMicro, err := timestamptz.ValidateAndReturnUnixMicroTz(stringTz, collectionTimezone)
+	if err != nil {
+		log.Info("czsKKK333")
+
+		// If validation fails (e.g., invalid format or illegal offset), return error immediately.
+		return err
+	}
+
+	// 4. Rewrite the default value to store the absolute UTC microsecond (int64).
+	// By setting ValueField_LongData, the oneof field in the protobuf structure
+	// automatically switches the internal representation from string_data to long_data.
+	defaultValue.Data = &schemapb.ValueField_TimestamptzData{
+		TimestamptzData: utcMicro,
+	}
+	fieldSchema.DefaultValue = defaultValue
+	log.Info("czsKKK444", zap.Any("utc", fieldSchema.GetDefaultValue()))
 	return nil
 }

@@ -18,6 +18,7 @@ package segments
 
 import (
 	"fmt"
+	"github.com/milvus-io/milvus/pkg/v2/util/timestamptz"
 	"sync"
 
 	"github.com/samber/lo"
@@ -288,6 +289,7 @@ func NewCollection(collectionID int64, schema *schemapb.CollectionSchema, indexM
 
 	var loadFieldIDs typeutil.Set[int64]
 	loadSchema := typeutil.Clone(schema)
+	timestamptz.CheckAndRewriteTimestampTzDefaultValue(loadSchema)
 	// if load fields is specified, do filtering logic
 	// otherwise use all fields for backward compatibility
 	if len(loadMetaInfo.GetLoadFields()) > 0 {
