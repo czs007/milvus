@@ -1,8 +1,30 @@
 grammar Plan;
 
 expr:
-  Identifier (op1=(ADD | SUB) INTERVAL interval_string=StringLiteral)? op2=(LT | LE | GT | GE | EQ | NE) ISO compare_string=StringLiteral # TimestamptzCompareForward
-	| ISO compare_string=StringLiteral op2=(LT | LE | GT | GE | EQ | NE) Identifier (op1=(ADD | SUB) INTERVAL interval_string=StringLiteral)? # TimestamptzCompareReverse
+    id=Identifier
+    (op_int=(ADD | SUB) INTERVAL ival=StringLiteral)?
+    op2=(LT | LE | GT | GE | EQ | NE)
+    ts=StringLiteral
+    {p.isTimestamptzCompare($id.text)}?                                   # TimestamptzCompareForward
+  | ts=StringLiteral
+    op2=(LT | LE | GT | GE | EQ | NE)
+    id=Identifier
+    (op_int=(ADD | SUB) INTERVAL ival=StringLiteral)?
+    {p.isTimestamptzCompare($id.text)}?                                   # TimestamptzCompareReverse
+  | tsA=StringLiteral
+    op1 = (LT | LE)
+    id=Identifier
+    (op_int=(ADD | SUB) INTERVAL ival=StringLiteral)?
+    op2 = (LT | LE)
+    tsB=StringLiteral
+    {p.isTimestamptzCompare($id.text)}?                                         # TimestamptzRange
+  | tsA=StringLiteral
+    op1 = (GT | GE)
+    id=Identifier
+    (op_int=(ADD | SUB) INTERVAL ival=StringLiteral)?
+    op2 = (GT | GE)
+    tsB=StringLiteral
+    {p.isTimestamptzCompare($id.text)}?                               # TimestamptzReverseRange
 	| IntegerConstant											                     # Integer
 	| FloatingConstant										                     # Floating
 	| BooleanConstant										                     # Boolean
