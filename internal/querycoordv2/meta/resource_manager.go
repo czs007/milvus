@@ -44,8 +44,8 @@ import (
 )
 
 var (
-	ErrNodeNotEnough                 = errors.New("nodes not enough")
-	ErrResourceGroupOperationIgnored = errors.New("operation ignored")
+	ErrNodeNotEnough                 = merr.ErrNodeLack
+	ErrResourceGroupOperationIgnored = merr.WrapErrServiceInternalMsg("operation ignored")
 )
 
 type ResourceManager struct {
@@ -1096,7 +1096,7 @@ func (rm *ResourceManager) unassignNode(ctx context.Context, node int64) (string
 		return rg.GetName(), nil
 	}
 
-	return "", errors.Errorf("node %d not found in any resource group", node)
+	return "", merr.WrapErrNodeNotFound(node, "not found in any resource group")
 }
 
 // validateResourceGroupConfig validate resource group config.

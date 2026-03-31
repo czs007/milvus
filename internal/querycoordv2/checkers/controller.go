@@ -31,9 +31,10 @@ import (
 	"github.com/milvus-io/milvus/internal/querycoordv2/task"
 	"github.com/milvus-io/milvus/internal/querycoordv2/utils"
 	"github.com/milvus-io/milvus/pkg/v2/log"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
-var errTypeNotFound = errors.New("checker type not found")
+var errTypeNotFound = merr.WrapErrParameterInvalidMsg("checker type not found")
 
 type GetBalancerFunc = func() balance.Balance
 

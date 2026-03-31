@@ -25,12 +25,13 @@ import (
 	"github.com/cockroachdb/errors"
 
 	kvfactory "github.com/milvus-io/milvus/internal/util/dependency/kv"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 )
 
 var Params *paramtable.ComponentParam = paramtable.Get()
 
-var ErrFailedAllocateID = errors.New("failed to allocate ID")
+var ErrFailedAllocateID = merr.WrapErrServiceInternalMsg("failed to allocate ID")
 
 // GenerateEtcdConfig returns a etcd config with a random root path,
 // NOTE: for test only

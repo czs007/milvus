@@ -26,9 +26,10 @@ import (
 	"github.com/milvus-io/milvus/internal/querycoordv2/meta"
 	"github.com/milvus-io/milvus/pkg/v2/proto/querypb"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
-var errReleaseCollectionNotLoaded = errors.New("release collection not loaded")
+var errReleaseCollectionNotLoaded = merr.ErrCollectionNotLoaded
 
 // broadcastDropLoadConfigCollectionV2ForReleaseCollection broadcasts the drop load config message for release collection.
 func (s *Server) broadcastDropLoadConfigCollectionV2ForReleaseCollection(ctx context.Context, req *querypb.ReleaseCollectionRequest) error {

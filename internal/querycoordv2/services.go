@@ -1200,7 +1200,7 @@ func (s *Server) RunAnalyzer(ctx context.Context, req *querypb.RunAnalyzerReques
 
 	if len(nodeIDs) == 0 {
 		return &milvuspb.RunAnalyzerResponse{
-			Status: merr.Status(errors.New("failed to validate analyzer, no delegator")),
+			Status: merr.Status(merr.WrapErrServiceInternalMsg("failed to validate analyzer, no delegator")),
 		}, nil
 	}
 
@@ -1222,7 +1222,7 @@ func (s *Server) ValidateAnalyzer(ctx context.Context, req *querypb.ValidateAnal
 	nodeIDs := snmanager.StaticStreamingNodeManager.GetStreamingQueryNodeIDs().Collect()
 
 	if len(nodeIDs) == 0 {
-		return &querypb.ValidateAnalyzerResponse{Status: merr.Status(errors.New("failed to validate analyzer, no delegator"))}, nil
+		return &querypb.ValidateAnalyzerResponse{Status: merr.Status(merr.WrapErrServiceInternalMsg("failed to validate analyzer, no delegator"))}, nil
 	}
 
 	idx := s.nodeIdx.Inc() % uint32(len(nodeIDs))
@@ -1244,7 +1244,7 @@ func (s *Server) ComputePhraseMatchSlop(ctx context.Context, req *querypb.Comput
 
 	if len(nodeIDs) == 0 {
 		return &querypb.ComputePhraseMatchSlopResponse{
-			Status: merr.Status(errors.New("failed to compute phrase match slop, no query node available")),
+			Status: merr.Status(merr.WrapErrServiceInternalMsg("failed to compute phrase match slop, no query node available")),
 		}, nil
 	}
 

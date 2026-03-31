@@ -33,7 +33,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
-var ErrIgnoredAlterLoadConfig = errors.New("ignored alter load config")
+var ErrIgnoredAlterLoadConfig = merr.WrapErrServiceInternalMsg("ignored alter load config")
 
 type AlterLoadConfigRequest struct {
 	Meta           *meta.Meta
