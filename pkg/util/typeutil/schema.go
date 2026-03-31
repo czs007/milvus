@@ -340,7 +340,7 @@ func EstimateEntitySize(fieldsData []*schemapb.FieldData, rowOffset int, fieldId
 		case schemapb.DataType_ArrayOfVector:
 			arrayVector := fs.GetVectors().GetVectorArray()
 			if int(fieldIdx) >= len(arrayVector.GetData()) {
-				return 0, errors.New("offset out range of field datas")
+				return 0, merr.WrapErrParameterInvalidMsg("offset out range of field datas")
 			}
 			res += calcVectorSize(arrayVector.GetData()[fieldIdx], arrayVector.GetElementType())
 		default:
@@ -1581,10 +1581,10 @@ func UpdateFieldData(base, update []*schemapb.FieldData, baseIdx, updateIdx int6
 						var updateMap map[string]interface{}
 						// unmarshal base and update
 						if err := json.Unmarshal(baseData.Data[baseIdx], &baseMap); err != nil {
-							return fmt.Errorf("failed to unmarshal base json: %v", err)
+							return merr.WrapErrServiceInternalErr(err, "failed to unmarshal base json")
 						}
 						if err := json.Unmarshal(updateData.Data[updateIdx], &updateMap); err != nil {
-							return fmt.Errorf("failed to unmarshal update json: %v", err)
+							return merr.WrapErrServiceInternalErr(err, "failed to unmarshal update json")
 						}
 						// merge
 						for k, v := range updateMap {
@@ -1593,7 +1593,7 @@ func UpdateFieldData(base, update []*schemapb.FieldData, baseIdx, updateIdx int6
 						// marshal back
 						newJSON, err := json.Marshal(baseMap)
 						if err != nil {
-							return fmt.Errorf("failed to marshal merged json: %v", err)
+							return merr.WrapErrServiceInternalErr(err, "failed to marshal merged json")
 						}
 						baseScalar.GetJsonData().Data[baseIdx] = newJSON
 					} else {
@@ -1622,7 +1622,7 @@ func UpdateFieldData(base, update []*schemapb.FieldData, baseIdx, updateIdx int6
 					baseData.Data[baseIdx] = updateData.Data[updateIdx]
 				}
 			default:
-				return fmt.Errorf("unsupported scalar field type: %s", baseFieldData.Type.String())
+				return merr.WrapErrParameterInvalidMsg("unsupported scalar field type: %s", baseFieldData.Type.String())
 			}
 
 		case *schemapb.FieldData_Vectors:
@@ -1703,10 +1703,10 @@ func UpdateFieldData(base, update []*schemapb.FieldData, baseIdx, updateIdx int6
 					}
 				}
 			default:
-				return fmt.Errorf("unsupported vector field type: %s", baseFieldData.Type.String())
+				return merr.WrapErrParameterInvalidMsg("unsupported vector field type: %s", baseFieldData.Type.String())
 			}
 		default:
-			return fmt.Errorf("unsupported field type: %s", baseFieldData.Type.String())
+			return merr.WrapErrParameterInvalidMsg("unsupported field type: %s", baseFieldData.Type.String())
 		}
 	}
 
@@ -1718,7 +1718,7 @@ func UpdateFieldDataByColumn(base, update *schemapb.FieldData, baseIndices, upda
 		return nil
 	}
 	if len(baseIndices) != len(updateIndices) {
-		return fmt.Errorf("baseIndices and updateIndices length mismatch: %d vs %d", len(baseIndices), len(updateIndices))
+		return merr.WrapErrParameterInvalidMsg("baseIndices and updateIndices length mismatch: %d vs %d", len(baseIndices), len(updateIndices))
 	}
 
 	// Handle ValidData
@@ -1790,10 +1790,10 @@ func UpdateFieldDataByColumn(base, update *schemapb.FieldData, baseIndices, upda
 					var updateMap map[string]interface{}
 					// unmarshal base and update
 					if err := json.Unmarshal(baseData[baseIdx], &baseMap); err != nil {
-						return fmt.Errorf("failed to unmarshal base json: %v", err)
+						return merr.WrapErrServiceInternalErr(err, "failed to unmarshal base json")
 					}
 					if err := json.Unmarshal(updateData[updateIdx], &updateMap); err != nil {
-						return fmt.Errorf("failed to unmarshal update json: %v", err)
+						return merr.WrapErrServiceInternalErr(err, "failed to unmarshal update json")
 					}
 					// merge
 					for k, v := range updateMap {
@@ -1802,7 +1802,7 @@ func UpdateFieldDataByColumn(base, update *schemapb.FieldData, baseIndices, upda
 					// marshal back
 					newJSON, err := json.Marshal(baseMap)
 					if err != nil {
-						return fmt.Errorf("failed to marshal merged json: %v", err)
+						return merr.WrapErrServiceInternalErr(err, "failed to marshal merged json")
 					}
 					baseData[baseIdx] = newJSON
 				}
@@ -1901,7 +1901,7 @@ func MergeFieldData(dst []*schemapb.FieldData, src []*schemapb.FieldData) error 
 		switch fieldType := srcFieldData.Field.(type) {
 		case *schemapb.FieldData_Scalars:
 			if _, ok := fieldID2Data[srcFieldData.FieldId]; !ok {
-				return errors.New("fields in src but not in dst: " + srcFieldData.Type.String())
+				return merr.WrapErrParameterInvalidMsg("fields in src but not in dst: %s", srcFieldData.Type.String())
 			}
 			fieldData := fieldID2Data[srcFieldData.FieldId]
 			fieldData.ValidData = append(fieldData.ValidData, srcFieldData.GetValidData()...)
@@ -2019,11 +2019,11 @@ func MergeFieldData(dst []*schemapb.FieldData, src []*schemapb.FieldData) error 
 					dstScalar.GetBytesData().Data = append(dstScalar.GetBytesData().Data, srcScalar.BytesData.Data...)
 				}
 			default:
-				return errors.New("unsupported data type: " + srcFieldData.Type.String())
+				return merr.WrapErrParameterInvalidMsg("unsupported data type: %s", srcFieldData.Type.String())
 			}
 		case *schemapb.FieldData_Vectors:
 			if _, ok := fieldID2Data[srcFieldData.FieldId]; !ok {
-				return errors.New("fields in src but not in dst: " + srcFieldData.Type.String())
+				return merr.WrapErrParameterInvalidMsg("fields in src but not in dst: %s", srcFieldData.Type.String())
 			}
 			fieldData := fieldID2Data[srcFieldData.FieldId]
 			// Merge ValidData for nullable vectors
@@ -2097,7 +2097,7 @@ func MergeFieldData(dst []*schemapb.FieldData, src []*schemapb.FieldData) error 
 					dstVector.GetVectorArray().Data = append(dstVector.GetVectorArray().Data, srcVector.VectorArray.Data...)
 				}
 			default:
-				return errors.New("unsupported data type: " + srcFieldData.Type.String())
+				return merr.WrapErrParameterInvalidMsg("unsupported data type: %s", srcFieldData.Type.String())
 			}
 		}
 	}
@@ -2178,7 +2178,7 @@ func GetPrimaryFieldSchema(schema *schemapb.CollectionSchema) (*schemapb.FieldSc
 		}
 	}
 
-	return nil, errors.New("primary field is not found")
+	return nil, merr.WrapErrServiceInternalMsg("primary field is not found")
 }
 
 // ValidateExternalCollectionSchema ensures unsupported features are disabled for external collections.
@@ -2188,15 +2188,15 @@ func ValidateExternalCollectionSchema(schema *schemapb.CollectionSchema) error {
 	}
 
 	if len(schema.GetFunctions()) > 0 {
-		return fmt.Errorf("external collection %s does not support functions", schema.GetName())
+		return merr.WrapErrParameterInvalidMsg("external collection %s does not support functions", schema.GetName())
 	}
 
 	if schema.GetEnableDynamicField() {
-		return fmt.Errorf("external collection %s does not support dynamic field", schema.GetName())
+		return merr.WrapErrParameterInvalidMsg("external collection %s does not support dynamic field", schema.GetName())
 	}
 
 	if len(schema.GetStructArrayFields()) > 0 {
-		return fmt.Errorf("external collection %s does not support struct fields", schema.GetName())
+		return merr.WrapErrParameterInvalidMsg("external collection %s does not support struct fields", schema.GetName())
 	}
 
 	for _, field := range schema.GetFields() {
@@ -2207,26 +2207,26 @@ func ValidateExternalCollectionSchema(schema *schemapb.CollectionSchema) error {
 		}
 
 		if field.GetIsPrimaryKey() {
-			return fmt.Errorf("external collection %s does not support primary key field %s", schema.GetName(), field.GetName())
+			return merr.WrapErrParameterInvalidMsg("external collection %s does not support primary key field %s", schema.GetName(), field.GetName())
 		}
 		if field.GetIsPartitionKey() {
-			return fmt.Errorf("external collection %s does not support partition key field %s", schema.GetName(), field.GetName())
+			return merr.WrapErrParameterInvalidMsg("external collection %s does not support partition key field %s", schema.GetName(), field.GetName())
 		}
 		if field.GetIsClusteringKey() {
-			return fmt.Errorf("external collection %s does not support clustering key field %s", schema.GetName(), field.GetName())
+			return merr.WrapErrParameterInvalidMsg("external collection %s does not support clustering key field %s", schema.GetName(), field.GetName())
 		}
 		if field.GetAutoID() {
-			return fmt.Errorf("external collection %s does not support auto id on field %s", schema.GetName(), field.GetName())
+			return merr.WrapErrParameterInvalidMsg("external collection %s does not support auto id on field %s", schema.GetName(), field.GetName())
 		}
 
 		helper := CreateFieldSchemaHelper(field)
 		if helper.EnableMatch() {
-			return fmt.Errorf("external collection %s does not support text match on field %s", schema.GetName(), field.GetName())
+			return merr.WrapErrParameterInvalidMsg("external collection %s does not support text match on field %s", schema.GetName(), field.GetName())
 		}
 
 		// Validate external_field mapping is set for all user fields
 		if field.GetExternalField() == "" {
-			return fmt.Errorf("field '%s' in external collection %s must have external_field mapping", field.GetName(), schema.GetName())
+			return merr.WrapErrParameterInvalidMsg("field '%s' in external collection %s must have external_field mapping", field.GetName(), schema.GetName())
 		}
 	}
 
@@ -2246,7 +2246,7 @@ func GetPartitionKeyFieldSchema(schema *schemapb.CollectionSchema) (*schemapb.Fi
 		}
 	}
 
-	return nil, errors.New("partition key field is not found")
+	return nil, merr.WrapErrServiceInternalMsg("partition key field is not found")
 }
 
 // GetDynamicField returns the dynamic field if it exists.
@@ -2297,7 +2297,7 @@ func GetPrimaryFieldData(datas []*schemapb.FieldData, primaryFieldSchema *schema
 	}
 
 	if primaryFieldData == nil {
-		return nil, fmt.Errorf("can't find data for primary field: %v", primaryFieldName)
+		return nil, merr.WrapErrParameterInvalidMsg("can't find data for primary field: %v", primaryFieldName)
 	}
 
 	return primaryFieldData, nil
@@ -2790,25 +2790,25 @@ func trimSparseFloatArray(vec *schemapb.SparseFloatArray) {
 func ValidateSparseFloatRows(rows ...[]byte) error {
 	for _, row := range rows {
 		if row == nil {
-			return errors.New("nil sparse float vector")
+			return merr.WrapErrParameterInvalidMsg("nil sparse float vector")
 		}
 		if len(row)%8 != 0 {
-			return fmt.Errorf("invalid data length in sparse float vector: %d", len(row))
+			return merr.WrapErrParameterInvalidMsg("invalid data length in sparse float vector: %d", len(row))
 		}
 		for i := 0; i < SparseFloatRowElementCount(row); i++ {
 			idx := SparseFloatRowIndexAt(row, i)
 			if idx == math.MaxUint32 {
-				return errors.New("invalid index in sparse float vector: must be less than 2^32-1")
+				return merr.WrapErrParameterInvalidMsg("invalid index in sparse float vector: must be less than 2^32-1")
 			}
 			if i > 0 && idx <= SparseFloatRowIndexAt(row, i-1) {
-				return errors.New("unsorted or same indices in sparse float vector")
+				return merr.WrapErrParameterInvalidMsg("unsorted or same indices in sparse float vector")
 			}
 			val := SparseFloatRowValueAt(row, i)
 			if err := VerifyFloat(float64(val)); err != nil {
 				return err
 			}
 			if val < 0 {
-				return errors.New("negative value in sparse float vector")
+				return merr.WrapErrParameterInvalidMsg("negative value in sparse float vector")
 			}
 		}
 	}
@@ -2906,16 +2906,16 @@ func CreateSparseFloatRowFromMap(input map[string]interface{}) ([]byte, error) {
 			if num, err := strconv.ParseFloat(v.String(), 64); err == nil {
 				val = num
 			} else {
-				return 0, fmt.Errorf("invalid value type in JSON: %s", reflect.TypeOf(v))
+				return 0, merr.WrapErrParameterInvalidMsg("invalid value type in JSON: %s", reflect.TypeOf(v))
 			}
 		default:
-			return 0, fmt.Errorf("invalid value type in JSON: %s", reflect.TypeOf(key))
+			return 0, merr.WrapErrParameterInvalidMsg("invalid value type in JSON: %s", reflect.TypeOf(key))
 		}
 		if VerifyFloat(val) != nil {
-			return 0, fmt.Errorf("invalid value in JSON: %v", val)
+			return 0, merr.WrapErrParameterInvalidMsg("invalid value in JSON: %v", val)
 		}
 		if val > math.MaxFloat32 {
-			return 0, fmt.Errorf("value too large in JSON: %v", val)
+			return 0, merr.WrapErrParameterInvalidMsg("value too large in JSON: %v", val)
 		}
 		return float32(val), nil
 	}
@@ -2928,7 +2928,7 @@ func CreateSparseFloatRowFromMap(input map[string]interface{}) ([]byte, error) {
 		case float64:
 			// check if the float64 is actually an integer
 			if v != float64(int64(v)) {
-				return 0, fmt.Errorf("invalid index in JSON: %v", v)
+				return 0, merr.WrapErrParameterInvalidMsg("invalid index in JSON: %v", v)
 			}
 			idx = int64(v)
 		case json.Number:
@@ -2938,10 +2938,10 @@ func CreateSparseFloatRowFromMap(input map[string]interface{}) ([]byte, error) {
 				return 0, err
 			}
 		default:
-			return 0, fmt.Errorf("invalid index type in JSON: %s", reflect.TypeOf(key))
+			return 0, merr.WrapErrParameterInvalidMsg("invalid index type in JSON: %s", reflect.TypeOf(key))
 		}
 		if idx >= math.MaxUint32 {
-			return 0, fmt.Errorf("index too large in JSON: %v", idx)
+			return 0, merr.WrapErrParameterInvalidMsg("index too large in JSON: %v", idx)
 		}
 		return uint32(idx), nil
 	}
@@ -2982,11 +2982,11 @@ func CreateSparseFloatRowFromMap(input map[string]interface{}) ([]byte, error) {
 			values = append(values, val)
 		}
 	} else {
-		return nil, errors.New("invalid JSON input")
+		return nil, merr.WrapErrParameterInvalidMsg("invalid JSON input")
 	}
 
 	if len(indices) != len(values) {
-		return nil, errors.New("indices and values length mismatch")
+		return nil, merr.WrapErrParameterInvalidMsg("indices and values length mismatch")
 	}
 
 	sortedIndices, sortedValues := SortSparseFloatRow(indices, values)
@@ -3043,10 +3043,10 @@ func GetNeedProcessFunctions(fieldIDs []int64, functions []*schemapb.FunctionSch
 	for _, fieldID := range fieldIDs {
 		if f, exists := fieldIDFuncMapping[fieldID]; exists {
 			if f.Type == schemapb.FunctionType_BM25 {
-				return nil, fmt.Errorf("Attempt to insert bm25 function output field")
+				return nil, merr.WrapErrParameterInvalidMsg("Attempt to insert bm25 function output field")
 			}
 			if !allowNonBM25Outputs {
-				return nil, fmt.Errorf("Insert data has function output field, but collection's property `collection.function.allowInsertNonBM25FunctionOutputs` is not enable")
+				return nil, merr.WrapErrParameterInvalidMsg("Insert data has function output field, but collection's property `collection.function.allowInsertNonBM25FunctionOutputs` is not enable")
 			}
 			delete(funCandidate, f.Name)
 		}
@@ -3137,6 +3137,6 @@ func ExtractStructFieldName(fieldName string) (string, error) {
 	} else if len(parts) == 2 {
 		return parts[1][:len(parts[1])-1], nil
 	} else {
-		return "", fmt.Errorf("invalid struct field name: %s, more than one [ found", fieldName)
+		return "", merr.WrapErrParameterInvalidMsg("invalid struct field name: %s, more than one [ found", fieldName)
 	}
 }
