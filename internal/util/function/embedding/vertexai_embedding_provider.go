@@ -310,7 +310,7 @@ func (provider *VertexAIEmbeddingProvider) callGeminiEmbedding(texts []string, m
 			return nil, err
 		}
 		if len(resp.Embedding.Values) != int(provider.fieldDim) {
-			return nil, fmt.Errorf("The required embedding dim is [%d], but the embedding obtained from the model is [%d]",
+			return nil, merr.WrapErrParameterInvalidMsg("The required embedding dim is [%d], but the embedding obtained from the model is [%d]",
 				provider.fieldDim, len(resp.Embedding.Values))
 		}
 		data = append(data, resp.Embedding.Values)
