@@ -36,6 +36,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexcgopb"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 )
 
@@ -433,7 +434,7 @@ func initCipher() error {
 
 	initConfigs := buildCipherInitConfig()
 	if err = cipherVal.Init(initConfigs); err != nil {
-		return fmt.Errorf("fail to init configs for the cipher plugin, error: %s", err.Error())
+		return merr.WrapErrServiceInternalErr(err, "fail to init configs for the cipher plugin")
 	}
 
 	registerCallback()
@@ -490,7 +491,7 @@ func reloadCipherConfig(ctx context.Context, key, oldValue, newValue string) err
 		log.Error("fail to reload cipher plugin config",
 			zap.String("key", key),
 			zap.Error(err))
-		return err
+		return merr.WrapErrServiceInternalErr(err, "fail to reload cipher plugin config, key:%s", key)
 	}
 
 	log.Info("cipher plugin config reloaded successfully", zap.String("key", key))

@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 )
 
 type ErrSuite struct {
@@ -34,7 +33,6 @@ type ErrSuite struct {
 }
 
 func (s *ErrSuite) SetupSuite() {
-	paramtable.Init()
 }
 
 func (s *ErrSuite) TestCode() {
@@ -101,7 +99,7 @@ func (s *ErrSuite) TestWrap() {
 	s.ErrorIs(WrapErrResourceGroupReachLimit("test_ResourceGroup", 1, "failed to get ResourceGroup"), ErrResourceGroupReachLimit)
 	s.ErrorIs(WrapErrResourceGroupIllegalConfig("test_ResourceGroup", nil, "failed to get ResourceGroup"), ErrResourceGroupIllegalConfig)
 	s.ErrorIs(WrapErrResourceGroupNodeNotEnough("test_ResourceGroup", 1, 2, "failed to get ResourceGroup"), ErrResourceGroupNodeNotEnough)
-	s.ErrorIs(WrapErrResourceGroupServiceAvailable("test_ResourceGroup", "failed to get ResourceGroup"), ErrResourceGroupServiceAvailable)
+	s.ErrorIs(WrapErrResourceGroupServiceUnAvailable("test_ResourceGroup", "failed to get ResourceGroup"), ErrResourceGroupServiceUnAvailable)
 
 	// Replica related
 	s.ErrorIs(WrapErrReplicaNotFound(1, "failed to get replica"), ErrReplicaNotFound)
@@ -221,7 +219,7 @@ func (s *ErrSuite) TestIsHealthy() {
 	}
 	for _, tc := range cases {
 		s.Run(tc.code.String(), func() {
-			s.Equal(tc.expect, IsHealthy(tc.code) == nil)
+			s.Equal(tc.expect, CheckHealthy(tc.code) == nil)
 		})
 	}
 }

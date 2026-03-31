@@ -18,6 +18,7 @@ import (
 
 	_ "github.com/milvus-io/milvus/internal/util/cgo"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // Property keys - matching milvus-storage/properties.h
@@ -59,7 +60,7 @@ const (
 // StorageConfig are mapped to corresponding key-value pairs in Properties.
 func MakePropertiesFromStorageConfig(storageConfig *indexpb.StorageConfig, extraKVs map[string]string) (*C.LoonProperties, error) {
 	if storageConfig == nil {
-		return nil, fmt.Errorf("storageConfig is required")
+		return nil, merr.WrapErrStorageMsg("storageConfig is required")
 	}
 
 	// Prepare key-value pairs from StorageConfig
@@ -314,7 +315,7 @@ func HandleLoonFFIResult(ffiResult C.LoonFFIResult) error {
 			errStr = C.GoString(errMsg)
 		}
 
-		return fmt.Errorf("FFI operation failed: %s", errStr)
+		return merr.WrapErrStorageMsg("FFI operation failed: %s", errStr)
 	}
 	return nil
 }

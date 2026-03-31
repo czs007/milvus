@@ -281,7 +281,7 @@ func MergeSort(batchSize uint64, schema *schemapb.CollectionSchema, rr []RecordR
 				return 0
 			})
 		default:
-			return 0, merr.WrapErrParameterInvalidMsg("unsupported type for sorting key")
+			return 0, merr.WrapErrServiceInternal("unsupported type for sorting key")
 		}
 	}
 

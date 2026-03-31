@@ -19,7 +19,6 @@
 package rerank
 
 import (
-	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -77,7 +76,7 @@ func organizeFieldIdData(multipSearchResultData []*schemapb.SearchResultData, in
 				}
 			}
 			if len(idField) != len(inputFieldIds) {
-				return nil, fmt.Errorf("Search reaults mismatch rerank inputs")
+				return nil, merr.WrapErrFunctionFailedMsg("Search reaults mismatch rerank inputs")
 			}
 		}
 		multipIdField = append(multipIdField, idField)
@@ -268,12 +267,11 @@ func groupScore[T PKType](group *Group[T], scorerType string) (float32, error) {
 		return group.sumScore, nil
 	case avgScorer:
 		if len(group.idList) == 0 {
-			return 0, merr.WrapErrParameterInvalid(1, len(group.idList),
-				"input group for score must have at least one id, must be sth wrong within code")
+			return 0, merr.WrapErrServiceInternalMsg("input group for score must have at least one id, got %d, there must be sth wrong within code", len(group.idList))
 		}
 		return group.sumScore / float32(len(group.idList)), nil
 	default:
-		return 0, merr.WrapErrParameterInvalidMsg("input group scorer type: %s is not supported!", scorerType)
+		return 0, merr.WrapErrServiceInternalMsg("input group scorer type: %s is not supported!", scorerType)
 	}
 }
 
@@ -426,7 +424,7 @@ func getField(inputField *schemapb.FieldData, start int64, size int64) (any, err
 		}
 		return []string{}, nil
 	default:
-		return nil, fmt.Errorf("Unsupported field type:%s", inputField.Type.String())
+		return nil, merr.WrapErrFunctionFailedMsg("Unsupported field type:%s", inputField.Type.String())
 	}
 }
 
@@ -460,7 +458,7 @@ func getMergeFunc[T PKType](name string) (scoreMergeFunc[T], error) {
 	case "sum":
 		return sumMerge[T], nil
 	default:
-		return nil, fmt.Errorf("Unsupport score mode: [%s], only supports: [max, avg, sum]", name)
+		return nil, merr.WrapErrFunctionFailedMsg("Unsupport score mode: [%s], only supports: [max, avg, sum]", name)
 	}
 }
 
@@ -542,7 +540,7 @@ func getPKType(collSchema *schemapb.CollectionSchema) (schemapb.DataType, error)
 	}
 
 	if pkType == schemapb.DataType_None {
-		return pkType, fmt.Errorf("Collection %s can not found pk field", collSchema.Name)
+		return pkType, merr.WrapErrFunctionFailedMsg("Collection %s can not found pk field", collSchema.Name)
 	}
 	return pkType, nil
 }

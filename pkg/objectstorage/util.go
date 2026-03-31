@@ -169,7 +169,7 @@ func NewMinioClient(ctx context.Context, c *Config) (*minio.Client, error) {
 					return err
 				}
 			} else {
-				return fmt.Errorf("bucket %s not Existed", c.BucketName)
+				return merr.WrapErrServiceInternalMsg("bucket %s not Existed", c.BucketName)
 			}
 		}
 		return nil
@@ -231,7 +231,7 @@ func NewAzureObjectStorageClient(ctx context.Context, c *Config) (*service.Clien
 		return nil, err
 	}
 	if c.BucketName == "" {
-		return nil, merr.WrapErrParameterInvalidMsg("invalid empty bucket name")
+		return nil, merr.WrapErrServiceInternal("invalid empty bucket name")
 	}
 	// check valid in first query
 	checkBucketFn := func() error {
@@ -337,7 +337,7 @@ func NewGcpObjectStorageClient(ctx context.Context, c *Config) (*storage.Client,
 	}
 
 	if c.BucketName == "" {
-		return nil, merr.WrapErrParameterInvalidMsg("invalid empty bucket name")
+		return nil, merr.WrapErrServiceInternal("invalid empty bucket name")
 	}
 	// Check bucket validity
 	checkBucketFn := func() error {
@@ -390,16 +390,16 @@ func newTLSHTTPClient(minVersion string) (*http.Client, error) {
 
 func getProjectId(gcpCredentialJSON string) (string, error) {
 	if gcpCredentialJSON == "" {
-		return "", errors.New("the JSON string is empty")
+		return "", merr.WrapErrServiceInternalMsg("the JSON string is empty")
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(gcpCredentialJSON), &data); err != nil {
-		return "", errors.New("failed to parse Google Cloud credentials as JSON")
+		return "", merr.WrapErrSerializationFailed(err, "failed to parse Google Cloud credentials as JSON")
 	}
 	propertyValue, ok := data["project_id"]
 	projectId := fmt.Sprintf("%v", propertyValue)
 	if !ok {
-		return "", errors.New("projectId doesn't exist")
+		return "", merr.WrapErrServiceInternalMsg("projectId doesn't exist")
 	}
 	return projectId, nil
 }

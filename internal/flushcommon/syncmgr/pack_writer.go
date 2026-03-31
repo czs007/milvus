@@ -18,7 +18,6 @@ package syncmgr
 
 import (
 	"context"
-	"fmt"
 	"path"
 
 	"go.uber.org/zap"
@@ -285,7 +284,7 @@ func (bw *BulkPackWriter) writeDelta(ctx context.Context, pack *SyncPack) (*data
 
 	pkField, err := typeutil.GetPrimaryFieldSchema(bw.schema)
 	if err != nil {
-		return nil, fmt.Errorf("primary key field not found: %w", err)
+		return nil, merr.WrapErrServiceInternalErr(err, "primary key field not found")
 	}
 
 	logID, err := bw.allocator.AllocOne()
@@ -300,6 +299,10 @@ func (bw *BulkPackWriter) writeDelta(ctx context.Context, pack *SyncPack) (*data
 		ctx, pack.collectionID, pack.partitionID, pack.segmentID, logID, pkField.DataType, deltaPath,
 		storage.WithVersion(storage.StorageV1),
 		storage.WithUploader(func(ctx context.Context, kvs map[string][]byte) error {
+			// Get the only blob in the map
+			if len(kvs) != 1 {
+				return merr.WrapErrServiceInternalMsg("expected 1 blob, got %d", len(kvs))
+			}
 			for k, blob := range kvs {
 				return bw.chunkManager.Write(ctx, k, blob)
 			}

@@ -271,7 +271,7 @@ func (node *QueryNode) queryChannel(ctx context.Context, req *querypb.QueryReque
 	))
 
 	if !node.manager.Collection.Ref(req.Req.GetCollectionID(), 1) {
-		err := merr.WrapErrCollectionNotFound(req.Req.GetCollectionID())
+		err := merr.WrapErrCollectionIDNotFound(req.Req.GetCollectionID())
 		log.Warn("Query failed, failed to get collection", zap.Error(err))
 		return nil, err
 	}
@@ -377,7 +377,7 @@ func (node *QueryNode) queryStreamSegments(ctx context.Context, req *querypb.Que
 	)
 
 	if !node.manager.Collection.Ref(req.Req.GetCollectionID(), 1) {
-		err := merr.WrapErrCollectionNotFound(req.Req.GetCollectionID())
+		err := merr.WrapErrCollectionIDNotFound(req.Req.GetCollectionID())
 		log.Warn("Query stream segments failed, failed to get collection", zap.Error(err))
 		return err
 	}
@@ -414,7 +414,7 @@ func (node *QueryNode) searchChannel(ctx context.Context, req *querypb.SearchReq
 		zap.Int64("nq", req.GetReq().GetNq()),
 	)
 
-	if err := node.lifetime.Add(merr.IsHealthy); err != nil {
+	if err := node.lifetime.Add(merr.CheckHealthy); err != nil {
 		return nil, err
 	}
 	defer node.lifetime.Done()
@@ -567,7 +567,7 @@ func reduceStatisticResponse(results []*internalpb.GetStatisticsResponse) (*inte
 		for _, pair := range partialResult.Stats {
 			fn, ok := fieldMethod[pair.Key]
 			if !ok {
-				return nil, fmt.Errorf("unknown statistic field: %s", pair.Key)
+				return nil, merr.WrapErrServiceInternalMsg("unknown statistic field: %s", pair.Key)
 			}
 			if err := fn(pair.Value); err != nil {
 				return nil, err

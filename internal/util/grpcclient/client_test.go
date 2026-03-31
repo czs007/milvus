@@ -77,7 +77,7 @@ func TestClientBase_connect(t *testing.T) {
 		}
 		err := base.connect(context.Background())
 		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrConnect))
+		assert.True(t, errors.Is(err, merr.ErrConnectComponent))
 	})
 
 	t.Run("failed to get addr", func(t *testing.T) {
@@ -293,7 +293,7 @@ func testCall(t *testing.T, compressed bool) {
 			return struct{}{}, nil
 		})
 		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrConnect))
+		assert.True(t, errors.Is(err, merr.ErrConnectComponent))
 	})
 }
 
@@ -358,7 +358,7 @@ func TestClientBase_Recall(t *testing.T) {
 			return struct{}{}, nil
 		})
 		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrConnect))
+		assert.True(t, errors.Is(err, merr.ErrConnectComponent))
 	})
 }
 

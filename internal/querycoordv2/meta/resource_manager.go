@@ -237,7 +237,7 @@ func (rm *ResourceManager) updateResourceGroups(ctx context.Context, rgs map[str
 				zap.Error(err),
 			)
 		}
-		return merr.WrapErrResourceGroupServiceAvailable()
+		return merr.WrapErrResourceGroupServiceUnAvailable()
 	}
 
 	// Commit updates to memory.
@@ -434,7 +434,7 @@ func (rm *ResourceManager) DropResourceGroup(ctx context.Context, rgName string)
 			zap.String("rgName", rgName),
 			zap.Error(err),
 		)
-		return merr.WrapErrResourceGroupServiceAvailable()
+		return merr.WrapErrResourceGroupServiceUnAvailable()
 	}
 
 	// After recovering, all node assigned to these rg has been removed.
@@ -804,7 +804,7 @@ func (rm *ResourceManager) recoverRedundantNodeRG(ctx context.Context, rgName st
 		if node == -1 {
 			log.Info("failed to select redundant recover target resource group, please check resource group configuration if as expected.",
 				zap.String("rgName", sourceRG.GetName()))
-			return errors.New("all resource group reach limits")
+			return merr.WrapErrServiceInternalMsg("all resource group reach limits")
 		}
 
 		if err := rm.transferNode(ctx, targetRG.GetName(), node); err != nil {
@@ -884,12 +884,12 @@ func (rm *ResourceManager) assignIncomingNodeWithNodeCheck(ctx context.Context, 
 	nodeInfo := rm.nodeMgr.Get(node)
 	if nodeInfo == nil {
 		rm.incomingNode.Remove(node)
-		return "", errors.New("node is not online")
+		return "", merr.WrapErrNodeOffline(node, "node is not online")
 	}
 
 	if nodeInfo.IsStoppingState() {
 		rm.incomingNode.Remove(node)
-		return "", errors.New("node has been stopped")
+		return "", merr.WrapErrServiceInternalMsg("node has been stopped")
 	}
 
 	rgName, err := rm.assignIncomingNode(ctx, nodeInfo)
@@ -1050,7 +1050,7 @@ func (rm *ResourceManager) transferNode(ctx context.Context, rgName string, node
 			zap.Int64("node", node),
 			zap.Error(err),
 		)
-		return merr.WrapErrResourceGroupServiceAvailable()
+		return merr.WrapErrResourceGroupServiceUnAvailable()
 	}
 
 	// Commit updates to memory.

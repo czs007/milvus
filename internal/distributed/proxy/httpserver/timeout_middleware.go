@@ -26,7 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cockroachdb/errors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
@@ -83,7 +82,7 @@ func (w *Writer) Write(data []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.timeout.Load() || w.body == nil {
-		return 0, errors.New("Response writer closed")
+		return 0, merr.WrapErrServiceInternalMsg("Response writer closed")
 	}
 	return w.body.Write(data)
 }

@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
-	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
 	"github.com/tikv/client-go/v2/txnkv"
@@ -458,7 +457,7 @@ func (s *Server) SetSession(session sessionutil.SessionInterface) error {
 	s.session = session
 	s.icSession = session
 	if s.session == nil {
-		return errors.New("session is nil, the etcd client connection may have failed")
+		return merr.WrapErrServiceInternalMsg("session is nil, the etcd client connection may have failed")
 	}
 	return nil
 }
@@ -1014,7 +1013,7 @@ func (s *Server) flushFlushingSegment(ctx context.Context, segmentID UniqueID) e
 				return ctx.Err()
 			}
 			// underlying etcd may return context canceled, so we need to return a error to retry.
-			return errors.New("flush segment complete failed")
+			return merr.WrapErrServiceInternalMsg("flush segment complete failed")
 		}
 		return nil
 	}, retry.AttemptAlways())
@@ -1174,7 +1173,7 @@ func (s *Server) loadCollectionFromRootCoord(ctx context.Context, collectionID i
 		return err
 	}
 	if !has {
-		return merr.WrapErrCollectionNotFound(collectionID)
+		return merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 
 	resp, err := s.broker.DescribeCollectionInternal(ctx, collectionID)

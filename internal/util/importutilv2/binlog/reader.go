@@ -370,7 +370,7 @@ OUTER:
 		row := insertData.GetRow(i)
 		err = result.Append(row)
 		if err != nil {
-			return nil, merr.WrapErrImportFailed(fmt.Sprintf("failed to append row, err=%s", err.Error()))
+			return nil, merr.WrapErrImportSysFailed(fmt.Sprintf("failed to append row, err=%s", err.Error()))
 		}
 	}
 	return result, nil

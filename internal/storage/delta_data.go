@@ -126,7 +126,7 @@ func NewDeltaDataWithPkType(cap int64, pkType schemapb.DataType) (*DeltaData, er
 
 func NewDeltaDataWithData(pks PrimaryKeys, tss []uint64) (*DeltaData, error) {
 	if pks.Len() != len(tss) {
-		return nil, merr.WrapErrParameterInvalidMsg("length of pks and tss not equal")
+		return nil, merr.WrapErrServiceInternal("length of pks and tss not equal")
 	}
 	dd := &DeltaData{
 		deletePks:        pks,
@@ -167,23 +167,23 @@ func (dl *DeleteLog) Parse(val string) error {
 		pkRes := result.Get("pk")
 		pkTypeRes := result.Get("pkType")
 		if !tsRes.Exists() || !pkRes.Exists() || !pkTypeRes.Exists() {
-			return fmt.Errorf("invalid delete log json: missing required fields in %s", val)
+			return merr.WrapErrParameterInvalidMsg("invalid delete log json: missing required fields in %s", val)
 		}
 		dl.Ts = tsRes.Uint()
 		dl.PkType = pkTypeRes.Int()
 		switch dl.PkType {
 		case int64(schemapb.DataType_Int64):
 			if pkRes.Type != gjson.Number {
-				return fmt.Errorf("invalid delete log: pkType is Int64 but pk is not a number in %s", val)
+				return merr.WrapErrParameterInvalidMsg("invalid delete log: pkType is Int64 but pk is not a number in %s", val)
 			}
 			dl.Pk = &Int64PrimaryKey{Value: pkRes.Int()}
 		case int64(schemapb.DataType_VarChar):
 			if pkRes.Type != gjson.String {
-				return fmt.Errorf("invalid delete log: pkType is VarChar but pk is not a string in %s", val)
+				return merr.WrapErrParameterInvalidMsg("invalid delete log: pkType is VarChar but pk is not a string in %s", val)
 			}
 			dl.Pk = &VarCharPrimaryKey{Value: pkRes.String()}
 		default:
-			return fmt.Errorf("invalid delete log: unsupported pkType %d in %s", dl.PkType, val)
+			return merr.WrapErrParameterInvalidMsg("invalid delete log: unsupported pkType %d in %s", dl.PkType, val)
 		}
 		return nil
 	}
@@ -192,7 +192,7 @@ func (dl *DeleteLog) Parse(val string) error {
 	// compatible with fmt.Sprintf("%d,%d", pk, ts)
 	splits := strings.Split(val, ",")
 	if len(splits) != 2 {
-		return fmt.Errorf("the format of delta log is incorrect, %v can not be split", val)
+		return merr.WrapErrParameterInvalidMsg("the format of delta log is incorrect, %v can not be split", val)
 	}
 	pk, err := strconv.ParseInt(splits[0], 10, 64)
 	if err != nil {

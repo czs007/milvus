@@ -122,7 +122,7 @@ func (s *Server) flushCollection(ctx context.Context, collectionID UniqueID, flu
 		return nil, err
 	}
 	if coll == nil {
-		return nil, merr.WrapErrCollectionNotFound(collectionID)
+		return nil, merr.WrapErrCollectionIDNotFound(collectionID)
 	}
 	// channel checkpoints must be gotten before sealSegment, make sure checkpoints is earlier than segment's endts
 	for _, vchannel := range coll.VChannelNames {
@@ -1907,7 +1907,7 @@ func (s *Server) createImportJobFromAck(ctx context.Context, in *internalpb.Impo
 	})
 	importCollectionInfo, err := s.handler.GetCollection(ctx, in.GetCollectionID())
 	if errors.Is(err, merr.ErrCollectionNotFound) {
-		resp.Status = merr.Status(merr.WrapErrCollectionNotFound(in.GetCollectionID()))
+		resp.Status = merr.Status(merr.WrapErrCollectionIDNotFound(in.GetCollectionID()))
 		return resp, nil
 	}
 	if err != nil {
@@ -1915,7 +1915,7 @@ func (s *Server) createImportJobFromAck(ctx context.Context, in *internalpb.Impo
 		return resp, nil
 	}
 	if importCollectionInfo == nil {
-		resp.Status = merr.Status(merr.WrapErrCollectionNotFound(in.GetCollectionID()))
+		resp.Status = merr.Status(merr.WrapErrCollectionIDNotFound(in.GetCollectionID()))
 		return resp, nil
 	}
 

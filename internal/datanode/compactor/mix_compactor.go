@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/apache/arrow/go/v17/arrow/array"
-	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -41,6 +40,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/v2/util/timerecord"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
@@ -101,11 +101,11 @@ func (t *mixCompactionTask) preCompact() error {
 	}
 
 	if len(t.plan.GetSegmentBinlogs()) < 1 {
-		return errors.Newf("compaction plan is illegal, there's no segments in compaction plan, planID = %d", t.GetPlanID())
+		return merr.WrapErrIllegalCompactionPlanMsg("compaction plan is illegal, there's no segments in compaction plan, planID = %d", t.GetPlanID())
 	}
 
 	if t.plan.GetMaxSize() == 0 {
-		return errors.Newf("compaction plan is illegal, empty maxSize, planID = %d", t.GetPlanID())
+		return merr.WrapErrIllegalCompactionPlanMsg("compaction plan is illegal, empty maxSize, planID = %d", t.GetPlanID())
 	}
 
 	t.collectionID = t.plan.GetSegmentBinlogs()[0].GetCollectionID()
@@ -377,7 +377,7 @@ func (t *mixCompactionTask) Compact() (*datapb.CompactionPlanResult, error) {
 
 	if isEmpty {
 		log.Warn("compact wrong, all segments' binlogs are empty")
-		return nil, errors.New("illegal compaction plan")
+		return nil, merr.WrapErrIllegalCompactionPlan("illegal compaction plan")
 	}
 
 	sortMergeAppicable := t.compactionParams.UseMergeSort
