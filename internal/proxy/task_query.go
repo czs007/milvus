@@ -141,7 +141,7 @@ func translateGroupByFieldIds(groupByFieldNames []string, schema *schemapb.Colle
 		groupByField = strings.TrimSpace(groupByField)
 		fieldSchema, found := fieldNameToSchema[groupByField]
 		if !found {
-			return nil, fmt.Errorf("field %s not exist", groupByField)
+			return nil, merr.WrapErrParameterInvalidMsg("field %s not exist", groupByField)
 		}
 		if err := validateGroupByFieldSchema(fieldSchema); err != nil {
 			return nil, err
@@ -814,7 +814,7 @@ func (t *queryTask) PreExecute(ctx context.Context) error {
 		t.CollectionTtlTimestamps = tsoutil.ComposeTSByTime(expireTime, 0)
 		// preventing overflow, abort
 		if t.CollectionTtlTimestamps > t.GetBase().GetTimestamp() {
-			return merr.WrapErrServiceInternal(fmt.Sprintf("ttl timestamp overflow, base timestamp: %d, ttl duration %v", t.GetBase().GetTimestamp(), collectionInfo.collectionTTL))
+			return merr.WrapErrServiceInternalMsg("ttl timestamp overflow, base timestamp: %d, ttl duration %v", t.GetBase().GetTimestamp(), collectionInfo.collectionTTL)
 		}
 	}
 	deadline, ok := t.TraceCtx().Deadline()

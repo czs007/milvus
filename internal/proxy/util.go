@@ -805,7 +805,7 @@ func RepeatedKeyValToMap(kvPairs []*commonpb.KeyValuePair) (map[string]string, e
 	for _, kv := range kvPairs {
 		_, ok := resMap[kv.Key]
 		if ok {
-			return nil, fmt.Errorf("duplicated param key: %s", kv.Key)
+			return nil, merr.WrapErrParameterInvalidMsg("duplicated param key: %s", kv.Key)
 		}
 		resMap[kv.Key] = kv.Value
 	}
@@ -825,7 +825,7 @@ func isVector(dataType schemapb.DataType) (bool, error) {
 		return true, nil
 	}
 
-	return false, fmt.Errorf("invalid data type: %d", dataType)
+	return false, merr.WrapErrParameterInvalidMsg("invalid data type: %d", dataType)
 }
 
 func validateMetricType(dataType schemapb.DataType, metricTypeStrRaw string) error {
@@ -840,7 +840,7 @@ func validateMetricType(dataType schemapb.DataType, metricTypeStrRaw string) err
 			return nil
 		}
 	}
-	return fmt.Errorf("data_type %s mismatch with metric_type %s", dataType.String(), metricTypeStrRaw)
+	return merr.WrapErrParameterInvalidMsg("data_type %s mismatch with metric_type %s", dataType.String(), metricTypeStrRaw)
 }
 
 func validateFunction(coll *schemapb.CollectionSchema, needValidateFunctionName string, disableRuntimeCheck bool) error {
@@ -900,7 +900,7 @@ func validateFunction(coll *schemapb.CollectionSchema, needValidateFunctionName 
 			outputField.IsFunctionOutput = true
 			outputFields[i] = outputField
 			if usedOutputField.Contain(name) {
-				return fmt.Errorf("duplicate function output field: function %s, field %s", function.GetName(), name)
+				return merr.WrapErrParameterInvalidMsg("duplicate function output field: function %s, field %s", function.GetName(), name)
 			}
 			usedOutputField.Insert(name)
 		}
@@ -933,10 +933,10 @@ func checkFunctionOutputField(fSchema *schemapb.FunctionSchema, fields []*schema
 		}
 	case schemapb.FunctionType_MinHash:
 		if len(fields) != 1 {
-			return fmt.Errorf("MinHash function only need 1 output field, but got %d", len(fields))
+			return merr.WrapErrParameterInvalidMsg("MinHash function only need 1 output field, but got %d", len(fields))
 		}
 		if fields[0].GetDataType() != schemapb.DataType_BinaryVector {
-			return fmt.Errorf("MinHash function output field must be a BinaryVector field, but got %s", fields[0].DataType.String())
+			return merr.WrapErrParameterInvalidMsg("MinHash function output field must be a BinaryVector field, but got %s", fields[0].DataType.String())
 		}
 	default:
 		return merr.WrapErrParameterInvalidMsg("check output field for unknown function type")
@@ -1717,7 +1717,7 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 				} else if aggFieldName == "*" {
 					// only count(*) is allowed
 					if aggregateName != "count" {
-						return nil, nil, nil, nil, false, fmt.Errorf("%s(*) is not supported, only count(*) is allowed", aggregateName)
+						return nil, nil, nil, nil, false, merr.WrapErrOperationNotSupportedMsg("%s(*) is not supported, only count(*) is allowed", aggregateName)
 					}
 					if err := agg.ValidateAggFieldType(aggregateName, schemapb.DataType_None); err != nil {
 						return nil, nil, nil, nil, false, err
@@ -1728,7 +1728,7 @@ func translateOutputFields(outputFields []string, schema *schemaInfo, removePkFi
 					}
 					aggregates = append(aggregates, aggFuncs...)
 				} else {
-					return nil, nil, nil, nil, false, fmt.Errorf("target field %s for aggregation:%s does not exist", aggFieldName, aggregateName)
+					return nil, nil, nil, nil, false, merr.WrapErrParameterInvalidMsg("target field %s for aggregation:%s does not exist", aggFieldName, aggregateName)
 				}
 				userOutputFieldsMap[outputFieldName] = true
 				continue
@@ -2175,7 +2175,7 @@ func checkInputUtf8Compatiable(allFields []*schemapb.FieldSchema, insertMsg *msg
 			ok := utf8.ValidString(data)
 			if !ok {
 				log.Warn("string field data not utf-8 format", zap.String("messageVersion", strData.ProtoReflect().Descriptor().Syntax().GoString()))
-				return merr.WrapErrAsInputError(fmt.Errorf("input with analyzer should be utf-8 format, but row: %d not utf-8 format. data: %s", row, data))
+				return merr.WrapErrAsInputError(merr.WrapErrParameterInvalidMsg("input with analyzer should be utf-8 format, but row: %d not utf-8 format. data: %s", row, data))
 			}
 		}
 	}

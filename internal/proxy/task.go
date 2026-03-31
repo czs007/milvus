@@ -440,7 +440,7 @@ func (t *createCollectionTask) PreExecute(ctx context.Context) error {
 	// External collections must be single-shard: the refresh mechanism assigns all
 	// segments to VChannelNames[0], so multiple shards would leave segments orphaned.
 	if isExternalCollection && t.ShardsNum > 1 {
-		return fmt.Errorf("external collection does not support multiple shards, got ShardsNum=%d", t.ShardsNum)
+		return merr.WrapErrParameterInvalidMsg("external collection does not support multiple shards, got ShardsNum=%d", t.ShardsNum)
 	}
 
 	if t.ShardsNum > Params.ProxyCfg.MaxShardNum.GetAsInt32() {
@@ -664,7 +664,7 @@ func (t *addCollectionFieldTask) PreExecute(ctx context.Context) error {
 	if typeutil.IsVectorType(t.fieldSchema.DataType) {
 		vectorFields := len(typeutil.GetVectorFieldSchemas(t.oldSchema))
 		if vectorFields >= Params.ProxyCfg.MaxVectorFieldNum.GetAsInt() {
-			return fmt.Errorf("maximum vector field's number should be limited to %d", Params.ProxyCfg.MaxVectorFieldNum.GetAsInt())
+			return merr.WrapErrParameterInvalidMsg("maximum vector field's number should be limited to %d", Params.ProxyCfg.MaxVectorFieldNum.GetAsInt())
 		}
 	}
 

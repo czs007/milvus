@@ -681,7 +681,7 @@ func (op *orderByOperator) run(ctx context.Context, span trace.Span, inputs ...a
 		sumTopks += topk
 	}
 	if int(sumTopks) != numResults {
-		return nil, fmt.Errorf("order_by: Topks sum (%d) does not match numResults (%d)", sumTopks, numResults)
+		return nil, merr.WrapErrServiceInternalMsg("order_by: Topks sum (%d) does not match numResults (%d)", sumTopks, numResults)
 	}
 
 	// Build indices array for sorting
@@ -747,7 +747,7 @@ func (op *orderByOperator) validateOrderByFields(result *milvuspb.SearchResults)
 
 	for _, orderBy := range op.orderByFields {
 		if !fieldNames[orderBy.FieldName] {
-			return fmt.Errorf("order_by field '%s' not found in search results", orderBy.FieldName)
+			return merr.WrapErrParameterInvalidMsg("order_by field '%s' not found in search results", orderBy.FieldName)
 		}
 	}
 	return nil
@@ -1150,7 +1150,7 @@ func compareFieldDataAt(field *schemapb.FieldData, i, j int) (int, error) {
 	case schemapb.DataType_Int8, schemapb.DataType_Int16, schemapb.DataType_Int32:
 		data := field.GetScalars().GetIntData().GetData()
 		if i >= len(data) || j >= len(data) {
-			return 0, fmt.Errorf("compareFieldDataAt: index out of bounds for Int field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
+			return 0, merr.WrapErrServiceInternalMsg("compareFieldDataAt: index out of bounds for Int field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
 		}
 		if data[i] < data[j] {
 			return -1, nil
@@ -1161,7 +1161,7 @@ func compareFieldDataAt(field *schemapb.FieldData, i, j int) (int, error) {
 	case schemapb.DataType_Int64:
 		data := field.GetScalars().GetLongData().GetData()
 		if i >= len(data) || j >= len(data) {
-			return 0, fmt.Errorf("compareFieldDataAt: index out of bounds for Int64 field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
+			return 0, merr.WrapErrServiceInternalMsg("compareFieldDataAt: index out of bounds for Int64 field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
 		}
 		if data[i] < data[j] {
 			return -1, nil
@@ -1172,7 +1172,7 @@ func compareFieldDataAt(field *schemapb.FieldData, i, j int) (int, error) {
 	case schemapb.DataType_Float:
 		data := field.GetScalars().GetFloatData().GetData()
 		if i >= len(data) || j >= len(data) {
-			return 0, fmt.Errorf("compareFieldDataAt: index out of bounds for Float field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
+			return 0, merr.WrapErrServiceInternalMsg("compareFieldDataAt: index out of bounds for Float field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
 		}
 		if data[i] < data[j] {
 			return -1, nil
@@ -1183,7 +1183,7 @@ func compareFieldDataAt(field *schemapb.FieldData, i, j int) (int, error) {
 	case schemapb.DataType_Double:
 		data := field.GetScalars().GetDoubleData().GetData()
 		if i >= len(data) || j >= len(data) {
-			return 0, fmt.Errorf("compareFieldDataAt: index out of bounds for Double field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
+			return 0, merr.WrapErrServiceInternalMsg("compareFieldDataAt: index out of bounds for Double field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
 		}
 		if data[i] < data[j] {
 			return -1, nil
@@ -1194,7 +1194,7 @@ func compareFieldDataAt(field *schemapb.FieldData, i, j int) (int, error) {
 	case schemapb.DataType_VarChar, schemapb.DataType_String:
 		data := field.GetScalars().GetStringData().GetData()
 		if i >= len(data) || j >= len(data) {
-			return 0, fmt.Errorf("compareFieldDataAt: index out of bounds for String field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
+			return 0, merr.WrapErrServiceInternalMsg("compareFieldDataAt: index out of bounds for String field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
 		}
 		if data[i] < data[j] {
 			return -1, nil
@@ -1207,13 +1207,13 @@ func compareFieldDataAt(field *schemapb.FieldData, i, j int) (int, error) {
 		// not by semantic JSON value. For example, "2" > "10" because '2' > '1' in bytes.
 		data := field.GetScalars().GetJsonData().GetData()
 		if i >= len(data) || j >= len(data) {
-			return 0, fmt.Errorf("compareFieldDataAt: index out of bounds for JSON field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
+			return 0, merr.WrapErrServiceInternalMsg("compareFieldDataAt: index out of bounds for JSON field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
 		}
 		return bytes.Compare(data[i], data[j]), nil
 	case schemapb.DataType_Bool:
 		data := field.GetScalars().GetBoolData().GetData()
 		if i >= len(data) || j >= len(data) {
-			return 0, fmt.Errorf("compareFieldDataAt: index out of bounds for Bool field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
+			return 0, merr.WrapErrServiceInternalMsg("compareFieldDataAt: index out of bounds for Bool field %s (i=%d, j=%d, len=%d)", field.GetFieldName(), i, j, len(data))
 		}
 		// false < true
 		if !data[i] && data[j] {
@@ -1223,7 +1223,7 @@ func compareFieldDataAt(field *schemapb.FieldData, i, j int) (int, error) {
 		}
 		return 0, nil
 	default:
-		return 0, fmt.Errorf("compareFieldDataAt: unsupported field type %s for field %s", field.GetType().String(), field.GetFieldName())
+		return 0, merr.WrapErrServiceInternalMsg("compareFieldDataAt: unsupported field type %s for field %s", field.GetType().String(), field.GetFieldName())
 	}
 }
 
@@ -1238,7 +1238,7 @@ func (op *orderByOperator) reorderResults(result *milvuspb.SearchResults, indice
 			newData := make([]int64, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(intIds.Data) {
-					return fmt.Errorf("reorderResults: index %d out of bounds for int IDs (len=%d)", oldIdx, len(intIds.Data))
+					return merr.WrapErrServiceInternalMsg("reorderResults: index %d out of bounds for int IDs (len=%d)", oldIdx, len(intIds.Data))
 				}
 				newData[newIdx] = intIds.Data[oldIdx]
 			}
@@ -1247,7 +1247,7 @@ func (op *orderByOperator) reorderResults(result *milvuspb.SearchResults, indice
 			newData := make([]string, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(strIds.Data) {
-					return fmt.Errorf("reorderResults: index %d out of bounds for string IDs (len=%d)", oldIdx, len(strIds.Data))
+					return merr.WrapErrServiceInternalMsg("reorderResults: index %d out of bounds for string IDs (len=%d)", oldIdx, len(strIds.Data))
 				}
 				newData[newIdx] = strIds.Data[oldIdx]
 			}
@@ -1260,7 +1260,7 @@ func (op *orderByOperator) reorderResults(result *milvuspb.SearchResults, indice
 		newScores := make([]float32, n)
 		for newIdx, oldIdx := range indices {
 			if oldIdx < 0 || oldIdx >= len(results.Scores) {
-				return fmt.Errorf("reorderResults: index %d out of bounds for scores (len=%d)", oldIdx, len(results.Scores))
+				return merr.WrapErrServiceInternalMsg("reorderResults: index %d out of bounds for scores (len=%d)", oldIdx, len(results.Scores))
 			}
 			newScores[newIdx] = results.Scores[oldIdx]
 		}
@@ -1292,7 +1292,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			newData := make([]int32, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(data.Data) {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for %s field %s (len=%d)", oldIdx, field.GetType().String(), field.GetFieldName(), len(data.Data))
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for %s field %s (len=%d)", oldIdx, field.GetType().String(), field.GetFieldName(), len(data.Data))
 				}
 				newData[newIdx] = data.Data[oldIdx]
 			}
@@ -1303,7 +1303,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			newData := make([]int64, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(data.Data) {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for Int64 field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for Int64 field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
 				}
 				newData[newIdx] = data.Data[oldIdx]
 			}
@@ -1314,7 +1314,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			newData := make([]float32, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(data.Data) {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for Float field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for Float field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
 				}
 				newData[newIdx] = data.Data[oldIdx]
 			}
@@ -1325,7 +1325,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			newData := make([]float64, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(data.Data) {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for Double field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for Double field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
 				}
 				newData[newIdx] = data.Data[oldIdx]
 			}
@@ -1336,7 +1336,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			newData := make([]string, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(data.Data) {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for %s field %s (len=%d)", oldIdx, field.GetType().String(), field.GetFieldName(), len(data.Data))
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for %s field %s (len=%d)", oldIdx, field.GetType().String(), field.GetFieldName(), len(data.Data))
 				}
 				newData[newIdx] = data.Data[oldIdx]
 			}
@@ -1347,7 +1347,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			newData := make([]bool, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(data.Data) {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for Bool field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for Bool field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
 				}
 				newData[newIdx] = data.Data[oldIdx]
 			}
@@ -1358,7 +1358,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			newData := make([][]byte, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(data.Data) {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for JSON field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for JSON field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
 				}
 				newData[newIdx] = data.Data[oldIdx]
 			}
@@ -1369,7 +1369,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			newData := make([]*schemapb.ScalarField, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= len(data.Data) {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for Array field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for Array field %s (len=%d)", oldIdx, field.GetFieldName(), len(data.Data))
 				}
 				newData[newIdx] = data.Data[oldIdx]
 			}
@@ -1380,16 +1380,16 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 		if vectors != nil && vectors.GetFloatVector() != nil {
 			dim := int(vectors.GetDim())
 			if dim <= 0 {
-				return fmt.Errorf("reorderFieldData: invalid dimension %d for FloatVector field %s", dim, field.GetFieldName())
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: invalid dimension %d for FloatVector field %s", dim, field.GetFieldName())
 			}
 			data := vectors.GetFloatVector().GetData()
 			if len(data) != n*dim {
-				return fmt.Errorf("reorderFieldData: FloatVector field %s has %d elements, expected %d (n=%d, dim=%d)", field.GetFieldName(), len(data), n*dim, n, dim)
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: FloatVector field %s has %d elements, expected %d (n=%d, dim=%d)", field.GetFieldName(), len(data), n*dim, n, dim)
 			}
 			newData := make([]float32, n*dim)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= n {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for FloatVector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for FloatVector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
 				}
 				srcStart := oldIdx * dim
 				dstStart := newIdx * dim
@@ -1403,16 +1403,16 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			dim := int(vectors.GetDim())
 			bytesPerVector := dim / 8
 			if bytesPerVector <= 0 {
-				return fmt.Errorf("reorderFieldData: invalid dimension %d for BinaryVector field %s", dim, field.GetFieldName())
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: invalid dimension %d for BinaryVector field %s", dim, field.GetFieldName())
 			}
 			data := vectors.GetBinaryVector()
 			if len(data) != n*bytesPerVector {
-				return fmt.Errorf("reorderFieldData: BinaryVector field %s has %d bytes, expected %d (n=%d, bytesPerVector=%d)", field.GetFieldName(), len(data), n*bytesPerVector, n, bytesPerVector)
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: BinaryVector field %s has %d bytes, expected %d (n=%d, bytesPerVector=%d)", field.GetFieldName(), len(data), n*bytesPerVector, n, bytesPerVector)
 			}
 			newData := make([]byte, n*bytesPerVector)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= n {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for BinaryVector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for BinaryVector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
 				}
 				srcStart := oldIdx * bytesPerVector
 				dstStart := newIdx * bytesPerVector
@@ -1425,17 +1425,17 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 		if vectors != nil && len(vectors.GetFloat16Vector()) > 0 {
 			dim := int(vectors.GetDim())
 			if dim <= 0 {
-				return fmt.Errorf("reorderFieldData: invalid dimension %d for Float16Vector field %s", dim, field.GetFieldName())
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: invalid dimension %d for Float16Vector field %s", dim, field.GetFieldName())
 			}
 			bytesPerVector := dim * 2 // 2 bytes per float16
 			data := vectors.GetFloat16Vector()
 			if len(data) != n*bytesPerVector {
-				return fmt.Errorf("reorderFieldData: Float16Vector field %s has %d bytes, expected %d (n=%d, bytesPerVector=%d)", field.GetFieldName(), len(data), n*bytesPerVector, n, bytesPerVector)
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: Float16Vector field %s has %d bytes, expected %d (n=%d, bytesPerVector=%d)", field.GetFieldName(), len(data), n*bytesPerVector, n, bytesPerVector)
 			}
 			newData := make([]byte, n*bytesPerVector)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= n {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for Float16Vector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for Float16Vector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
 				}
 				srcStart := oldIdx * bytesPerVector
 				dstStart := newIdx * bytesPerVector
@@ -1448,17 +1448,17 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 		if vectors != nil && len(vectors.GetBfloat16Vector()) > 0 {
 			dim := int(vectors.GetDim())
 			if dim <= 0 {
-				return fmt.Errorf("reorderFieldData: invalid dimension %d for BFloat16Vector field %s", dim, field.GetFieldName())
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: invalid dimension %d for BFloat16Vector field %s", dim, field.GetFieldName())
 			}
 			bytesPerVector := dim * 2 // 2 bytes per bfloat16
 			data := vectors.GetBfloat16Vector()
 			if len(data) != n*bytesPerVector {
-				return fmt.Errorf("reorderFieldData: BFloat16Vector field %s has %d bytes, expected %d (n=%d, bytesPerVector=%d)", field.GetFieldName(), len(data), n*bytesPerVector, n, bytesPerVector)
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: BFloat16Vector field %s has %d bytes, expected %d (n=%d, bytesPerVector=%d)", field.GetFieldName(), len(data), n*bytesPerVector, n, bytesPerVector)
 			}
 			newData := make([]byte, n*bytesPerVector)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= n {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for BFloat16Vector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for BFloat16Vector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
 				}
 				srcStart := oldIdx * bytesPerVector
 				dstStart := newIdx * bytesPerVector
@@ -1472,12 +1472,12 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			sparseData := vectors.GetSparseFloatVector()
 			contents := sparseData.GetContents()
 			if len(contents) != n {
-				return fmt.Errorf("reorderFieldData: SparseFloatVector field %s has %d elements, expected %d", field.GetFieldName(), len(contents), n)
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: SparseFloatVector field %s has %d elements, expected %d", field.GetFieldName(), len(contents), n)
 			}
 			newContents := make([][]byte, n)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= n {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for SparseFloatVector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for SparseFloatVector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
 				}
 				newContents[newIdx] = contents[oldIdx]
 			}
@@ -1488,16 +1488,16 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 		if vectors != nil && len(vectors.GetInt8Vector()) > 0 {
 			dim := int(vectors.GetDim())
 			if dim <= 0 {
-				return fmt.Errorf("reorderFieldData: invalid dimension %d for Int8Vector field %s", dim, field.GetFieldName())
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: invalid dimension %d for Int8Vector field %s", dim, field.GetFieldName())
 			}
 			data := vectors.GetInt8Vector()
 			if len(data) != n*dim {
-				return fmt.Errorf("reorderFieldData: Int8Vector field %s has %d bytes, expected %d (n=%d, dim=%d)", field.GetFieldName(), len(data), n*dim, n, dim)
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: Int8Vector field %s has %d bytes, expected %d (n=%d, dim=%d)", field.GetFieldName(), len(data), n*dim, n, dim)
 			}
 			newData := make([]byte, n*dim)
 			for newIdx, oldIdx := range indices {
 				if oldIdx < 0 || oldIdx >= n {
-					return fmt.Errorf("reorderFieldData: index %d out of bounds for Int8Vector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
+					return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for Int8Vector field %s (n=%d)", oldIdx, field.GetFieldName(), n)
 				}
 				srcStart := oldIdx * dim
 				dstStart := newIdx * dim
@@ -1506,7 +1506,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 			vectors.Data = &schemapb.VectorField_Int8Vector{Int8Vector: newData}
 		}
 	default:
-		return fmt.Errorf("reorderFieldData: unhandled data type %s", field.GetType().String())
+		return merr.WrapErrServiceInternalMsg("reorderFieldData: unhandled data type %s", field.GetType().String())
 	}
 
 	// Reorder valid data if present
@@ -1514,7 +1514,7 @@ func reorderFieldData(field *schemapb.FieldData, indices []int) error {
 		newValidData := make([]bool, n)
 		for newIdx, oldIdx := range indices {
 			if oldIdx < 0 || oldIdx >= len(field.ValidData) {
-				return fmt.Errorf("reorderFieldData: index %d out of bounds for ValidData of field %s (len=%d)", oldIdx, field.GetFieldName(), len(field.ValidData))
+				return merr.WrapErrServiceInternalMsg("reorderFieldData: index %d out of bounds for ValidData of field %s (len=%d)", oldIdx, field.GetFieldName(), len(field.ValidData))
 			}
 			newValidData[newIdx] = field.ValidData[oldIdx]
 		}

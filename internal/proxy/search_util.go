@@ -139,7 +139,7 @@ func parseOrderByFields(searchParamsPair []*commonpb.KeyValuePair, schema *schem
 		// e.g., "metadata[\"price\"]:asc" -> fieldSpec="metadata[\"price\"]", direction="asc"
 		fieldSpec, direction := splitOrderByFieldAndDirection(pair)
 		if fieldSpec == "" {
-			return nil, fmt.Errorf("empty field name in order_by_fields")
+			return nil, merr.WrapErrParameterInvalidMsg("empty field name in order_by_fields")
 		}
 
 		// Parse direction
@@ -151,7 +151,7 @@ func parseOrderByFields(searchParamsPair []*commonpb.KeyValuePair, schema *schem
 			case "desc", "descending":
 				ascending = false
 			default:
-				return nil, fmt.Errorf("invalid order direction '%s' for field '%s', expected 'asc' or 'desc'", direction, fieldSpec)
+				return nil, merr.WrapErrParameterInvalidMsg("invalid order direction '%s' for field '%s', expected 'asc' or 'desc'", direction, fieldSpec)
 			}
 		}
 
@@ -251,7 +251,7 @@ func parseOrderByFieldSpec(fieldSpec string, fieldSchemaMap map[string]*schemapb
 				isDynamicField = false
 			} else {
 				// Non-JSON field with brackets - not supported
-				return "", 0, "", "", false, fmt.Errorf("order_by field '%s' has brackets but is not a JSON type", fieldSpec)
+				return "", 0, "", "", false, merr.WrapErrParameterInvalidMsg("order_by field '%s' has brackets but is not a JSON type", fieldSpec)
 			}
 		} else if dynamicField != nil {
 			// Unknown field name with brackets, treat as dynamic field path
@@ -266,7 +266,7 @@ func parseOrderByFieldSpec(fieldSpec string, fieldSchemaMap map[string]*schemapb
 			outputFieldName = baseName
 			isDynamicField = true
 		} else {
-			return "", 0, "", "", false, fmt.Errorf("order_by field '%s' not found in schema and no dynamic field available", baseName)
+			return "", 0, "", "", false, merr.WrapErrParameterInvalidMsg("order_by field '%s' not found in schema and no dynamic field available", baseName)
 		}
 	} else {
 		// No brackets - regular field name or dynamic field key
@@ -294,7 +294,7 @@ func parseOrderByFieldSpec(fieldSpec string, fieldSchemaMap map[string]*schemapb
 			outputFieldName = fieldSpec
 			isDynamicField = true
 		} else {
-			return "", 0, "", "", false, fmt.Errorf("order_by field '%s' does not exist in collection schema", fieldSpec)
+			return "", 0, "", "", false, merr.WrapErrParameterInvalidMsg("order_by field '%s' does not exist in collection schema", fieldSpec)
 		}
 	}
 

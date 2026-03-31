@@ -342,7 +342,7 @@ func reduceSearchResultDataWithGroupBy(ctx context.Context, subSearchResultData 
 		}
 
 		if realTopK != -1 && realTopK != j {
-			log.Ctx(ctx).Warn("Proxy Reduce Search Result", zap.Error(errors.New("the length (topk) between all result of query is different")))
+			log.Ctx(ctx).Warn("Proxy Reduce Search Result", zap.Error(merr.WrapErrServiceInternalMsg("the length (topk) between all result of query is different")))
 		}
 		realTopK = j
 		ret.Results.Topks = append(ret.Results.Topks, realTopK)
@@ -488,8 +488,8 @@ func reduceSearchResultDataNoGroupBy(ctx context.Context, subSearchResultData []
 				cursors[subSearchIdx]++
 			}
 			if realTopK != -1 && realTopK != j {
-				log.Ctx(ctx).Warn("Proxy Reduce Search Result", zap.Error(errors.New("the length (topk) between all result of query is different")))
-				// return nil, errors.New("the length (topk) between all result of query is different")
+				log.Ctx(ctx).Warn("Proxy Reduce Search Result", zap.Error(merr.WrapErrServiceInternalMsg("the length (topk) between all result of query is different")))
+				// return nil, merr.WrapErrServiceInternalMsg("the length (topk) between all result of query is different")
 			}
 			realTopK = j
 			ret.Results.Topks = append(ret.Results.Topks, realTopK)
