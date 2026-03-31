@@ -26,6 +26,7 @@ import (
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/internal/util/credentials"
 	"github.com/milvus-io/milvus/internal/util/function/models"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
@@ -75,7 +76,7 @@ func NewYCEmbeddingProvider(fieldSchema *schemapb.FieldSchema, functionSchema *s
 		}
 	}
 	if modelName == "" {
-		return nil, fmt.Errorf("yc embedding model name is required")
+		return nil, merr.WrapErrParameterInvalidMsg("yc embedding model name is required")
 	}
 
 	apiKey, url, err := models.ParseAKAndURL(credentials, functionSchema.Params, params, models.YandexCloudAKEnvStr, extraInfo)
@@ -83,7 +84,7 @@ func NewYCEmbeddingProvider(fieldSchema *schemapb.FieldSchema, functionSchema *s
 		return nil, err
 	}
 	if apiKey == "" {
-		return nil, fmt.Errorf("Missing credentials config or configure the %s environment variable in the Milvus service.", models.YandexCloudAKEnvStr)
+		return nil, merr.WrapErrParameterInvalidMsg("Missing credentials config or configure the %s environment variable in the Milvus service.", models.YandexCloudAKEnvStr)
 	}
 	if url == "" {
 		url = defaultYCTextEmbeddingURL
@@ -142,11 +143,11 @@ func (provider *YCEmbeddingProvider) CallEmbedding(ctx context.Context, texts []
 
 		embeddings := extractYCEmbeddings(resp)
 		if end-i != len(embeddings) {
-			return nil, fmt.Errorf("Get embedding failed. The number of texts and embeddings does not match text:[%d], embedding:[%d]", end-i, len(embeddings))
+			return nil, merr.WrapErrServiceInternalMsg("Get embedding failed. The number of texts and embeddings does not match text:[%d], embedding:[%d]", end-i, len(embeddings))
 		}
 		for _, emb := range embeddings {
 			if len(emb) != int(provider.fieldDim) {
-				return nil, fmt.Errorf("The required embedding dim is [%d], but the embedding obtained from the model is [%d]",
+				return nil, merr.WrapErrServiceInternalMsg("The required embedding dim is [%d], but the embedding obtained from the model is [%d]",
 					provider.fieldDim, len(emb))
 			}
 			data = append(data, emb)

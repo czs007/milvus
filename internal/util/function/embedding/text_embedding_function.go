@@ -167,12 +167,12 @@ func (runner *TextEmbeddingFunction) Check(ctx context.Context) error {
 	case [][]float32:
 		dim = len(embds[0])
 		if runner.GetOutputFields()[0].DataType != schemapb.DataType_FloatVector {
-			return fmt.Errorf("Embedding model output and field type mismatch, model output is %s, field type is %s", schemapb.DataType_name[int32(schemapb.DataType_FloatVector)], schemapb.DataType_name[int32(runner.GetOutputFields()[0].DataType)])
+			return merr.WrapErrFunctionFailedMsg("Embedding model output and field type mismatch, model output is %s, field type is %s", schemapb.DataType_name[int32(schemapb.DataType_FloatVector)], schemapb.DataType_name[int32(runner.GetOutputFields()[0].DataType)])
 		}
 	case [][]int8:
 		dim = len(embds[0])
 		if runner.GetOutputFields()[0].DataType != schemapb.DataType_Int8Vector {
-			return fmt.Errorf("Embedding model output and field type mismatch, model output is %s, field type is %s", schemapb.DataType_name[int32(schemapb.DataType_Int8Vector)], schemapb.DataType_name[int32(runner.GetOutputFields()[0].DataType)])
+			return merr.WrapErrFunctionFailedMsg("Embedding model output and field type mismatch, model output is %s, field type is %s", schemapb.DataType_name[int32(schemapb.DataType_Int8Vector)], schemapb.DataType_name[int32(runner.GetOutputFields()[0].DataType)])
 		}
 	default:
 		return merr.WrapErrFunctionFailedMsg("Unsupport embedding type: %s", reflect.TypeOf(embds).String())

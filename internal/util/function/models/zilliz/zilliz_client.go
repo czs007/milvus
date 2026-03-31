@@ -281,7 +281,7 @@ func (c *ZillizClient) Highlight(ctx context.Context, query string, texts []stri
 		}
 
 		if len(sentences) != len(retScores) {
-			return nil, nil, fmt.Errorf("sentences length %d does not match scores length %d", len(sentences), len(retScores))
+			return nil, nil, merr.WrapErrFunctionFailedMsg("sentences length %d does not match scores length %d", len(sentences), len(retScores))
 		}
 		highlights = append(highlights, sentences)
 		scores = append(scores, retScores)

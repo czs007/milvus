@@ -95,7 +95,7 @@ func validateFunction(schema *schemapb.CollectionSchema, fSchema *schemapb.Funct
 	}
 
 	if err := f.Check(context.Background()); err != nil {
-		return fmt.Errorf("Check function [%s:%s] failed, the err is: %v", fSchema.Name, fSchema.GetType().String(), err)
+		return merr.WrapErrFunctionFailed(err, "Check function [%s:%s] failed", fSchema.Name, fSchema.GetType().String())
 	}
 	return nil
 }
@@ -118,7 +118,7 @@ func ValidateFunctions(schema *schemapb.CollectionSchema, needValidateFunctionNa
 		}
 	}
 
-	return fmt.Errorf("function [%s] not found in schema", needValidateFunctionName)
+	return merr.WrapErrFunctionFailedMsg("function [%s] not found in schema", needValidateFunctionName)
 }
 
 func NewFunctionExecutor(schema *schemapb.CollectionSchema, functions []*schemapb.FunctionSchema, extraInfo *models.ModelExtraInfo) (*FunctionExecutor, error) {
