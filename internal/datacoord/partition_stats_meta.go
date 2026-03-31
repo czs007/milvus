@@ -183,11 +183,11 @@ func (psm *partitionStatsMeta) innerSaveCurrentPartitionStatsVersion(collectionI
 
 	if _, ok := psm.partitionStatsInfos[vChannel]; !ok {
 		return merr.WrapErrClusteringCompactionMetaError("SaveCurrentPartitionStatsVersion",
-			fmt.Errorf("update current partition stats version failed, there is no partition info exists with collID: %d, partID: %d, vChannel: %s", collectionID, partitionID, vChannel))
+			merr.WrapErrParameterInvalidMsg("update current partition stats version failed, there is no partition info exists with collID: %d, partID: %d, vChannel: %s", collectionID, partitionID, vChannel))
 	}
 	if _, ok := psm.partitionStatsInfos[vChannel][partitionID]; !ok {
 		return merr.WrapErrClusteringCompactionMetaError("SaveCurrentPartitionStatsVersion",
-			fmt.Errorf("update current partition stats version failed, there is no partition info exists with collID: %d, partID: %d, vChannel: %s", collectionID, partitionID, vChannel))
+			merr.WrapErrParameterInvalidMsg("update current partition stats version failed, there is no partition info exists with collID: %d, partID: %d, vChannel: %s", collectionID, partitionID, vChannel))
 	}
 
 	if err := psm.catalog.SaveCurrentPartitionStatsVersion(psm.ctx, collectionID, partitionID, vChannel, currentPartitionStatsVersion); err != nil {

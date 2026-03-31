@@ -24,6 +24,7 @@ import (
 
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/util/lock"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 type Item[T any] struct {
@@ -75,8 +76,8 @@ func (pq *PriorityQueue[T]) Update(item *Item[T], value T, priority int) {
 }
 
 var (
-	ErrFull          = errors.New("compaction queue is full")
-	ErrNoSuchElement = errors.New("compaction queue has no element")
+	ErrFull          = merr.WrapErrServiceInternalMsg("compaction queue is full")
+	ErrNoSuchElement = merr.WrapErrServiceInternalMsg("compaction queue has no element")
 )
 
 type Prioritizer func(t CompactionTask) int

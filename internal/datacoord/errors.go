@@ -17,12 +17,12 @@
 package datacoord
 
 import (
-	"github.com/cockroachdb/errors"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // errors for VerifyResponse
 var (
-	errNilResponse         = errors.New("response is nil")
-	errNilStatusResponse   = errors.New("response has nil status")
-	errUnknownResponseType = errors.New("unknown response type")
+	errNilResponse         = merr.WrapErrServiceInternalMsg("response is nil")
+	errNilStatusResponse   = merr.WrapErrServiceInternalMsg("response has nil status")
+	errUnknownResponseType = merr.WrapErrServiceInternalMsg("unknown response type")
 )

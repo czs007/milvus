@@ -770,7 +770,7 @@ func (m *meta) GetSegmentsChannels(segmentIDs []UniqueID) (map[int64]string, err
 	for _, segmentID := range segmentIDs {
 		segment := m.segments.GetSegment(segmentID)
 		if segment == nil {
-			return nil, errors.New(fmt.Sprintf("cannot find segment %d", segmentID))
+			return nil, merr.WrapErrSegmentNotFound(segmentID)
 		}
 		segChannels[segmentID] = segment.GetInsertChannel()
 	}
@@ -794,7 +794,7 @@ func (m *meta) SetState(ctx context.Context, segmentID UniqueID, targetState com
 		if targetState == commonpb.SegmentState_Dropped {
 			return nil
 		}
-		return fmt.Errorf("segment is not exist with ID = %d", segmentID)
+		return merr.WrapErrSegmentNotFound(segmentID)
 	}
 	// Persist segment updates first.
 	clonedSegment := curSegInfo.Clone()
@@ -2608,7 +2608,7 @@ func (m *meta) GetFileResources(ctx context.Context, resourceIDs ...int64) ([]*i
 		if resource, ok := m.resourceIDMap[id]; ok {
 			resources = append(resources, resource)
 		} else {
-			return nil, errors.Errorf("file resource %d not found", id)
+			return nil, merr.WrapErrParameterInvalidMsg("file resource %d not found", id)
 		}
 	}
 	return resources, nil

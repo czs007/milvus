@@ -474,7 +474,7 @@ func (sm *snapshotManager) validateCMEKCompatibility(
 	// Get target database properties first (needed for both encrypted and non-encrypted snapshots)
 	dbResp, err := sm.broker.DescribeDatabase(ctx, targetDbName)
 	if err != nil {
-		return fmt.Errorf("failed to describe target database %s: %w", targetDbName, err)
+		return merr.WrapErrServiceInternalErr(err, "failed to describe target database %s", targetDbName)
 	}
 	targetIsEncrypted := hookutil.IsDBEncrypted(dbResp.GetProperties())
 
@@ -530,7 +530,7 @@ func (sm *snapshotManager) RestoreSnapshot(
 	// Phase 1: Read snapshot data
 	snapshotData, err := sm.ReadSnapshotData(ctx, snapshotName)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read snapshot data: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "failed to read snapshot data")
 	}
 	log.Info("snapshot data loaded",
 		zap.Int("segmentCount", len(snapshotData.Segments)),
@@ -546,7 +546,7 @@ func (sm *snapshotManager) RestoreSnapshot(
 	// Phase 2: Restore collection and partitions
 	collectionID, err := sm.RestoreCollection(ctx, snapshotData, targetCollectionName, targetDbName)
 	if err != nil {
-		return 0, fmt.Errorf("failed to restore collection: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "failed to restore collection")
 	}
 	log.Info("collection and partitions restored", zap.Int64("collectionID", collectionID))
 
@@ -557,7 +557,7 @@ func (sm *snapshotManager) RestoreSnapshot(
 		if rollbackErr := rollback(ctx, targetDbName, targetCollectionName); rollbackErr != nil {
 			log.Error("rollback failed", zap.Error(rollbackErr))
 		}
-		return 0, fmt.Errorf("failed to restore indexes: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "failed to restore indexes")
 	}
 	log.Info("indexes restored", zap.Int("indexCount", len(snapshotData.Indexes)))
 
@@ -569,7 +569,7 @@ func (sm *snapshotManager) RestoreSnapshot(
 		if rollbackErr := rollback(ctx, targetDbName, targetCollectionName); rollbackErr != nil {
 			log.Error("rollback failed", zap.Error(rollbackErr))
 		}
-		return 0, fmt.Errorf("failed to allocate job ID: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "failed to allocate job ID")
 	}
 	log.Info("pre-allocated job ID for restore", zap.Int64("jobID", jobID))
 
@@ -580,7 +580,7 @@ func (sm *snapshotManager) RestoreSnapshot(
 		if rollbackErr := rollback(ctx, targetDbName, targetCollectionName); rollbackErr != nil {
 			log.Error("rollback failed", zap.Error(rollbackErr))
 		}
-		return 0, fmt.Errorf("failed to start broadcaster for restore message: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "failed to start broadcaster for restore message")
 	}
 	defer func() {
 		if restoreBroadcaster != nil {
@@ -599,7 +599,7 @@ func (sm *snapshotManager) RestoreSnapshot(
 		if rollbackErr := rollback(ctx, targetDbName, targetCollectionName); rollbackErr != nil {
 			log.Error("rollback failed", zap.Error(rollbackErr))
 		}
-		return 0, fmt.Errorf("resource validation failed: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "resource validation failed")
 	}
 
 	msg := message.NewRestoreSnapshotMessageBuilderV2().
@@ -621,7 +621,7 @@ func (sm *snapshotManager) RestoreSnapshot(
 		if rollbackErr := rollback(ctx, targetDbName, targetCollectionName); rollbackErr != nil {
 			log.Error("rollback failed", zap.Error(rollbackErr))
 		}
-		return 0, fmt.Errorf("failed to broadcast restore message: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "failed to broadcast restore message")
 	}
 
 	log.Info("restore snapshot completed", zap.Int64("collectionID", collectionID), zap.Int64("jobID", jobID))
@@ -702,14 +702,14 @@ func (sm *snapshotManager) RestoreIndexes(
 	// Get collection info for dbId
 	coll, err := sm.broker.DescribeCollectionInternal(ctx, collectionID)
 	if err != nil {
-		return fmt.Errorf("failed to describe collection %d: %w", collectionID, err)
+		return merr.WrapErrServiceInternalErr(err, "failed to describe collection %d", collectionID)
 	}
 
 	for _, indexInfo := range snapshotData.Indexes {
 		// Allocate new index ID
 		indexID, err := sm.allocator.AllocID(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to allocate index ID: %w", err)
+			return merr.WrapErrServiceInternalErr(err, "failed to allocate index ID")
 		}
 
 		// Build index model from snapshot data
@@ -728,14 +728,14 @@ func (sm *snapshotManager) RestoreIndexes(
 
 		// Validate the index params (basic validation without JSON path parsing)
 		if err := ValidateIndexParams(index); err != nil {
-			return fmt.Errorf("failed to validate index %s: %w", indexInfo.GetIndexName(), err)
+			return merr.WrapErrServiceInternalErr(err, "failed to validate index %s", indexInfo.GetIndexName())
 		}
 
 		// Create a new broadcaster for each index
 		// (each broadcaster can only be used once due to resource key lock consumption)
 		b, err := startBroadcaster(ctx, collectionID, snapshotName)
 		if err != nil {
-			return fmt.Errorf("failed to start broadcaster for index %s: %w", indexInfo.GetIndexName(), err)
+			return merr.WrapErrServiceInternalErr(err, "failed to start broadcaster for index %s", indexInfo.GetIndexName())
 		}
 
 		// Broadcast CreateIndex message directly to DDL WAL
@@ -755,7 +755,7 @@ func (sm *snapshotManager) RestoreIndexes(
 		)
 		b.Close()
 		if err != nil {
-			return fmt.Errorf("failed to broadcast create index %s: %w", indexInfo.GetIndexName(), err)
+			return merr.WrapErrServiceInternalErr(err, "failed to broadcast create index %s", indexInfo.GetIndexName())
 		}
 
 		log.Ctx(ctx).Info("index restored via DDL WAL broadcast",
@@ -799,14 +799,14 @@ func (sm *snapshotManager) RestoreData(
 	snapshotData, err := sm.ReadSnapshotData(ctx, snapshotName)
 	if err != nil {
 		log.Error("failed to read snapshot data", zap.Error(err))
-		return 0, fmt.Errorf("failed to read snapshot data: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "failed to read snapshot data")
 	}
 
 	// ========== Phase 2: Build partition mapping ==========
 	partitionMapping, err := sm.buildPartitionMapping(ctx, snapshotData, collectionID)
 	if err != nil {
 		log.Error("failed to build partition mapping", zap.Error(err))
-		return 0, fmt.Errorf("partition mapping failed: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "partition mapping failed")
 	}
 	log.Info("partition mapping built", zap.Any("partitionMapping", partitionMapping))
 
@@ -814,14 +814,14 @@ func (sm *snapshotManager) RestoreData(
 	channelMapping, err := sm.buildChannelMapping(ctx, snapshotData, collectionID)
 	if err != nil {
 		log.Error("failed to build channel mapping", zap.Error(err))
-		return 0, fmt.Errorf("channel mapping failed: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "channel mapping failed")
 	}
 
 	// ========== Phase 4: Create copy segment job ==========
 	// Use the pre-allocated jobID from the WAL message
 	if err := sm.createRestoreJob(ctx, collectionID, channelMapping, partitionMapping, snapshotData, jobID); err != nil {
 		log.Error("failed to create restore job", zap.Error(err))
-		return 0, fmt.Errorf("restore job creation failed: %w", err)
+		return 0, merr.WrapErrServiceInternalErr(err, "restore job creation failed")
 	}
 
 	log.Info("restore data completed successfully",
@@ -869,7 +869,7 @@ func (sm *snapshotManager) restoreUserPartitions(
 		}
 
 		if err := sm.broker.CreatePartition(ctx, req); err != nil {
-			return fmt.Errorf("failed to create partition %s: %w", partitionName, err)
+			return merr.WrapErrServiceInternalErr(err, "failed to create partition %s", partitionName)
 		}
 	}
 

@@ -13,6 +13,7 @@ import (
 	"github.com/milvus-io/milvus/internal/storage"
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
@@ -405,7 +406,7 @@ func (sm *snapshotMeta) SaveSnapshot(ctx context.Context, snapshot *SnapshotData
 
 	if err := sm.catalog.SaveSnapshot(ctx, snapshot.SnapshotInfo); err != nil {
 		log.Error("failed to save pending snapshot to catalog", zap.Error(err))
-		return fmt.Errorf("failed to save pending snapshot to catalog: %w", err)
+		return merr.WrapErrServiceInternalErr(err, "failed to save pending snapshot to catalog")
 	}
 	log.Info("saved pending snapshot to catalog")
 
@@ -415,7 +416,7 @@ func (sm *snapshotMeta) SaveSnapshot(ctx context.Context, snapshot *SnapshotData
 		// S3 write failed, leave PENDING record for GC to clean up
 		log.Error("failed to save snapshot to S3, pending record left for GC cleanup",
 			zap.Error(err))
-		return fmt.Errorf("failed to save snapshot to S3: %w", err)
+		return merr.WrapErrServiceInternalErr(err, "failed to save snapshot to S3")
 	}
 	snapshot.SnapshotInfo.S3Location = metadataFilePath
 	log.Info("saved snapshot data to S3", zap.String("s3Location", metadataFilePath))
@@ -440,7 +441,7 @@ func (sm *snapshotMeta) SaveSnapshot(ctx context.Context, snapshot *SnapshotData
 		sm.removeFromSecondaryIndexes(snapshot.SnapshotInfo)
 		log.Error("failed to update snapshot to committed state, pending record left for GC cleanup",
 			zap.Error(err))
-		return fmt.Errorf("failed to update snapshot to committed state: %w", err)
+		return merr.WrapErrServiceInternalErr(err, "failed to update snapshot to committed state")
 	}
 
 	log.Info("snapshot saved successfully with 2PC",
@@ -671,7 +672,7 @@ func (sm *snapshotMeta) getSnapshotByName(ctx context.Context, snapshotName stri
 	// O(1) lookup using name index
 	snapshotID, ok := sm.snapshotName2ID.Get(snapshotName)
 	if !ok {
-		return nil, fmt.Errorf("snapshot %s not found", snapshotName)
+		return nil, merr.WrapErrParameterInvalidMsg("snapshot %s not found", snapshotName)
 	}
 
 	// O(1) lookup from primary index
@@ -679,7 +680,7 @@ func (sm *snapshotMeta) getSnapshotByName(ctx context.Context, snapshotName stri
 	if !ok {
 		// Index inconsistency: clean up orphan name index entry
 		sm.snapshotName2ID.Remove(snapshotName)
-		return nil, fmt.Errorf("snapshot %s not found", snapshotName)
+		return nil, merr.WrapErrParameterInvalidMsg("snapshot %s not found", snapshotName)
 	}
 
 	return info, nil
@@ -740,7 +741,7 @@ func (sm *snapshotMeta) GetPendingSnapshots(ctx context.Context, pendingTimeout 
 	// Get all snapshots from catalog (etcd)
 	snapshots, err := sm.catalog.ListSnapshots(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list snapshots from catalog: %w", err)
+		return nil, merr.WrapErrServiceInternalErr(err, "failed to list snapshots from catalog")
 	}
 
 	now := time.Now().UnixMilli()
@@ -791,7 +792,7 @@ func (sm *snapshotMeta) CleanupPendingSnapshot(ctx context.Context, snapshot *da
 func (sm *snapshotMeta) GetDeletingSnapshots(ctx context.Context) ([]*datapb.SnapshotInfo, error) {
 	snapshots, err := sm.catalog.ListSnapshots(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list snapshots from catalog: %w", err)
+		return nil, merr.WrapErrServiceInternalErr(err, "failed to list snapshots from catalog")
 	}
 
 	deletingSnapshots := make([]*datapb.SnapshotInfo, 0)

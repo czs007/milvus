@@ -18,7 +18,6 @@ package datacoord
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/lock"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/timerecord"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
@@ -252,7 +252,7 @@ func (m *externalCollectionRefreshMeta) GetAllJobs() map[int64]*datapb.ExternalC
 func (m *externalCollectionRefreshMeta) UpdateJobState(jobID int64, state indexpb.JobState, failReason string) error {
 	job, ok := m.jobs.Get(jobID)
 	if !ok {
-		return fmt.Errorf("job %d not found", jobID)
+		return merr.WrapErrParameterInvalidMsg("job %d not found", jobID)
 	}
 
 	m.jobLock.Lock(job.GetCollectionId())
@@ -261,7 +261,7 @@ func (m *externalCollectionRefreshMeta) UpdateJobState(jobID int64, state indexp
 	// Re-fetch after lock
 	job, ok = m.jobs.Get(jobID)
 	if !ok {
-		return fmt.Errorf("job %d not found", jobID)
+		return merr.WrapErrParameterInvalidMsg("job %d not found", jobID)
 	}
 
 	cloneJob := proto.Clone(job).(*datapb.ExternalCollectionRefreshJob)
@@ -295,7 +295,7 @@ func (m *externalCollectionRefreshMeta) UpdateJobState(jobID int64, state indexp
 func (m *externalCollectionRefreshMeta) UpdateJobProgress(jobID int64, progress int64) error {
 	job, ok := m.jobs.Get(jobID)
 	if !ok {
-		return fmt.Errorf("job %d not found", jobID)
+		return merr.WrapErrParameterInvalidMsg("job %d not found", jobID)
 	}
 
 	m.jobLock.Lock(job.GetCollectionId())
@@ -303,7 +303,7 @@ func (m *externalCollectionRefreshMeta) UpdateJobProgress(jobID int64, progress 
 
 	job, ok = m.jobs.Get(jobID)
 	if !ok {
-		return fmt.Errorf("job %d not found", jobID)
+		return merr.WrapErrParameterInvalidMsg("job %d not found", jobID)
 	}
 
 	cloneJob := proto.Clone(job).(*datapb.ExternalCollectionRefreshJob)
@@ -325,7 +325,7 @@ func (m *externalCollectionRefreshMeta) UpdateJobProgress(jobID int64, progress 
 func (m *externalCollectionRefreshMeta) AddTaskIDToJob(jobID int64, taskID int64) error {
 	job, ok := m.jobs.Get(jobID)
 	if !ok {
-		return fmt.Errorf("job %d not found", jobID)
+		return merr.WrapErrParameterInvalidMsg("job %d not found", jobID)
 	}
 
 	m.jobLock.Lock(job.GetCollectionId())
@@ -333,7 +333,7 @@ func (m *externalCollectionRefreshMeta) AddTaskIDToJob(jobID int64, taskID int64
 
 	job, ok = m.jobs.Get(jobID)
 	if !ok {
-		return fmt.Errorf("job %d not found", jobID)
+		return merr.WrapErrParameterInvalidMsg("job %d not found", jobID)
 	}
 
 	cloneJob := proto.Clone(job).(*datapb.ExternalCollectionRefreshJob)
@@ -486,7 +486,7 @@ func (m *externalCollectionRefreshMeta) GetTaskState(taskID int64) indexpb.JobSt
 func (m *externalCollectionRefreshMeta) UpdateTaskState(taskID int64, state indexpb.JobState, failReason string) error {
 	task, ok := m.tasks.Get(taskID)
 	if !ok {
-		return fmt.Errorf("task %d not found", taskID)
+		return merr.WrapErrParameterInvalidMsg("task %d not found", taskID)
 	}
 
 	m.taskLock.Lock(task.GetJobId())
@@ -494,7 +494,7 @@ func (m *externalCollectionRefreshMeta) UpdateTaskState(taskID int64, state inde
 
 	task, ok = m.tasks.Get(taskID)
 	if !ok {
-		return fmt.Errorf("task %d not found", taskID)
+		return merr.WrapErrParameterInvalidMsg("task %d not found", taskID)
 	}
 
 	cloneTask := proto.Clone(task).(*datapb.ExternalCollectionRefreshTask)
@@ -524,7 +524,7 @@ func (m *externalCollectionRefreshMeta) UpdateTaskState(taskID int64, state inde
 func (m *externalCollectionRefreshMeta) UpdateTaskProgress(taskID int64, progress int64) error {
 	task, ok := m.tasks.Get(taskID)
 	if !ok {
-		return fmt.Errorf("task %d not found", taskID)
+		return merr.WrapErrParameterInvalidMsg("task %d not found", taskID)
 	}
 
 	m.taskLock.Lock(task.GetJobId())
@@ -532,7 +532,7 @@ func (m *externalCollectionRefreshMeta) UpdateTaskProgress(taskID int64, progres
 
 	task, ok = m.tasks.Get(taskID)
 	if !ok {
-		return fmt.Errorf("task %d not found", taskID)
+		return merr.WrapErrParameterInvalidMsg("task %d not found", taskID)
 	}
 
 	cloneTask := proto.Clone(task).(*datapb.ExternalCollectionRefreshTask)
@@ -554,7 +554,7 @@ func (m *externalCollectionRefreshMeta) UpdateTaskProgress(taskID int64, progres
 func (m *externalCollectionRefreshMeta) UpdateTaskVersion(taskID, nodeID int64) error {
 	task, ok := m.tasks.Get(taskID)
 	if !ok {
-		return fmt.Errorf("task %d not found", taskID)
+		return merr.WrapErrParameterInvalidMsg("task %d not found", taskID)
 	}
 
 	m.taskLock.Lock(task.GetJobId())
@@ -562,7 +562,7 @@ func (m *externalCollectionRefreshMeta) UpdateTaskVersion(taskID, nodeID int64) 
 
 	task, ok = m.tasks.Get(taskID)
 	if !ok {
-		return fmt.Errorf("task %d not found", taskID)
+		return merr.WrapErrParameterInvalidMsg("task %d not found", taskID)
 	}
 
 	cloneTask := proto.Clone(task).(*datapb.ExternalCollectionRefreshTask)

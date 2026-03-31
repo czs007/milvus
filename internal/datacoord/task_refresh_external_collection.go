@@ -32,6 +32,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
 	"github.com/milvus-io/milvus/pkg/v2/taskcommon"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 )
 
@@ -106,7 +107,7 @@ func (t *refreshExternalCollectionTask) validateSource() error {
 	// Validate against job-level snapshot to isolate in-flight tasks from schema changes.
 	job := t.refreshMeta.GetJob(t.GetJobId())
 	if job == nil {
-		return fmt.Errorf("job %d not found", t.GetJobId())
+		return merr.WrapErrParameterInvalidMsg("job %d not found", t.GetJobId())
 	}
 
 	currentSource := job.GetExternalSource()
@@ -116,7 +117,7 @@ func (t *refreshExternalCollectionTask) validateSource() error {
 	taskSpec := t.GetExternalSpec()
 
 	if currentSource != taskSource || currentSpec != taskSpec {
-		return fmt.Errorf(
+		return merr.WrapErrParameterInvalidMsg(
 			"task source mismatch: task source=%s/%s, job source=%s/%s (task belongs to a different refresh job)",
 			taskSource, taskSpec, currentSource, currentSpec,
 		)
@@ -180,7 +181,7 @@ func (t *refreshExternalCollectionTask) UpdateProgressWithMeta(progress int64) e
 // SetJobInfo processes the task response and updates segment information atomically
 func (t *refreshExternalCollectionTask) SetJobInfo(ctx context.Context, resp *datapb.UpdateExternalCollectionResponse) error {
 	if t.mt == nil {
-		return fmt.Errorf("meta is nil, cannot update segments")
+		return merr.WrapErrServiceInternalMsg("meta is nil, cannot update segments")
 	}
 
 	log := log.Ctx(ctx).With(
@@ -231,7 +232,7 @@ func (t *refreshExternalCollectionTask) SetJobInfo(ctx context.Context, resp *da
 			zap.Int("activeSegmentCount", activeSegmentCount),
 			zap.Int("keptSegments", len(keptSegmentIDs)),
 			zap.Int("updatedSegments", len(updatedSegments)))
-		return fmt.Errorf("safety check failed: refusing to drop all %d segments without replacement (keptSegments=%d, updatedSegments=%d)",
+		return merr.WrapErrServiceInternalMsg("safety check failed: refusing to drop all %d segments without replacement (keptSegments=%d, updatedSegments=%d)",
 			activeSegmentCount, len(keptSegmentIDs), len(updatedSegments))
 	}
 
@@ -257,15 +258,15 @@ func (t *refreshExternalCollectionTask) SetJobInfo(ctx context.Context, resp *da
 	// These are required for QueryCoord to include segments in its loading target.
 	collInfo := t.mt.GetCollection(t.GetCollectionId())
 	if collInfo == nil {
-		return fmt.Errorf("collection %d not found in meta", t.GetCollectionId())
+		return merr.WrapErrCollectionIDNotFound(t.GetCollectionId())
 	}
 	// External collections are single-shard, single-partition (enforced at creation).
 	// Assert exactly-one here to catch any invariant violation from data corruption or legacy data.
 	if len(collInfo.VChannelNames) != 1 {
-		return fmt.Errorf("external collection %d expected exactly 1 VChannel, got %d", t.GetCollectionId(), len(collInfo.VChannelNames))
+		return merr.WrapErrCollectionIllegalSchema(fmt.Sprintf("%d", t.GetCollectionId()), "expected exactly 1 VChannel, got %d", len(collInfo.VChannelNames))
 	}
 	if len(collInfo.Partitions) != 1 {
-		return fmt.Errorf("external collection %d expected exactly 1 partition, got %d", t.GetCollectionId(), len(collInfo.Partitions))
+		return merr.WrapErrCollectionIllegalSchema(fmt.Sprintf("%d", t.GetCollectionId()), "expected exactly 1 partition, got %d", len(collInfo.Partitions))
 	}
 	insertChannel := collInfo.VChannelNames[0]
 	partitionID := collInfo.Partitions[0]
@@ -376,7 +377,7 @@ func (t *refreshExternalCollectionTask) CreateTaskOnWorker(nodeID int64, cluster
 	log.Info("creating refresh task on worker")
 
 	if t.mt == nil {
-		err = fmt.Errorf("meta is nil, cannot create task on worker")
+		err = merr.WrapErrServiceInternalMsg("meta is nil, cannot create task on worker")
 		return
 	}
 
@@ -389,7 +390,7 @@ func (t *refreshExternalCollectionTask) CreateTaskOnWorker(nodeID int64, cluster
 	// Re-read task from meta to sync in-memory state (nodeID and version)
 	updatedTask := t.refreshMeta.GetTask(t.GetTaskId())
 	if updatedTask == nil {
-		err = fmt.Errorf("task %d not found after version update", t.GetTaskId())
+		err = merr.WrapErrServiceInternalMsg("task %d not found after version update", t.GetTaskId())
 		return
 	}
 	t.ExternalCollectionRefreshTask = updatedTask
@@ -426,7 +427,7 @@ func (t *refreshExternalCollectionTask) CreateTaskOnWorker(nodeID int64, cluster
 	// Get collection schema for column mapping
 	collInfo := t.mt.GetCollection(t.GetCollectionId())
 	if collInfo == nil {
-		err = fmt.Errorf("collection %d not found in meta", t.GetCollectionId())
+		err = merr.WrapErrCollectionIDNotFound(t.GetCollectionId())
 		return
 	}
 
