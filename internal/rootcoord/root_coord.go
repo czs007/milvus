@@ -2275,7 +2275,7 @@ func (c *Core) DropRole(ctx context.Context, in *milvuspb.DropRoleRequest) (*com
 	if err := c.broadcastDropRole(ctx, in); err != nil {
 		ctxLog.Warn("fail to drop role", zap.Error(err))
 		if errors.Is(err, errRoleNotExists) {
-			return merr.StatusWithErrorCode(errors.New("not found the role, maybe the role isn't existed or internal system error"), commonpb.ErrorCode_DropRoleFailure), nil
+			return merr.Status(merr.WrapErrRbacMsg("not found the role, maybe the role isn't existed or internal system error")), nil
 		}
 		return merr.StatusWithErrorCode(err, commonpb.ErrorCode_DropRoleFailure), nil
 	}
@@ -2307,7 +2307,7 @@ func (c *Core) OperateUserRole(ctx context.Context, in *milvuspb.OperateUserRole
 	if err := c.broadcastOperateUserRole(ctx, in); err != nil {
 		ctxLog.Warn("fail to operate the user and role", zap.Error(err))
 		if errors.Is(err, errRoleNotExists) {
-			return merr.StatusWithErrorCode(errors.New("not found the role, maybe the role isn't existed or internal system error"), commonpb.ErrorCode_OperateUserRoleFailure), nil
+			return merr.Status(merr.WrapErrRbacMsg("not found the role, maybe the role isn't existed or internal system error")), nil
 		}
 		return merr.StatusWithErrorCode(err, commonpb.ErrorCode_OperateUserRoleFailure), nil
 	}
@@ -2343,7 +2343,7 @@ func (c *Core) SelectRole(ctx context.Context, in *milvuspb.SelectRoleRequest) (
 			errMsg := "fail to select the role to check the role name"
 			ctxLog.Warn(errMsg, zap.Error(err))
 			return &milvuspb.SelectRoleResponse{
-				Status: merr.StatusWithErrorCode(errors.New(errMsg), commonpb.ErrorCode_SelectRoleFailure),
+				Status: merr.Status(merr.WrapErrRbacMsg(errMsg)),
 			}, nil
 		}
 	}
@@ -2352,7 +2352,7 @@ func (c *Core) SelectRole(ctx context.Context, in *milvuspb.SelectRoleRequest) (
 		errMsg := "fail to select the role"
 		ctxLog.Warn(errMsg, zap.Error(err))
 		return &milvuspb.SelectRoleResponse{
-			Status: merr.StatusWithErrorCode(errors.New(errMsg), commonpb.ErrorCode_SelectRoleFailure),
+			Status: merr.Status(merr.WrapErrRbacMsg(errMsg)),
 		}, nil
 	}
 
@@ -2390,7 +2390,7 @@ func (c *Core) SelectUser(ctx context.Context, in *milvuspb.SelectUserRequest) (
 			errMsg := "fail to select the user to check the username"
 			ctxLog.Warn(errMsg, zap.Any("in", in), zap.Error(err))
 			return &milvuspb.SelectUserResponse{
-				Status: merr.StatusWithErrorCode(errors.New(errMsg), commonpb.ErrorCode_SelectUserFailure),
+				Status: merr.Status(merr.WrapErrRbacMsg(errMsg)),
 			}, nil
 		}
 	}
@@ -2399,7 +2399,7 @@ func (c *Core) SelectUser(ctx context.Context, in *milvuspb.SelectUserRequest) (
 		errMsg := "fail to select the user"
 		ctxLog.Warn(errMsg, zap.Error(err))
 		return &milvuspb.SelectUserResponse{
-			Status: merr.StatusWithErrorCode(errors.New(errMsg), commonpb.ErrorCode_SelectUserFailure),
+			Status: merr.Status(merr.WrapErrRbacMsg(errMsg)),
 		}, nil
 	}
 
@@ -2621,7 +2621,7 @@ func (c *Core) SelectGrant(ctx context.Context, in *milvuspb.SelectGrantRequest)
 		errMsg := "the grant entity in the request is nil"
 		ctxLog.Warn(errMsg)
 		return &milvuspb.SelectGrantResponse{
-			Status: merr.StatusWithErrorCode(errors.New(errMsg), commonpb.ErrorCode_SelectGrantFailure),
+			Status: merr.Status(merr.WrapErrRbacMsg(errMsg)),
 		}, nil
 	}
 	if err := c.isValidRole(ctx, in.Entity.Role); err != nil {
@@ -2650,7 +2650,7 @@ func (c *Core) SelectGrant(ctx context.Context, in *milvuspb.SelectGrantRequest)
 		errMsg := "fail to select the grant"
 		ctxLog.Warn(errMsg, zap.Error(err))
 		return &milvuspb.SelectGrantResponse{
-			Status: merr.StatusWithErrorCode(errors.New(errMsg), commonpb.ErrorCode_SelectGrantFailure),
+			Status: merr.Status(merr.WrapErrRbacMsg(errMsg)),
 		}, nil
 	}
 
@@ -2680,7 +2680,7 @@ func (c *Core) ListPolicy(ctx context.Context, in *internalpb.ListPolicyRequest)
 	if err != nil {
 		ctxLog.Error("fail to list policy", zap.Error(err))
 		return &internalpb.ListPolicyResponse{
-			Status: merr.StatusWithErrorCode(fmt.Errorf("fail to list policy: %s", err.Error()), commonpb.ErrorCode_ListPolicyFailure),
+			Status: merr.Status(merr.WrapErrRbac(err, "fail to list policy")),
 		}, nil
 	}
 	// expand privilege groups and turn to policies
@@ -2688,7 +2688,7 @@ func (c *Core) ListPolicy(ctx context.Context, in *internalpb.ListPolicyRequest)
 	if err != nil {
 		ctxLog.Error("fail to get privilege groups", zap.Error(err))
 		return &internalpb.ListPolicyResponse{
-			Status: merr.StatusWithErrorCode(fmt.Errorf("fail to get privilege groups: %s", err.Error()), commonpb.ErrorCode_ListPolicyFailure),
+			Status: merr.Status(merr.WrapErrRbac(err, "fail to get privilege groups")),
 		}, nil
 	}
 	groups := lo.SliceToMap(allGroups, func(group *milvuspb.PrivilegeGroupInfo) (string, []*milvuspb.PrivilegeEntity) {
@@ -2698,7 +2698,7 @@ func (c *Core) ListPolicy(ctx context.Context, in *internalpb.ListPolicyRequest)
 	if err != nil {
 		ctxLog.Error("fail to expand privilege groups", zap.Error(err))
 		return &internalpb.ListPolicyResponse{
-			Status: merr.StatusWithErrorCode(fmt.Errorf("fail to expand privilege groups: %s", err.Error()), commonpb.ErrorCode_ListPolicyFailure),
+			Status: merr.Status(merr.WrapErrRbac(err, "fail to expand privilege groups")),
 		}, nil
 	}
 	expandPolicies := lo.Map(expandGrants, func(r *milvuspb.GrantEntity, _ int) string {
@@ -2709,7 +2709,7 @@ func (c *Core) ListPolicy(ctx context.Context, in *internalpb.ListPolicyRequest)
 	if err != nil {
 		ctxLog.Error("fail to list user-role", zap.Any("in", in), zap.Error(err))
 		return &internalpb.ListPolicyResponse{
-			Status: merr.StatusWithErrorCode(fmt.Errorf("fail to list user-role: %s", err.Error()), commonpb.ErrorCode_ListPolicyFailure),
+			Status: merr.Status(merr.WrapErrRbac(err, "fail to list user-role")),
 		}, nil
 	}
 
@@ -3378,7 +3378,7 @@ func (c *Core) ClientHeartbeat(ctx context.Context, req *milvuspb.ClientHeartbea
 
 	if c.telemetryMgr == nil {
 		return &milvuspb.ClientHeartbeatResponse{
-			Status: merr.Status(errors.New("telemetry manager not initialized")),
+			Status: merr.Status(merr.WrapErrServiceInternalMsg("telemetry manager not initialized")),
 		}, nil
 	}
 
@@ -3395,7 +3395,7 @@ func (c *Core) GetClientTelemetry(ctx context.Context, req *milvuspb.GetClientTe
 
 	if c.telemetryMgr == nil {
 		return &milvuspb.GetClientTelemetryResponse{
-			Status: merr.Status(errors.New("telemetry manager not initialized")),
+			Status: merr.Status(merr.WrapErrServiceInternalMsg("telemetry manager not initialized")),
 		}, nil
 	}
 
@@ -3412,7 +3412,7 @@ func (c *Core) PushClientCommand(ctx context.Context, req *milvuspb.PushClientCo
 
 	if c.telemetryMgr == nil {
 		return &milvuspb.PushClientCommandResponse{
-			Status: merr.Status(errors.New("telemetry manager not initialized")),
+			Status: merr.Status(merr.WrapErrServiceInternalMsg("telemetry manager not initialized")),
 		}, nil
 	}
 
@@ -3429,7 +3429,7 @@ func (c *Core) DeleteClientCommand(ctx context.Context, req *milvuspb.DeleteClie
 
 	if c.telemetryMgr == nil {
 		return &milvuspb.DeleteClientCommandResponse{
-			Status: merr.Status(errors.New("telemetry manager not initialized")),
+			Status: merr.Status(merr.WrapErrServiceInternalMsg("telemetry manager not initialized")),
 		}, nil
 	}
 

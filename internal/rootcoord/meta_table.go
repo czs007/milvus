@@ -449,7 +449,7 @@ func (mt *MetaTable) CheckIfDatabaseDroppable(ctx context.Context, req *milvuspb
 	defer mt.ddLock.RUnlock()
 
 	if dbName == util.DefaultDBName {
-		return errors.New("can not drop default database")
+		return merr.WrapErrParameterInvalidMsg("can not drop default database")
 	}
 
 	if _, err := mt.getDatabaseByNameInternal(ctx, dbName, typeutil.MaxTimestamp); err != nil {
@@ -462,7 +462,7 @@ func (mt *MetaTable) CheckIfDatabaseDroppable(ctx context.Context, req *milvuspb
 		return err
 	}
 	if len(colls) > 0 {
-		return fmt.Errorf("database:%s not empty, must drop all collections before drop database", dbName)
+		return merr.WrapErrParameterInvalidMsg("database:%s not empty, must drop all collections before drop database", dbName)
 	}
 	return nil
 }
@@ -1163,14 +1163,14 @@ func (mt *MetaTable) CheckIfCollectionRenamable(ctx context.Context, dbName stri
 	_, ok = mt.aliases.get(newDBName, newName)
 	if ok {
 		log.Warn("cannot rename collection to an existing alias")
-		return fmt.Errorf("cannot rename collection to an existing alias: %s", newName)
+		return merr.WrapErrParameterInvalidMsg("cannot rename collection to an existing alias: %s", newName)
 	}
 
 	// check new collection already exists
 	coll, err := mt.getCollectionByNameInternal(ctx, newDBName, newName, typeutil.MaxTimestamp)
 	if coll != nil {
 		log.Warn("duplicated new collection name, already taken by another collection or alias.")
-		return fmt.Errorf("duplicated new collection name %s:%s with other collection name or alias", newDBName, newName)
+		return merr.WrapErrParameterInvalidMsg("duplicated new collection name %s:%s with other collection name or alias", newDBName, newName)
 	}
 	if err != nil && !errors.Is(err, merr.ErrCollectionNotFound) {
 		log.Warn("fail to check if new collection name is already taken", zap.Error(err))
@@ -1187,7 +1187,7 @@ func (mt *MetaTable) CheckIfCollectionRenamable(ctx context.Context, dbName stri
 	// unsupported rename collection while the collection has aliases
 	aliases := mt.listAliasesByID(oldColl.CollectionID)
 	if len(aliases) > 0 && oldColl.DBID != targetDB.ID {
-		return errors.New("fail to rename db name, must drop all aliases of this collection before rename")
+		return merr.WrapErrParameterInvalidMsg("fail to rename db name, must drop all aliases of this collection before rename")
 	}
 	return nil
 }
@@ -1824,7 +1824,7 @@ func (mt *MetaTable) CheckIfDropRole(ctx context.Context, in *milvuspb.DropRoleR
 	}
 	if len(grantEntities) != 0 {
 		errMsg := "fail to drop the role that it has privileges. Use REVOKE API to revoke privileges"
-		return errors.New(errMsg)
+		return merr.WrapErrServiceInternalMsg(errMsg)
 	}
 	return nil
 }
@@ -1856,7 +1856,7 @@ func (mt *MetaTable) CheckIfOperateUserRole(ctx context.Context, req *milvuspb.O
 	if req.Type != milvuspb.OperateUserRoleType_RemoveUserFromRole {
 		if _, err := mt.catalog.ListUser(ctx, util.DefaultTenant, &milvuspb.UserEntity{Name: req.Username}, false); err != nil {
 			errMsg := "not found the user, maybe the user isn't existed or internal system error"
-			return errors.New(errMsg)
+			return merr.WrapErrServiceInternalMsg(errMsg)
 		}
 	}
 	return nil
