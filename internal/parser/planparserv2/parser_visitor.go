@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
-	"github.com/cockroachdb/errors"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	parser "github.com/milvus-io/milvus/internal/parser/planparserv2/generated"
@@ -495,12 +494,12 @@ func (v *ParserVisitor) VisitLike(ctx *parser.LikeContext) interface{} {
 
 	leftExpr := getExpr(left)
 	if leftExpr == nil {
-		return errors.New("the left operand of like is invalid")
+		return merr.WrapErrParameterInvalidMsg("the left operand of like is invalid")
 	}
 
 	column := toColumnInfo(leftExpr)
 	if column == nil {
-		return errors.New("like operation on complicated expr is unsupported")
+		return merr.WrapErrParameterInvalidMsg("like operation on complicated expr is unsupported")
 	}
 	if err := checkDirectComparisonBinaryField(column); err != nil {
 		return err
@@ -508,7 +507,7 @@ func (v *ParserVisitor) VisitLike(ctx *parser.LikeContext) interface{} {
 
 	if !typeutil.IsStringType(leftExpr.dataType) && !typeutil.IsJSONType(leftExpr.dataType) &&
 		!(typeutil.IsArrayType(leftExpr.dataType) && typeutil.IsStringType(column.GetElementType())) {
-		return errors.New("like operation on non-string or no-json field is unsupported")
+		return merr.WrapErrParameterInvalidMsg("like operation on non-string or no-json field is unsupported")
 	}
 
 	pattern, err := convertEscapeSingle(ctx.StringLiteral().GetText())
@@ -543,10 +542,10 @@ func (v *ParserVisitor) VisitTextMatch(ctx *parser.TextMatchContext) interface{}
 	}
 	columnInfo := toColumnInfo(column)
 	if !typeutil.IsStringType(column.dataType) {
-		return errors.New("text match operation on non-string is unsupported")
+		return merr.WrapErrParameterInvalidMsg("text match operation on non-string is unsupported")
 	}
 	if column.dataType == schemapb.DataType_Text {
-		return errors.New("text match operation on text field is not supported yet")
+		return merr.WrapErrParameterInvalidMsg("text match operation on text field is not supported yet")
 	}
 	if !v.schema.IsFieldTextMatchEnabled(columnInfo.FieldId) {
 		return merr.WrapErrParameterInvalidMsg("field \"%s\" does not enable match", identifier)
@@ -615,7 +614,7 @@ func (v *ParserVisitor) VisitPhraseMatch(ctx *parser.PhraseMatchContext) interfa
 
 	columnInfo := toColumnInfo(column)
 	if !typeutil.IsStringType(column.dataType) {
-		return errors.New("phrase match operation on non-string is unsupported")
+		return merr.WrapErrParameterInvalidMsg("phrase match operation on non-string is unsupported")
 	}
 	if !v.schema.IsFieldTextMatchEnabled(columnInfo.FieldId) {
 		return merr.WrapErrParameterInvalidMsg("field \"%s\" does not enable match", identifier)
@@ -942,11 +941,11 @@ func (v *ParserVisitor) VisitRange(ctx *parser.RangeContext) interface{} {
 	if !isTemplateExpr(lowerValueExpr) && !isTemplateExpr(upperValueExpr) {
 		if !(lowerInclusive && upperInclusive) {
 			if getGenericValue(GreaterEqual(lowerValue, upperValue)).GetBoolVal() {
-				return errors.New("invalid range: lowerbound is greater than upperbound")
+				return merr.WrapErrParameterInvalidMsg("invalid range: lowerbound is greater than upperbound")
 			}
 		} else {
 			if getGenericValue(Greater(lowerValue, upperValue)).GetBoolVal() {
-				return errors.New("invalid range: lowerbound is greater than upperbound")
+				return merr.WrapErrParameterInvalidMsg("invalid range: lowerbound is greater than upperbound")
 			}
 		}
 	}
@@ -1024,11 +1023,11 @@ func (v *ParserVisitor) VisitReverseRange(ctx *parser.ReverseRangeContext) inter
 	if !isTemplateExpr(lowerValueExpr) && !isTemplateExpr(upperValueExpr) {
 		if !(lowerInclusive && upperInclusive) {
 			if getGenericValue(GreaterEqual(lowerValue, upperValue)).GetBoolVal() {
-				return errors.New("invalid range: lowerbound is greater than upperbound")
+				return merr.WrapErrParameterInvalidMsg("invalid range: lowerbound is greater than upperbound")
 			}
 		} else {
 			if getGenericValue(Greater(lowerValue, upperValue)).GetBoolVal() {
-				return errors.New("invalid range: lowerbound is greater than upperbound")
+				return merr.WrapErrParameterInvalidMsg("invalid range: lowerbound is greater than upperbound")
 			}
 		}
 	}
@@ -1097,10 +1096,10 @@ func (v *ParserVisitor) VisitUnary(ctx *parser.UnaryContext) interface{} {
 
 	childExpr := getExpr(child)
 	if childExpr == nil {
-		return errors.New("failed to parse unary expressions")
+		return merr.WrapErrParameterInvalidMsg("failed to parse unary expressions")
 	}
 	if isRandomSampleExpr(childExpr) {
-		return errors.New("random sample expression cannot be used in unary expression")
+		return merr.WrapErrParameterInvalidMsg("random sample expression cannot be used in unary expression")
 	}
 
 	if err := checkDirectComparisonBinaryField(toColumnInfo(childExpr)); err != nil {
@@ -1150,7 +1149,7 @@ func (v *ParserVisitor) VisitLogicalOr(ctx *parser.LogicalOrContext) interface{}
 	}
 
 	if leftValue != nil || rightValue != nil {
-		return errors.New("'or' can only be used between boolean expressions")
+		return merr.WrapErrParameterInvalidMsg("'or' can only be used between boolean expressions")
 	}
 
 	var leftExpr *ExprWithType
@@ -1158,15 +1157,15 @@ func (v *ParserVisitor) VisitLogicalOr(ctx *parser.LogicalOrContext) interface{}
 	leftExpr = getExpr(left)
 	rightExpr = getExpr(right)
 	if isRandomSampleExpr(leftExpr) || isRandomSampleExpr(rightExpr) {
-		return errors.New("random sample expression cannot be used in logical and expression")
+		return merr.WrapErrParameterInvalidMsg("random sample expression cannot be used in logical and expression")
 	}
 
 	if isElementFilterExpr(leftExpr) {
-		return errors.New("element filter expression can only be the last expression in the logical or expression")
+		return merr.WrapErrParameterInvalidMsg("element filter expression can only be the last expression in the logical or expression")
 	}
 
 	if !canBeExecuted(leftExpr) || !canBeExecuted(rightExpr) {
-		return errors.New("'or' can only be used between boolean expressions")
+		return merr.WrapErrParameterInvalidMsg("'or' can only be used between boolean expressions")
 	}
 	expr := &planpb.Expr{
 		Expr: &planpb.Expr_BinaryExpr{
@@ -1206,7 +1205,7 @@ func (v *ParserVisitor) VisitLogicalAnd(ctx *parser.LogicalAndContext) interface
 	}
 
 	if leftValue != nil || rightValue != nil {
-		return errors.New("'and' can only be used between boolean expressions")
+		return merr.WrapErrParameterInvalidMsg("'and' can only be used between boolean expressions")
 	}
 
 	var leftExpr *ExprWithType
@@ -1214,15 +1213,15 @@ func (v *ParserVisitor) VisitLogicalAnd(ctx *parser.LogicalAndContext) interface
 	leftExpr = getExpr(left)
 	rightExpr = getExpr(right)
 	if isRandomSampleExpr(leftExpr) {
-		return errors.New("random sample expression can only be the last expression in the logical and expression")
+		return merr.WrapErrParameterInvalidMsg("random sample expression can only be the last expression in the logical and expression")
 	}
 
 	if isElementFilterExpr(leftExpr) {
-		return errors.New("element filter expression can only be the last expression in the logical and expression")
+		return merr.WrapErrParameterInvalidMsg("element filter expression can only be the last expression in the logical and expression")
 	}
 
 	if !canBeExecuted(leftExpr) || !canBeExecuted(rightExpr) {
-		return errors.New("'and' can only be used between boolean expressions")
+		return merr.WrapErrParameterInvalidMsg("'and' can only be used between boolean expressions")
 	}
 
 	var expr *planpb.Expr
@@ -1408,7 +1407,7 @@ func (v *ParserVisitor) VisitStructField(ctx *parser.StructFieldContext) interfa
 	// Look up the field directly by its full name
 	field, err := v.schema.GetFieldFromName(identifier)
 	if err != nil {
-		return fmt.Errorf("struct field not found: %s, error: %s", identifier, err)
+		return merr.WrapErrParameterInvalidMsg("struct field not found: %s, error: %s", identifier, err)
 	}
 
 	return &ExprWithType{

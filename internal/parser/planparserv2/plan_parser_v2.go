@@ -91,7 +91,7 @@ func handleInternal(exprStr string) (ast planparserv2.IExprContext, err error) {
 
 	if parser.GetCurrentToken().GetTokenType() != antlr.TokenEOF {
 		log.Info("invalid expression", zap.String("expr", exprStr))
-		err = fmt.Errorf("invalid expression: %s", exprStr)
+		err = merr.WrapErrParameterInvalidMsg("invalid expression: %s", exprStr)
 		return
 	}
 
@@ -106,7 +106,7 @@ func handleInternal(exprStr string) (ast planparserv2.IExprContext, err error) {
 func handleExprInternal(schema *typeutil.SchemaHelper, exprStr string, visitorArgs *ParserVisitorArgs) (result interface{}) {
 	defer func() {
 		if r := recover(); r != nil {
-			result = fmt.Errorf("unsupported expression: %s", exprStr)
+			result = merr.WrapErrParameterInvalidMsg("unsupported expression: %s", exprStr)
 		}
 	}()
 

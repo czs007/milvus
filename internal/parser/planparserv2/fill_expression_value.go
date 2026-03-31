@@ -1,8 +1,6 @@
 package planparserv2
 
 import (
-	"github.com/cockroachdb/errors"
-
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/planpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"
@@ -215,7 +213,7 @@ func FillBinaryArithOpEvalRangeExpressionValue(expr *planpb.BinaryArithOpEvalRan
 		if expr.ArithOp == planpb.ArithOpType_Div || expr.ArithOp == planpb.ArithOpType_Mod {
 			if (IsInteger(castedOperand) && castedOperand.GetInt64Val() == 0) ||
 				(IsFloating(castedOperand) && castedOperand.GetFloatVal() == 0) {
-				return errors.New("division or modulus by zero")
+				return merr.WrapErrParameterInvalidMsg("division or modulus by zero")
 			}
 		}
 
