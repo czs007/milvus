@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/milvus-io/milvus/pkg/v2/proto/planpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 type SumAggregate struct {
@@ -69,7 +70,7 @@ func (min *MinAggregate) Name() string {
 
 func (min *MinAggregate) Update(target *FieldValue, new *FieldValue) error {
 	if target == nil || new == nil {
-		return fmt.Errorf("target or new field value is nil")
+		return merr.WrapErrServiceInternalMsg("target or new field value is nil")
 	}
 
 	// Skip null values during aggregation
@@ -95,7 +96,7 @@ func (min *MinAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case int:
 		newVal, ok := new.val.(int)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is int, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is int, new is %T", new.val))
 		}
 		if newVal < targetVal {
 			target.val = newVal
@@ -103,7 +104,7 @@ func (min *MinAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case int32:
 		newVal, ok := new.val.(int32)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is int32, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is int32, new is %T", new.val))
 		}
 		if newVal < targetVal {
 			target.val = newVal
@@ -111,7 +112,7 @@ func (min *MinAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case int64:
 		newVal, ok := new.val.(int64)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is int64, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is int64, new is %T", new.val))
 		}
 		if newVal < targetVal {
 			target.val = newVal
@@ -119,7 +120,7 @@ func (min *MinAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case float32:
 		newVal, ok := new.val.(float32)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is float32, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is float32, new is %T", new.val))
 		}
 		if newVal < targetVal {
 			target.val = newVal
@@ -127,7 +128,7 @@ func (min *MinAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case float64:
 		newVal, ok := new.val.(float64)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is float64, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is float64, new is %T", new.val))
 		}
 		if newVal < targetVal {
 			target.val = newVal
@@ -135,13 +136,13 @@ func (min *MinAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case string:
 		newVal, ok := new.val.(string)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is string, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is string, new is %T", new.val))
 		}
 		if newVal < targetVal {
 			target.val = newVal
 		}
 	default:
-		return fmt.Errorf("unsupported type for min aggregation: %T", target.val)
+		return merr.WrapErrServiceInternalMsg(fmt.Sprintf("unsupported type for min aggregation: %T", target.val))
 	}
 	return nil
 }
@@ -169,7 +170,7 @@ func (max *MaxAggregate) Name() string {
 
 func (max *MaxAggregate) Update(target *FieldValue, new *FieldValue) error {
 	if target == nil || new == nil {
-		return fmt.Errorf("target or new field value is nil")
+		return merr.WrapErrServiceInternalMsg("target or new field value is nil")
 	}
 
 	// Skip null values during aggregation
@@ -195,7 +196,7 @@ func (max *MaxAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case int:
 		newVal, ok := new.val.(int)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is int, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is int, new is %T", new.val))
 		}
 		if newVal > targetVal {
 			target.val = newVal
@@ -203,7 +204,7 @@ func (max *MaxAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case int32:
 		newVal, ok := new.val.(int32)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is int32, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is int32, new is %T", new.val))
 		}
 		if newVal > targetVal {
 			target.val = newVal
@@ -211,7 +212,7 @@ func (max *MaxAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case int64:
 		newVal, ok := new.val.(int64)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is int64, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is int64, new is %T", new.val))
 		}
 		if newVal > targetVal {
 			target.val = newVal
@@ -219,7 +220,7 @@ func (max *MaxAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case float32:
 		newVal, ok := new.val.(float32)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is float32, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is float32, new is %T", new.val))
 		}
 		if newVal > targetVal {
 			target.val = newVal
@@ -227,7 +228,7 @@ func (max *MaxAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case float64:
 		newVal, ok := new.val.(float64)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is float64, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is float64, new is %T", new.val))
 		}
 		if newVal > targetVal {
 			target.val = newVal
@@ -235,13 +236,13 @@ func (max *MaxAggregate) Update(target *FieldValue, new *FieldValue) error {
 	case string:
 		newVal, ok := new.val.(string)
 		if !ok {
-			return fmt.Errorf("type mismatch: target is string, new is %T", new.val)
+			return merr.WrapErrServiceInternalMsg(fmt.Sprintf("type mismatch: target is string, new is %T", new.val))
 		}
 		if newVal > targetVal {
 			target.val = newVal
 		}
 	default:
-		return fmt.Errorf("unsupported type for max aggregation: %T", target.val)
+		return merr.WrapErrServiceInternalMsg(fmt.Sprintf("unsupported type for max aggregation: %T", target.val))
 	}
 	return nil
 }

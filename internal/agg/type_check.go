@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 func isSupportedAggFieldType(aggregateName string, dt schemapb.DataType) bool {
@@ -51,7 +52,7 @@ func isSupportedAggFieldType(aggregateName string, dt schemapb.DataType) bool {
 // Note: operator name is expected to be normalized (lowercase) by caller.
 func ValidateAggFieldType(aggregateName string, dt schemapb.DataType) error {
 	if !isSupportedAggFieldType(aggregateName, dt) {
-		return fmt.Errorf("aggregation operator %s does not support data type %s", aggregateName, dt.String())
+		return merr.WrapErrParameterInvalidMsg(fmt.Sprintf("aggregation operator %s does not support data type %s", aggregateName, dt.String()))
 	}
 	return nil
 }
