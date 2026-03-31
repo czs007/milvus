@@ -250,7 +250,7 @@ func (codec *IndexFileBinlogCodec) DeserializeImpl(blobs []*Blob) (
 
 				// make sure there is one string
 				if len(content) != 1 {
-					err := fmt.Errorf("failed to parse index event because content length is not one %d", len(content))
+					err := merr.WrapErrStorageMsg("failed to parse index event because content length is not one %d", len(content))
 					eventReader.Close()
 					binlogReader.Close()
 					return 0, 0, 0, 0, 0, 0, nil, "", 0, nil, err

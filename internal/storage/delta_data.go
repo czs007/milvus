@@ -17,7 +17,6 @@
 package storage
 
 import (
-	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -26,7 +25,6 @@ import (
 	"github.com/apache/arrow/go/v17/arrow"
 	"github.com/apache/arrow/go/v17/arrow/array"
 	"github.com/apache/arrow/go/v17/arrow/memory"
-	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
 
@@ -226,7 +224,7 @@ func (dl *DeleteLog) UnmarshalJSON(data []byte) error {
 	case schemapb.DataType_VarChar:
 		dl.Pk = &VarCharPrimaryKey{}
 	default:
-		return fmt.Errorf("unsupported primary key type: %v", schemapb.DataType(dl.PkType))
+		return merr.WrapErrParameterInvalidMsg("unsupported primary key type: %v", schemapb.DataType(dl.PkType))
 	}
 
 	if err = json.Unmarshal(*messageMap["pk"], dl.Pk); err != nil {
@@ -296,10 +294,10 @@ func BuildDeleteRecord(pks []PrimaryKey, tss []Timestamp) (r Record, tsFrom uint
 	tsTo = 0
 
 	if len(pks) == 0 {
-		return nil, 0, 0, errors.New("empty primary keys")
+		return nil, 0, 0, merr.WrapErrParameterInvalidMsg("empty primary keys")
 	}
 	if len(pks) != len(tss) {
-		return nil, 0, 0, errors.New("length of pks and tss must be equal")
+		return nil, 0, 0, merr.WrapErrParameterInvalidMsg("length of pks and tss must be equal")
 	}
 
 	allocator := memory.DefaultAllocator
@@ -322,7 +320,7 @@ func BuildDeleteRecord(pks []PrimaryKey, tss []Timestamp) (r Record, tsFrom uint
 		}
 		pkArray = builder.NewArray()
 	default:
-		return nil, 0, 0, errors.Newf("unsupported primary key type %T", pks[0])
+		return nil, 0, 0, merr.WrapErrParameterInvalidMsg("unsupported primary key type %T", pks[0])
 	}
 
 	// Build timestamp array

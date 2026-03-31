@@ -97,7 +97,7 @@ func (ir *IterativeRecordReader) Close() error {
 func (ir *IterativeRecordReader) Next() (rec Record, err error) {
 	defer func() {
 		if x := recover(); x != nil {
-			rec, err = nil, fmt.Errorf("internal error recovered: %v", x)
+			rec, err = nil, merr.WrapErrServiceInternalMsg("internal error recovered: %v", x)
 		}
 	}()
 	if ir.cur == nil {
