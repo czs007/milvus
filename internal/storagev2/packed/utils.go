@@ -26,6 +26,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 const (
@@ -128,11 +129,11 @@ func FetchFragmentsFromExternalSource(
 	defer CleanupExploreTempDir(exploreBaseDir, storageConfig)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to explore files: %w", err)
+		return nil, merr.WrapErrStorage(err, "failed to explore files")
 	}
 
 	if len(fileInfos) == 0 {
-		return nil, fmt.Errorf("no files found in external source %q with format %q", externalSource, format)
+		return nil, merr.WrapErrStorageMsg("no files found in external source %q with format %q", externalSource, format)
 	}
 
 	log.Info("Explored external files",
@@ -157,7 +158,7 @@ func FetchFragmentsFromExternalSource(
 			// Fetch it separately via GetFileInfo FFI call.
 			fetchedInfo, err := GetFileInfo(format, fi.FilePath, storageConfig)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get file info for %s: %w", fi.FilePath, err)
+				return nil, merr.WrapErrStorage(err, "failed to get file info for %s", fi.FilePath)
 			}
 			numRows = fetchedInfo.NumRows
 		}
@@ -172,7 +173,7 @@ func FetchFragmentsFromExternalSource(
 	}
 
 	if len(fragments) == 0 {
-		return nil, fmt.Errorf("no data files found in external source %q", externalSource)
+		return nil, merr.WrapErrStorageMsg("no data files found in external source %q", externalSource)
 	}
 
 	log.Info("Created fragments from external files",
@@ -195,8 +196,8 @@ func BuildCurrentSegmentFragments(
 		if seg.GetManifestPath() != "" && storageConfig != nil {
 			fragments, err := ReadFragmentsFromManifest(seg.GetManifestPath(), storageConfig)
 			if err != nil {
-				return nil, fmt.Errorf("failed to read manifest for segment %d at %s: %w",
-					seg.GetID(), seg.GetManifestPath(), err)
+				return nil, merr.WrapErrStorage(err, "failed to read manifest for segment %d at %s",
+					seg.GetID(), seg.GetManifestPath())
 			}
 			if len(fragments) > 0 {
 				result[seg.GetID()] = fragments

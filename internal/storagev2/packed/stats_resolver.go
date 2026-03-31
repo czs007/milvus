@@ -23,6 +23,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/querypb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // compoundStatsLogIdx is the log index that identifies compound stats format.
@@ -364,7 +365,7 @@ func (r *StatsResolver) loadManifest() error {
 
 	stats, err := GetManifestStats(r.manifestPath, r.storageConfig)
 	if err != nil {
-		r.manifestErr = fmt.Errorf("failed to get manifest stats: %w", err)
+		r.manifestErr = merr.WrapErrStorage(err, "failed to get manifest stats")
 		return r.manifestErr
 	}
 	r.manifestStats = stats

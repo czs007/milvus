@@ -26,13 +26,13 @@ package packed
 import "C"
 
 import (
-	"fmt"
 	"unsafe"
 
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // FileInfo represents information about an external file
@@ -76,7 +76,7 @@ func ExploreFiles(
 	// Create properties from storage config
 	cProperties, err := MakePropertiesFromStorageConfig(storageConfig, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create properties: %w", err)
+		return nil, merr.WrapErrStorage(err, "failed to create properties")
 	}
 	defer C.loon_properties_free(cProperties)
 
@@ -101,12 +101,12 @@ func ExploreFiles(
 	)
 
 	if err := HandleLoonFFIResult(result); err != nil {
-		return nil, fmt.Errorf("loon_exttable_explore failed: %w", err)
+		return nil, merr.WrapErrStorage(err, "loon_exttable_explore failed")
 	}
 
 	// Check if we got valid column groups path
 	if outColumnGroupsPath == nil {
-		return nil, fmt.Errorf("loon_exttable_explore succeeded but returned nil column groups path")
+		return nil, merr.WrapErrStorageMsg("loon_exttable_explore succeeded but returned nil column groups path")
 	}
 
 	// Ensure we free the C-allocated path when done
@@ -117,7 +117,7 @@ func ExploreFiles(
 
 	result = C.loon_exttable_read_manifest(outColumnGroupsPath, cProperties, &manifest)
 	if err := HandleLoonFFIResult(result); err != nil {
-		return nil, fmt.Errorf("loon_exttable_read_manifest failed: %w", err)
+		return nil, merr.WrapErrStorage(err, "loon_exttable_read_manifest failed")
 	}
 
 	// Ensure we destroy the manifest when done (this also frees column_groups)
@@ -129,7 +129,7 @@ func ExploreFiles(
 
 	// Validate column groups structure before accessing
 	if cgroups.column_group_array == nil && cgroups.num_of_column_groups > 0 {
-		return nil, fmt.Errorf("column_group_array is nil but num_of_column_groups is %d", cgroups.num_of_column_groups)
+		return nil, merr.WrapErrStorageMsg("column_group_array is nil but num_of_column_groups is %d", cgroups.num_of_column_groups)
 	}
 
 	cgArray := unsafe.Slice(cgroups.column_group_array, int(cgroups.num_of_column_groups))
@@ -138,7 +138,7 @@ func ExploreFiles(
 
 		// Check if files array is valid
 		if cg.files == nil && cg.num_of_files > 0 {
-			return nil, fmt.Errorf("column group %d has num_of_files=%d but files array is nil (possible FFI data corruption)",
+			return nil, merr.WrapErrStorageMsg("column group %d has num_of_files=%d but files array is nil (possible FFI data corruption)",
 				i, cg.num_of_files)
 		}
 
@@ -150,7 +150,7 @@ func ExploreFiles(
 		for j := range fileArray {
 			// Validate file path pointer
 			if fileArray[j].path == nil {
-				return nil, fmt.Errorf("file path is nil in column group %d, file %d (possible FFI data corruption)", i, j)
+				return nil, merr.WrapErrStorageMsg("file path is nil in column group %d, file %d (possible FFI data corruption)", i, j)
 			}
 			fileInfos = append(fileInfos, FileInfo{
 				FilePath: C.GoString(fileArray[j].path),
@@ -177,7 +177,7 @@ func GetFileInfo(
 
 	cProperties, err := MakePropertiesFromStorageConfig(storageConfig, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create properties: %w", err)
+		return nil, merr.WrapErrStorage(err, "failed to create properties")
 	}
 	defer C.loon_properties_free(cProperties)
 
@@ -185,7 +185,7 @@ func GetFileInfo(
 
 	result := C.loon_exttable_get_file_info(cFormat, cFilePath, cProperties, &numRows)
 	if err := HandleLoonFFIResult(result); err != nil {
-		return nil, fmt.Errorf("loon_exttable_get_file_info failed: %w", err)
+		return nil, merr.WrapErrStorage(err, "loon_exttable_get_file_info failed")
 	}
 
 	return &FileInfo{

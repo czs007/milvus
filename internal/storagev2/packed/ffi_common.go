@@ -362,14 +362,14 @@ func CompareManifestPath(a, b string) (int, error) {
 	bBase, bVer, bErr := UnmarshalManifestPath(b)
 
 	if aErr != nil {
-		return 0, fmt.Errorf("failed to parse manifest path %q: %w", a, aErr)
+		return 0, merr.WrapErrServiceInternalErr(aErr, "failed to parse manifest path %q", a)
 	}
 	if bErr != nil {
-		return 0, fmt.Errorf("failed to parse manifest path %q: %w", b, bErr)
+		return 0, merr.WrapErrServiceInternalErr(bErr, "failed to parse manifest path %q", b)
 	}
 
 	if aBase != bBase {
-		return 0, fmt.Errorf("manifest paths have different base paths: %q vs %q", aBase, bBase)
+		return 0, merr.WrapErrServiceInternalMsg("manifest paths have different base paths: %q vs %q", aBase, bBase)
 	}
 
 	switch {
