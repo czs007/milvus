@@ -273,7 +273,7 @@ func (m *Manager) AddSource(source Source) error {
 	sourceName := source.GetSourceName()
 	_, ok := m.sources.Get(sourceName)
 	if ok {
-		err := errors.New("duplicate source supplied")
+		err := merr.WrapErrParameterInvalidMsg("duplicate source supplied")
 		return err
 	}
 
@@ -282,7 +282,7 @@ func (m *Manager) AddSource(source Source) error {
 
 	err := m.pullSourceConfigs(sourceName)
 	if err != nil {
-		err = fmt.Errorf("failed to load %s cause: %x", sourceName, err)
+		err = merr.WrapErrServiceInternalErr(err, "failed to load %s", sourceName)
 		return err
 	}
 
@@ -552,14 +552,14 @@ func (m *Manager) ProcessImmutableConfigs() error {
 	}
 
 	if len(saveErrors) > 0 {
-		return fmt.Errorf("failed to save %d immutable configs to etcd", len(saveErrors))
+		return merr.WrapErrServiceInternalMsg("failed to save %d immutable configs to etcd", len(saveErrors))
 	}
 	return nil
 }
 
 func (m *Manager) SaveConfigToEtcd(etcdSource *EtcdSource, key, value string) error {
 	if etcdSource == nil || etcdSource.etcdCli == nil {
-		return errors.New("etcd client is not available")
+		return merr.WrapErrServiceUnavailable("etcd client is not available")
 	}
 	etcdKey := fmt.Sprintf("%s/config/%s", etcdSource.keyPrefix, key)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -569,7 +569,7 @@ func (m *Manager) SaveConfigToEtcd(etcdSource *EtcdSource, key, value string) er
 		Then(clientv3.OpPut(etcdKey, value)).
 		Commit()
 	if err != nil {
-		return fmt.Errorf("failed to put config to etcd: %w", err)
+		return merr.WrapErrServiceInternalErr(err, "failed to put config to etcd")
 	}
 	if !resp.Succeeded {
 		log.Info("config already exists in etcd, skip writing",
@@ -586,7 +586,7 @@ func (m *Manager) SaveConfigToEtcd(etcdSource *EtcdSource, key, value string) er
 // Unlike SaveConfigToEtcd, this function will update the config even if it already exists.
 func (m *Manager) UpdateConfigInEtcd(etcdSource *EtcdSource, key, value string) error {
 	if etcdSource == nil || etcdSource.etcdCli == nil {
-		return errors.New("etcd client is not available")
+		return merr.WrapErrServiceUnavailable("etcd client is not available")
 	}
 	fmtKey := formatKey(key)
 	etcdKey := fmt.Sprintf("%s/config/%s", etcdSource.keyPrefix, fmtKey)
@@ -594,7 +594,7 @@ func (m *Manager) UpdateConfigInEtcd(etcdSource *EtcdSource, key, value string) 
 	defer cancel()
 	_, err := etcdSource.etcdCli.Put(ctx, etcdKey, value)
 	if err != nil {
-		return fmt.Errorf("failed to update config in etcd: %w", err)
+		return merr.WrapErrServiceInternalErr(err, "failed to update config in etcd")
 	}
 	log.Info("config updated in etcd",
 		zap.String("etcdKey", etcdKey), zap.String("configKey", fmtKey), zap.String("value", value))

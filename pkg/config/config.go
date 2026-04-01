@@ -26,13 +26,14 @@ import (
 	"github.com/spf13/cast"
 	"go.uber.org/zap"
 
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
 var (
-	ErrNotInitial   = errors.New("config is not initialized")
+	ErrNotInitial   = merr.WrapErrServiceInternalMsg("config is not initialized")
 	ErrIgnoreChange = errors.New("ignore change")
-	ErrKeyNotFound  = errors.New("key not found")
+	ErrKeyNotFound  = merr.ErrIoKeyNotFound
 )
 
 const (
