@@ -18,7 +18,6 @@ package rootcoord
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/samber/lo"

@@ -2,7 +2,6 @@ package datacoord
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"go.uber.org/zap"

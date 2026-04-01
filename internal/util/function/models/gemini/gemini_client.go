@@ -17,7 +17,6 @@
 package gemini
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/milvus-io/milvus/internal/util/function/models"

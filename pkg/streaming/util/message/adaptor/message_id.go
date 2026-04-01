@@ -1,6 +1,7 @@
 package adaptor
 
 import (
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"fmt"
 
 	"github.com/apache/pulsar-client-go/pulsar"

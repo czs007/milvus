@@ -18,12 +18,12 @@ package queryutil
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/milvus-io/milvus/pkg/v2/proto/internalpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 

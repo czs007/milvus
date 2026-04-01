@@ -17,10 +17,10 @@
 package rmq
 
 import (
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
 	"strconv"
 
-	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 
 	"github.com/milvus-io/milvus/pkg/v2/log"

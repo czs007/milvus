@@ -11,7 +11,7 @@
 
 package metricsinfo
 
-import "github.com/cockroachdb/errors"
+import "github.com/milvus-io/milvus/pkg/v2/util/merr"
 
 const (
 	// MsgUnimplementedMetric represents that user requests an unimplemented metric type

@@ -10,6 +10,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/hook"
 	"github.com/milvus-io/milvus/pkg/v2/log"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // cipher is a global variable that is used to encrypt and decrypt messages.

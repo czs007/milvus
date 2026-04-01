@@ -13,7 +13,6 @@ import (
 	"github.com/apache/arrow/go/v17/parquet"
 	"github.com/apache/arrow/go/v17/parquet/file"
 	"github.com/apache/arrow/go/v17/parquet/pqarrow"
-	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 

@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cockroachdb/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 	"github.com/tidwall/gjson"

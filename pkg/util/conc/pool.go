@@ -17,7 +17,6 @@
 package conc
 
 import (
-	"fmt"
 	"strconv"
 	"sync"
 	"time"

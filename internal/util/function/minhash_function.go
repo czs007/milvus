@@ -12,13 +12,10 @@ import "C"
 
 import (
 	"encoding/binary"
-	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"unsafe"
-
-	"github.com/cockroachdb/errors"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"

@@ -1,9 +1,9 @@
 package client
 
 import (
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"bytes"
 
-	"github.com/cockroachdb/errors"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/milvus-io/milvus/pkg/v2/mq/common"

@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
 	"time"
 

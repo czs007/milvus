@@ -20,7 +20,6 @@ package embedding
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"

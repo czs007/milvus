@@ -19,7 +19,6 @@ package querycoordv2
 import (
 	"context"
 
-	"github.com/cockroachdb/errors"
 
 	"github.com/milvus-io/milvus/internal/distributed/streaming"
 	"github.com/milvus-io/milvus/internal/querycoordv2/job"

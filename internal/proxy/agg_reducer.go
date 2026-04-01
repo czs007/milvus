@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"

@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cockroachdb/errors"
-
 	"github.com/milvus-io/milvus/pkg/v2/proto/streamingpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/replicateutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )

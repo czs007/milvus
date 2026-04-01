@@ -17,8 +17,8 @@
 package segments
 
 import (
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
-	"fmt"
 
 	"github.com/samber/lo"
 	"go.opentelemetry.io/otel/trace"

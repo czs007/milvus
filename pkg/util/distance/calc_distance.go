@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cockroachdb/errors"
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 

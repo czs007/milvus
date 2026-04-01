@@ -18,7 +18,6 @@ package external
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )

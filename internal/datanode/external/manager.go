@@ -18,7 +18,6 @@ package external
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"go.uber.org/zap"
@@ -28,6 +27,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/conc"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // TaskKey uniquely identifies an external collection task.

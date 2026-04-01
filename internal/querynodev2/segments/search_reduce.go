@@ -2,7 +2,6 @@ package segments
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"

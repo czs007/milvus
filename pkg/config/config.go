@@ -22,7 +22,6 @@ import (
 	"log"
 	"strings"
 
-	"github.com/cockroachdb/errors"
 	"github.com/spf13/cast"
 	"go.uber.org/zap"
 

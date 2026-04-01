@@ -20,7 +20,6 @@ import (
 	"context"
 	"sort"
 
-	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/proto"
 

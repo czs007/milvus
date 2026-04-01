@@ -20,7 +20,6 @@ package embedding
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"sync"
 

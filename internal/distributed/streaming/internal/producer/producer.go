@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
 	"sync"
 	"time"

@@ -23,7 +23,6 @@ import (
 	"github.com/apache/arrow/go/v17/arrow"
 	"github.com/apache/arrow/go/v17/arrow/array"
 	"github.com/apache/arrow/go/v17/parquet/pqarrow"
-	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
 	"golang.org/x/exp/constraints"
 

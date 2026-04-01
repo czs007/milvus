@@ -3,10 +3,10 @@ package resolver
 import (
 	"context"
 
-	"github.com/cockroachdb/errors"
 	"google.golang.org/grpc/resolver"
 
 	"github.com/milvus-io/milvus/internal/util/streamingutil/service/discoverer"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 type VersionedState = discoverer.VersionedState

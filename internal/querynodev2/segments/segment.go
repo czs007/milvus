@@ -34,7 +34,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cockroachdb/errors"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"

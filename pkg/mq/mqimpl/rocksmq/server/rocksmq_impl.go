@@ -13,7 +13,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"path"
 	"strconv"
 	"strings"

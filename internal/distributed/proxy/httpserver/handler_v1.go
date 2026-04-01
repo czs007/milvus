@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cockroachdb/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/tidwall/gjson"

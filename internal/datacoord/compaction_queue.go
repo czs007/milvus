@@ -19,7 +19,6 @@ package datacoord
 import (
 	"container/heap"
 
-	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
 
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"

@@ -2,7 +2,6 @@ package datacoord
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sync"
 	"time"

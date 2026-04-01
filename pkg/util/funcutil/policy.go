@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cockroachdb/errors"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"

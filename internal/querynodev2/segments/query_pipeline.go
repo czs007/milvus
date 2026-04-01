@@ -26,6 +26,7 @@ import (
 	"github.com/milvus-io/milvus/internal/util/segcore"
 	typeutil2 "github.com/milvus-io/milvus/internal/util/typeutil"
 	"github.com/milvus-io/milvus/pkg/v2/proto/internalpb"
+	"github.com/milvus-io/milvus/pkg/v2/proto/planpb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/querypb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/segcorepb"
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"
@@ -334,42 +335,4 @@ func emptySegcoreResult(req *querypb.QueryRequest, schema *schemapb.CollectionSc
 		return nil, err
 	}
 	return empty, nil
-}
-
-func anyFieldTrue(results []*segcorepb.RetrieveResults, f func(*segcorepb.RetrieveResults) bool) bool {
-	for _, r := range results {
-		if r != nil && f(r) {
-			return true
-		}
-	}
-	return false
-}
-
-func sumInt64Field(results []*segcorepb.RetrieveResults, f func(*segcorepb.RetrieveResults) int64) int64 {
-	var total int64
-	for _, r := range results {
-		if r != nil {
-			total += f(r)
-		}
-	}
-	return total
-}
-
-func anyFieldTrueInternal(results []*internalpb.RetrieveResults, f func(*internalpb.RetrieveResults) bool) bool {
-	for _, r := range results {
-		if r != nil && f(r) {
-			return true
-		}
-	}
-	return false
-}
-
-func sumInt64FieldInternal(results []*internalpb.RetrieveResults, f func(*internalpb.RetrieveResults) int64) int64 {
-	var total int64
-	for _, r := range results {
-		if r != nil {
-			total += f(r)
-		}
-	}
-	return total
 }

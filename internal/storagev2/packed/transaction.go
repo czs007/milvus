@@ -23,7 +23,6 @@ package packed
 import "C"
 
 import (
-	"fmt"
 	"math"
 	"unsafe"
 

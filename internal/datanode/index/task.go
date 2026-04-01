@@ -19,7 +19,6 @@ package index
 import (
 	"context"
 
-	"github.com/cockroachdb/errors"
 
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"

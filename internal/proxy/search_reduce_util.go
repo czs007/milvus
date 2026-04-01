@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 
-	"github.com/cockroachdb/errors"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
