@@ -29,7 +29,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/tsoutil"
 )
 
-var errBufferFull = errors.New("buffer full")
+var errBufferFull = merr.WrapErrServiceInternalMsg("buffer full")
 
 type timed interface {
 	Timestamp() uint64

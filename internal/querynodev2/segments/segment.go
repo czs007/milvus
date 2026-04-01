@@ -73,7 +73,7 @@ const (
 	SegmentTypeSealed  = commonpb.SegmentState_Sealed
 )
 
-var ErrSegmentUnhealthy = errors.New("segment unhealthy")
+var ErrSegmentUnhealthy = merr.WrapErrServiceInternalMsg("segment unhealthy")
 
 // IndexedFieldInfo contains binlog info of vector field
 type IndexedFieldInfo struct {

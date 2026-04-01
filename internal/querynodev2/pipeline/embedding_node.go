@@ -157,7 +157,7 @@ func (eNode *embeddingNode) bm25Embedding(runner function.FunctionRunner, msg *m
 	}
 
 	if len(output) == 0 {
-		return errors.New("BM25 runner returned empty output")
+		return merr.WrapErrServiceInternalMsg("BM25 runner returned empty output")
 	}
 
 	sparseArray, ok := output[0].(*schemapb.SparseFloatArray)
@@ -188,21 +188,21 @@ func (eNode *embeddingNode) minhashEmbedding(runner function.FunctionRunner, msg
 	}
 
 	if len(output) == 0 {
-		return errors.New("MinHash runner returned empty output")
+		return merr.WrapErrServiceInternalMsg("MinHash runner returned empty output")
 	}
 
 	fieldData, ok := output[0].(*schemapb.FieldData)
 	if !ok {
-		return errors.New("MinHash embedding failed: MinHash runner output not FieldData")
+		return merr.WrapErrFunctionFailedMsg("MinHash embedding failed: MinHash runner output not FieldData")
 	}
 	vectorField := fieldData.GetVectors()
 	if vectorField == nil {
-		return errors.New("MinHash embedding failed: output is not a vector field")
+		return merr.WrapErrFunctionFailedMsg("MinHash embedding failed: output is not a vector field")
 	}
 
 	binaryVector := vectorField.GetBinaryVector()
 	if binaryVector == nil {
-		return errors.New("MinHash embedding failed: output is not a binary vector")
+		return merr.WrapErrFunctionFailedMsg("MinHash embedding failed: output is not a binary vector")
 	}
 
 	outputFieldData := &schemapb.FieldData{

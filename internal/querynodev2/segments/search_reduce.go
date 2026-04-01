@@ -51,7 +51,7 @@ func (scr *SearchCommonReduce) ReduceSearchResultData(ctx context.Context, searc
 	hasElementIndices := searchResultData[0].ElementIndices != nil
 	for i, data := range searchResultData {
 		if (data.ElementIndices != nil) != hasElementIndices {
-			return nil, fmt.Errorf("inconsistent element-level flag in search results: result[0] has ElementIndices=%v, but result[%d] has ElementIndices=%v",
+			return nil, merr.WrapErrServiceInternalMsg("inconsistent element-level flag in search results: result[0] has ElementIndices=%v, but result[%d] has ElementIndices=%v",
 				hasElementIndices, i, data.ElementIndices != nil)
 		}
 	}
@@ -167,7 +167,7 @@ func (sbr *SearchGroupByReduce) ReduceSearchResultData(ctx context.Context, sear
 	hasElementIndices := searchResultData[0].ElementIndices != nil
 	for i, data := range searchResultData {
 		if (data.ElementIndices != nil) != hasElementIndices {
-			return nil, fmt.Errorf("inconsistent element-level flag in search results: result[0] has ElementIndices=%v, but result[%d] has ElementIndices=%v",
+			return nil, merr.WrapErrServiceInternalMsg("inconsistent element-level flag in search results: result[0] has ElementIndices=%v, but result[%d] has ElementIndices=%v",
 				hasElementIndices, i, data.ElementIndices != nil)
 		}
 	}

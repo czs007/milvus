@@ -73,8 +73,6 @@ const (
 	UsedDiskMemoryRatioAisaq = 64
 )
 
-var errRetryTimerNotified = errors.New("retry timer notified")
-
 type Loader interface {
 	// Load loads binlogs, and spawn segments,
 	// NOTE: make sure the ref count of the corresponding collection will never go down to 0 during this
@@ -763,7 +761,7 @@ func (loader *segmentLoader) LoadBloomFilterSet(ctx context.Context, collectionI
 			memory_bytes: C.int64_t(totalMemorySize * 2),
 			disk_bytes:   C.int64_t(0),
 		}, 1000); !ok {
-			return nil, fmt.Errorf("failed to reserve loading resource for bloom filters, totalMemorySize = %v MB",
+			return nil, merr.WrapErrServiceInternalMsg("failed to reserve loading resource for bloom filters, totalMemorySize = %v MB",
 				logutil.ToMB(float64(totalMemorySize)))
 		}
 		log.Info("reserved loading resource for bloom filters", zap.Float64("totalMemorySizeMB", logutil.ToMB(float64(totalMemorySize))))

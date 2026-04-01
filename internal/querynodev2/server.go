@@ -564,7 +564,6 @@ func (node *QueryNode) initHook() error {
 		return merr.WrapErrServiceInternalErr(err, "fail to open the plugin")
 	}
 
-
 	if err = hoo.Init(paramtable.Get().AutoIndexConfig.AutoIndexSearchConfig.GetValue()); err != nil {
 		return merr.WrapErrServiceInternalErr(err, "fail to init configs for the hook")
 	}

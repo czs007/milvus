@@ -18,7 +18,6 @@ package segments
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/internal/util/queryutil"
@@ -27,9 +26,9 @@ import (
 	"github.com/milvus-io/milvus/internal/util/segcore"
 	typeutil2 "github.com/milvus-io/milvus/internal/util/typeutil"
 	"github.com/milvus-io/milvus/pkg/v2/proto/internalpb"
-	"github.com/milvus-io/milvus/pkg/v2/proto/planpb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/querypb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/segcorepb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
@@ -76,7 +75,7 @@ func RunQNQueryPipeline(
 	// Common: run pipeline
 	finalMsg, err := pipeline.Run(ctx, nil, msg)
 	if err != nil {
-		return nil, fmt.Errorf("QN query pipeline failed: %w", err)
+		return nil, merr.WrapErrServiceInternalErr(err, "QN query pipeline failed")
 	}
 
 	// Common: extract output + aggregate stats + fill empty fields
@@ -137,7 +136,7 @@ func buildStandardQNPipeline(
 		req.GetReq().GetOrderByFields(), schema,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to convert ORDER BY fields: %w", err)
+		return nil, nil, merr.WrapErrQueryPlan(err, "failed to convert ORDER BY fields")
 	}
 
 	// Convert segcore results to internal format.
@@ -219,7 +218,7 @@ func extractSegcoreResult(
 			}
 		}
 	default:
-		return nil, fmt.Errorf("unexpected pipeline output type: %T", rawOutput)
+		return nil, merr.WrapErrServiceInternalMsg("unexpected pipeline output type: %T", rawOutput)
 	}
 
 	merged := &segcorepb.RetrieveResults{
@@ -262,7 +261,7 @@ func RunDelegatorQueryPipeline(
 		req.GetReq().GetOrderByFields(), schema,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert ORDER BY fields: %w", err)
+		return nil, merr.WrapErrQueryPlan(err, "failed to convert ORDER BY fields")
 	}
 
 	// Build and run pipeline
@@ -276,13 +275,13 @@ func RunDelegatorQueryPipeline(
 		maxOutputSize,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build delegator query pipeline: %w", err)
+		return nil, merr.WrapErrQueryPlan(err, "failed to build delegator query pipeline")
 	}
 
 	msg := queryutil.OpMsg{queryutil.PipelineInput: results}
 	finalMsg, err := pipeline.Run(ctx, nil, msg)
 	if err != nil {
-		return nil, fmt.Errorf("delegator query pipeline failed: %w", err)
+		return nil, merr.WrapErrServiceInternalErr(err, "delegator query pipeline failed")
 	}
 
 	output := finalMsg[queryutil.PipelineOutput].(*internalpb.RetrieveResults)
@@ -335,4 +334,42 @@ func emptySegcoreResult(req *querypb.QueryRequest, schema *schemapb.CollectionSc
 		return nil, err
 	}
 	return empty, nil
+}
+
+func anyFieldTrue(results []*segcorepb.RetrieveResults, f func(*segcorepb.RetrieveResults) bool) bool {
+	for _, r := range results {
+		if r != nil && f(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func sumInt64Field(results []*segcorepb.RetrieveResults, f func(*segcorepb.RetrieveResults) int64) int64 {
+	var total int64
+	for _, r := range results {
+		if r != nil {
+			total += f(r)
+		}
+	}
+	return total
+}
+
+func anyFieldTrueInternal(results []*internalpb.RetrieveResults, f func(*internalpb.RetrieveResults) bool) bool {
+	for _, r := range results {
+		if r != nil && f(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func sumInt64FieldInternal(results []*internalpb.RetrieveResults, f func(*internalpb.RetrieveResults) int64) int64 {
+	var total int64
+	for _, r := range results {
+		if r != nil {
+			total += f(r)
+		}
+	}
+	return total
 }

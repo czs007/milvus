@@ -493,7 +493,7 @@ func (o *idfOracle) SyncDistribution() error {
 		if intarget && !activate {
 			stats, err := stats.FetchStats()
 			if err != nil {
-				rangeErr = fmt.Errorf("fetch stats failed with error: %v", err)
+				rangeErr = merr.WrapErrServiceInternalErr(err, "fetch stats failed")
 				return false
 			}
 			diff.Merge(stats)
@@ -502,7 +502,7 @@ func (o *idfOracle) SyncDistribution() error {
 		if !intarget && activate {
 			stats, err := stats.FetchStats()
 			if err != nil {
-				rangeErr = fmt.Errorf("fetch stats failed with error: %v", err)
+				rangeErr = merr.WrapErrServiceInternalErr(err, "fetch stats failed")
 				return false
 			}
 			diff.Minus(stats)

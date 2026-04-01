@@ -1137,7 +1137,7 @@ func (sd *shardDelegator) parseMinHash(req *internalpb.SearchRequest) error {
 	datas := []any{texts}
 	functionRunner, ok := sd.functionRunners[req.GetFieldId()]
 	if !ok {
-		return fmt.Errorf("functionRunner not found for field: %d", req.GetFieldId())
+		return merr.WrapErrServiceInternalMsg("functionRunner not found for field: %d", req.GetFieldId())
 	}
 
 	output, err := functionRunner.BatchRun(datas...)
@@ -1145,22 +1145,22 @@ func (sd *shardDelegator) parseMinHash(req *internalpb.SearchRequest) error {
 		return err
 	}
 	if len(output) == 0 {
-		return errors.New("MinHash embedding failed: runner returned empty output")
+		return merr.WrapErrFunctionFailedMsg("MinHash embedding failed: runner returned empty output")
 	}
 
 	fieldData, ok := output[0].(*schemapb.FieldData)
 	if !ok {
-		return errors.New("MinHash embedding failed: MinHash functionRunner return unknown data")
+		return merr.WrapErrFunctionFailedMsg("MinHash embedding failed: MinHash functionRunner return unknown data")
 	}
 
 	vectorField := fieldData.GetVectors()
 	if vectorField == nil {
-		return errors.New("MinHash embedding failed: output is not a vector field")
+		return merr.WrapErrFunctionFailedMsg("MinHash embedding failed: output is not a vector field")
 	}
 
 	binaryVector := vectorField.GetBinaryVector()
 	if binaryVector == nil {
-		return errors.New("MinHash embedding failed: output is not a binary vector")
+		return merr.WrapErrFunctionFailedMsg("MinHash embedding failed: output is not a binary vector")
 	}
 
 	req.PlaceholderGroup, err = funcutil.FieldDataToPlaceholderGroupBytes(fieldData)

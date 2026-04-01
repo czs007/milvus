@@ -71,7 +71,7 @@ func NewMergeByPKWithOffsetsOperator(
 		for _, r := range results {
 			tr, err := NewTimestampedRetrieveResult(r)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create timestamped result: %w", err)
+				return nil, merr.WrapErrServiceInternalErr(err, "failed to create timestamped result")
 			}
 			validResults = append(validResults, tr)
 		}
@@ -85,12 +85,12 @@ func NewMergeByPKWithOffsetsOperator(
 		if isElementLevel {
 			for i, r := range validResults {
 				if r.Result.GetElementLevel() != isElementLevel {
-					return nil, fmt.Errorf("inconsistent element-level flag: result[0]=%v, result[%d]=%v",
+					return nil, merr.WrapErrServiceInternalMsg("inconsistent element-level flag: result[0]=%v, result[%d]=%v",
 						isElementLevel, i, r.Result.GetElementLevel())
 				}
 				size := typeutil.GetSizeOfIDs(r.GetIds())
 				if len(r.Result.GetElementIndices()) != size {
-					return nil, fmt.Errorf("element_indices length (%d) does not match ids length (%d)",
+					return nil, merr.WrapErrServiceInternalMsg("element_indices length (%d) does not match ids length (%d)",
 						len(r.Result.GetElementIndices()), size)
 				}
 			}
@@ -277,7 +277,7 @@ func NewFetchFieldsDataOperator(
 			segmentResOffset[sel.SegmentIndex]++
 
 			if retSize > maxOutputSize {
-				return nil, fmt.Errorf("query results exceed the maxOutputSize Limit %d", maxOutputSize)
+				return nil, merr.WrapErrServiceInternalMsg("query results exceed the maxOutputSize Limit %d", maxOutputSize)
 			}
 		}
 
