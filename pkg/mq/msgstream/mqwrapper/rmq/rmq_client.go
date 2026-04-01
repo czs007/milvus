@@ -83,7 +83,7 @@ func (rc *rmqClient) Subscribe(ctx context.Context, options mqwrapper.ConsumerOp
 
 	if options.BufSize == 0 {
 		metrics.MsgStreamOpCounter.WithLabelValues(metrics.CreateConsumerLabel, metrics.FailLabel).Inc()
-		err := errors.New("subscription bufSize of rmq should never be zero")
+		err := merr.WrapErrParameterInvalidMsg("subscription bufSize of rmq should never be zero")
 		log.Warn("unexpected subscription consumer options", zap.Error(err))
 		return nil, err
 	}

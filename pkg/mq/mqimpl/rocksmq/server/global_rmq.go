@@ -48,7 +48,7 @@ func InitRocksMQ(path string) error {
 		} else {
 			if !fi.IsDir() {
 				errMsg := "can't create a directory because there exists a file with the same name"
-				finalErr = errors.New(errMsg)
+				finalErr = merr.WrapErrServiceInternalMsg(errMsg)
 				return
 			}
 		}

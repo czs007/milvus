@@ -225,12 +225,12 @@ func parseCompressionType(params *paramtable.ComponentParam) ([]gorocksdb.Compre
 	return lo.Map(params.RocksmqCfg.CompressionTypes.GetAsStrings(), func(sType string, _ int) gorocksdb.CompressionType {
 		iType, err := strconv.Atoi(sType)
 		if err != nil {
-			tError = fmt.Errorf("invalid rocksmq compression type: %s", err.Error())
+			tError = merr.WrapErrParameterInvalidMsg("invalid rocksmq compression type: %s", err.Error())
 			return 0
 		}
 
 		if !lo.Contains(validType, iType) {
-			tError = fmt.Errorf("invalid rocksmq compression type, should in %v", validType)
+			tError = merr.WrapErrParameterInvalidMsg("invalid rocksmq compression type, should in %v", validType)
 			return 0
 		}
 		return gorocksdb.CompressionType(iType)

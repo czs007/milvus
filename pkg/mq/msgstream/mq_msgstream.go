@@ -116,7 +116,7 @@ func (ms *mqMsgStream) AsProducer(ctx context.Context, channels []string) {
 				return err
 			}
 			if pp == nil {
-				return errors.New("Producer is nil")
+				return merr.WrapErrServiceInternalMsg("Producer is nil")
 			}
 
 			ms.producerLock.Lock()
