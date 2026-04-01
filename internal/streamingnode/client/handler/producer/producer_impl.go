@@ -18,7 +18,6 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/ratelimit"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/types"
 	"github.com/milvus-io/milvus/pkg/v2/util/lifetime"
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
@@ -251,7 +250,7 @@ func (p *producerImpl) sendLoop() (err error) {
 	for {
 		select {
 		case <-p.recvExitCh:
-			return merr.WrapErrServiceInternalMsg("recv arm of stream closed")
+			return errors.New("recv arm of stream closed")
 		case req, ok := <-p.requestCh:
 			if !ok {
 				// all message has been sent, sent close response.

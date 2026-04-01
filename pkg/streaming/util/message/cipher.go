@@ -10,7 +10,6 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/hook"
 	"github.com/milvus-io/milvus/pkg/v2/log"
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // cipher is a global variable that is used to encrypt and decrypt messages.
@@ -39,7 +38,7 @@ func mustGetCipher() hook.Cipher {
 // ErrKmsKeyInvalid is the error returned when a KMS key is invalid or revoked.
 // This error is also defined in the milvus-cloud-plugin. It is checked using `errors.Is`
 // to allow for proper error wrapping and reliable error handling.
-var ErrKmsKeyInvalid = merr.WrapErrParameterInvalidMsg("kms key invalid")
+var ErrKmsKeyInvalid = errors.New("kms key invalid")
 
 func isKmsKeyInvalidError(err error) bool {
 	if err == nil {

@@ -17,7 +17,6 @@
 package rmq
 
 import (
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
 	"strconv"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/mq/mqimpl/rocksmq/client"
 	"github.com/milvus-io/milvus/pkg/v2/mq/mqimpl/rocksmq/server"
 	"github.com/milvus-io/milvus/pkg/v2/mq/msgstream/mqwrapper"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/timerecord"
 )
 

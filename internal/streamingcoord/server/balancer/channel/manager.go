@@ -17,7 +17,6 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/types"
 	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/v2/util/replicateutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/syncutil"
@@ -122,7 +121,7 @@ func recoverCChannelMeta(ctx context.Context, incomingChannel ...string) (*strea
 	}
 	if cchannelMeta == nil {
 		if len(incomingChannel) == 0 {
-			return nil, merr.WrapErrServiceInternalMsg("no incoming channel while no control channel meta found")
+			return nil, errors.New("no incoming channel while no control channel meta found")
 		}
 		cchannelMeta = &streamingpb.CChannelMeta{
 			Pchannel: incomingChannel[0],
@@ -362,7 +361,7 @@ func (cm *ChannelManager) MarkWALBasedDDLEnabled(ctx context.Context) error {
 	defer cm.cond.L.Unlock()
 
 	if cm.streamingVersion == nil {
-		return merr.WrapErrServiceInternalMsg("streaming service is not enabled, cannot mark WAL based DDL enabled")
+		return errors.New("streaming service is not enabled, cannot mark WAL based DDL enabled")
 	}
 	if cm.streamingVersion.Version >= StreamingVersion265 {
 		return nil

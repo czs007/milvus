@@ -54,7 +54,7 @@ func (b balancerImpl) GetWALDistribution(ctx context.Context, nodeID int64) (*ty
 
 	sbalancer := snmanager.StaticStreamingNodeManager.GetBalancer()
 	var result *types.StreamingNodeAssignment
-	stopErr := merr.WrapErrServiceInternalMsg("stop watching")
+	stopErr := errors.New("stop watching")
 	err = sbalancer.WatchChannelAssignments(ctx, func(param balancer.WatchChannelAssignmentsCallbackParam) error {
 		for _, assignment := range param.Relations {
 			if assignment.Node.ServerID == nodeID {

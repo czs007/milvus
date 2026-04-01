@@ -90,11 +90,11 @@ func (c *catalog) GetVersion(ctx context.Context) (*streamingpb.StreamingVersion
 // SaveVersion saves the streaming version
 func (c *catalog) SaveVersion(ctx context.Context, version *streamingpb.StreamingVersion) error {
 	if version == nil {
-		return merr.WrapErrServiceInternalMsg("version is nil")
+		return errors.New("version is nil")
 	}
 	v, err := proto.Marshal(version)
 	if err != nil {
-		return merr.WrapErrSerializationFailed(err, "marshal streaming version failed")
+		return errors.Wrapf(err, "marshal streaming version failed")
 	}
 	return c.metaKV.Save(ctx, VersionPrefix, string(v))
 }

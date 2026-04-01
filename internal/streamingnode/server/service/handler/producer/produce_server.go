@@ -17,7 +17,6 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/ratelimit"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/types"
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // CreateProduceServer create a new producer.
@@ -117,7 +116,7 @@ func (p *ProduceServer) sendLoop() (err error) {
 			// Recv arm will be closed by context cancel of stream server.
 			// Send an unavailable response to ask client to release resource.
 			p.produceServer.SendClosed()
-			return merr.WrapErrServiceInternalMsg("send loop is stopped for close of wal")
+			return errors.New("send loop is stopped for close of wal")
 		case resp, ok := <-p.produceMessageCh:
 			if !ok {
 				// all message has been sent, sent close response.
@@ -132,7 +131,7 @@ func (p *ProduceServer) sendLoop() (err error) {
 				return err
 			}
 		case <-p.produceServer.Context().Done():
-			return merr.WrapErrServiceInternalErr(p.produceServer.Context().Err(), "cancel send loop by stream server")
+			return errors.Wrap(p.produceServer.Context().Err(), "cancel send loop by stream server")
 		}
 	}
 }

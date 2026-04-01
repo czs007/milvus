@@ -3,12 +3,13 @@ package walimpls
 import (
 	"context"
 
+	"github.com/cockroachdb/errors"
+
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/types"
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
-var ErrFenced = merr.WrapErrServiceInternalMsg("fenced")
+var ErrFenced = errors.New("fenced")
 
 // ROWALImpls is the underlying implementation for a read-only wal.
 type ROWALImpls interface {

@@ -1,7 +1,6 @@
 package producer
 
 import (
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
 	"sync"
 	"time"
@@ -21,7 +20,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
-var errGracefulShutdown = merr.WrapErrServiceInternalMsg("graceful shutdown")
+var errGracefulShutdown = errors.New("graceful shutdown")
 
 // ProducerOptions is the options for creating a producer.
 type ProducerOptions struct {

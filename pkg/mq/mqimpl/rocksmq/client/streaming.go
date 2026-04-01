@@ -1,9 +1,9 @@
 package client
 
 import (
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"bytes"
 
+	"github.com/cockroachdb/errors"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/milvus-io/milvus/pkg/v2/mq/common"
@@ -15,7 +15,7 @@ var (
 	// magicPrefix is used to identify the rocksmq legacy message and new message for streaming service.
 	// Make a low probability of collision with the legacy proto message.
 	magicPrefix                   = append([]byte{0xFF, 0xFE, 0xFD, 0xFC}, []byte("STREAM")...)
-	errNotStreamingServiceMessage = merr.WrapErrParameterInvalidMsg("not a streaming service message")
+	errNotStreamingServiceMessage = errors.New("not a streaming service message")
 )
 
 // marshalStreamingMessage marshals a streaming message to bytes.

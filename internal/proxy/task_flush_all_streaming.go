@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/samber/lo"
 
@@ -34,7 +35,7 @@ func (t *flushAllTask) Execute(ctx context.Context) error {
 		Base: commonpbutil.NewMsgBase(commonpbutil.WithMsgType(commonpb.MsgType_Flush)),
 	})
 	if err = merr.CheckRPCCall(resp, err); err != nil {
-		return merr.WrapErrServiceInternalErr(err, "failed to call flush all to data coordinator")
+		return fmt.Errorf("failed to call flush all to data coordinator: %s", err.Error())
 	}
 	t.result = &milvuspb.FlushAllResponse{
 		Status:       merr.Success(),

@@ -17,7 +17,6 @@
 package mock
 
 import (
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
 	"crypto/x509"
 	"sync"
@@ -30,6 +29,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/tracer"
 	"github.com/milvus-io/milvus/pkg/v2/util/funcutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/generic"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/retry"
 )
 

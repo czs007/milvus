@@ -17,7 +17,6 @@
 package streaming
 
 import (
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -48,7 +47,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
-var ErrForwardDisabled = merr.WrapErrServiceInternalMsg("forward disabled")
+var ErrForwardDisabled = errors.New("forward disabled")
 
 // newForwardService creates a new forward service.
 func newForwardService(streamingCoordClient client.Client) *forwardServiceImpl {

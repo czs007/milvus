@@ -3,17 +3,17 @@ package resolver
 import (
 	"context"
 
+	"github.com/cockroachdb/errors"
 	"google.golang.org/grpc/resolver"
 
 	"github.com/milvus-io/milvus/internal/util/streamingutil/service/discoverer"
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 type VersionedState = discoverer.VersionedState
 
 var (
-	ErrCanceled    = merr.WrapErrServiceInternalMsg("canceled")
-	ErrInterrupted = merr.WrapErrServiceInternalMsg("interrupted")
+	ErrCanceled    = errors.New("canceled")
+	ErrInterrupted = errors.New("interrupted")
 )
 
 // Builder is the interface for the grpc resolver builder.

@@ -1,7 +1,6 @@
 package adaptor
 
 import (
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"fmt"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -89,7 +88,7 @@ func DeserializeToMQWrapperID(msgID []byte, walName string) (common.MessageID, e
 		}
 		return mqwoodpecker.NewWoodpeckerID(wID), nil
 	default:
-		return nil, merr.WrapErrParameterInvalidMsg("unsupported mq type %s", walName)
+		return nil, fmt.Errorf("unsupported mq type %s", walName)
 	}
 }
 

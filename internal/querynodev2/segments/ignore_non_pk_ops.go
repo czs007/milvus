@@ -17,7 +17,6 @@
 package segments
 
 import (
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"context"
 
 	"github.com/samber/lo"
@@ -31,6 +30,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/segcorepb"
 	"github.com/milvus-io/milvus/pkg/v2/util/conc"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )

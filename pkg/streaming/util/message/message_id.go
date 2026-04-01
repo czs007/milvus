@@ -3,8 +3,9 @@ package message
 import (
 	"fmt"
 
+	"github.com/cockroachdb/errors"
+
 	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
@@ -12,7 +13,7 @@ var (
 	// messageIDUnmarshaler is the map for message id unmarshaler.
 	messageIDUnmarshaler typeutil.ConcurrentMap[WALName, MessageIDUnmarshaler]
 
-	ErrInvalidMessageID = merr.WrapErrParameterInvalidMsg("invalid message id")
+	ErrInvalidMessageID = errors.New("invalid message id")
 )
 
 // RegisterMessageIDUnmsarshaler register the message id unmarshaler.

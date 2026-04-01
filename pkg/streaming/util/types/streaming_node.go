@@ -4,17 +4,18 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/cockroachdb/errors"
+
 	"github.com/milvus-io/milvus/pkg/v2/proto/streamingpb"
-	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/replicateutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
 var (
-	ErrStopping     = merr.WrapErrServiceInternalMsg("streaming node is stopping")
-	ErrNotAlive     = merr.WrapErrServiceInternalMsg("streaming node is not alive")
-	ErrFrozen       = merr.WrapErrServiceInternalMsg("streaming node is frozen")
-	ErrFileResource = merr.WrapErrServiceInternalMsg("streaming node is not sync the file resource successfully")
+	ErrStopping     = errors.New("streaming node is stopping")
+	ErrNotAlive     = errors.New("streaming node is not alive")
+	ErrFrozen       = errors.New("streaming node is frozen")
+	ErrFileResource = errors.New("streaming node is not sync the file resource successfully")
 )
 
 // AssignmentDiscoverWatcher is the interface for watching the assignment discovery.
