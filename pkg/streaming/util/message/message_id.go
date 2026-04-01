@@ -13,7 +13,7 @@ var (
 	// messageIDUnmarshaler is the map for message id unmarshaler.
 	messageIDUnmarshaler typeutil.ConcurrentMap[WALName, MessageIDUnmarshaler]
 
-	ErrInvalidMessageID = errors.New("invalid message id")
+	ErrInvalidMessageID = merr.WrapErrParameterInvalidMsg("invalid message id")
 )
 
 // RegisterMessageIDUnmsarshaler register the message id unmarshaler.

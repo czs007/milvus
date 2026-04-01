@@ -51,7 +51,7 @@ func (b *builderImpl) getPulsarClientOptions() (pulsar.ClientOptions, tenant, er
 	cfg := &paramtable.Get().PulsarCfg
 	auth, err := pulsar.NewAuthentication(cfg.AuthPlugin.GetValue(), cfg.AuthParams.GetValue())
 	if err != nil {
-		return pulsar.ClientOptions{}, tenant{}, errors.New("build authencation from config failed")
+		return pulsar.ClientOptions{}, tenant{}, merr.WrapErrServiceInternalMsg("build authencation from config failed")
 	}
 	options := pulsar.ClientOptions{
 		URL:              cfg.Address.GetValue(),

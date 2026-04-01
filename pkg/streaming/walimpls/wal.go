@@ -9,7 +9,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/types"
 )
 
-var ErrFenced = errors.New("fenced")
+var ErrFenced = merr.WrapErrServiceInternalMsg("fenced")
 
 // ROWALImpls is the underlying implementation for a read-only wal.
 type ROWALImpls interface {
