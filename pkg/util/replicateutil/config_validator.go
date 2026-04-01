@@ -278,12 +278,12 @@ func (v *ReplicateConfigValidator) validateConfigComparison() error {
 func (v *ReplicateConfigValidator) validatePChannelIncreasingConstraints(currentClusterMap map[string]*commonpb.MilvusCluster) error {
 	// Cluster set must be identical (no new or removed clusters)
 	if len(currentClusterMap) != len(v.clusterMap) {
-		return fmt.Errorf("when pchannels are increasing, cluster set must remain identical: current has %d clusters, incoming has %d",
+		return merr.WrapErrParameterInvalidMsg("when pchannels are increasing, cluster set must remain identical: current has %d clusters, incoming has %d",
 			len(currentClusterMap), len(v.clusterMap))
 	}
 	for clusterID := range currentClusterMap {
 		if _, ok := v.clusterMap[clusterID]; !ok {
-			return fmt.Errorf("when pchannels are increasing, cluster set must remain identical: cluster '%s' missing from incoming config", clusterID)
+			return merr.WrapErrParameterInvalidMsg("when pchannels are increasing, cluster set must remain identical: cluster '%s' missing from incoming config", clusterID)
 		}
 	}
 
@@ -291,7 +291,7 @@ func (v *ReplicateConfigValidator) validatePChannelIncreasingConstraints(current
 	currentTopos := v.currentConfig.GetCrossClusterTopology()
 	incomingTopos := v.incomingConfig.GetCrossClusterTopology()
 	if len(currentTopos) != len(incomingTopos) {
-		return fmt.Errorf("when pchannels are increasing, topology must remain identical: current has %d edges, incoming has %d",
+		return merr.WrapErrParameterInvalidMsg("when pchannels are increasing, topology must remain identical: current has %d edges, incoming has %d",
 			len(currentTopos), len(incomingTopos))
 	}
 	currentEdges := make(map[string]struct{})
@@ -301,7 +301,7 @@ func (v *ReplicateConfigValidator) validatePChannelIncreasingConstraints(current
 	for _, topo := range incomingTopos {
 		edge := topo.GetSourceClusterId() + "->" + topo.GetTargetClusterId()
 		if _, ok := currentEdges[edge]; !ok {
-			return fmt.Errorf("when pchannels are increasing, topology must remain identical: edge '%s' not in current config", edge)
+			return merr.WrapErrParameterInvalidMsg("when pchannels are increasing, topology must remain identical: edge '%s' not in current config", edge)
 		}
 	}
 	return nil

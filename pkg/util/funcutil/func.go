@@ -81,7 +81,7 @@ func GetIP(ip string) string {
 				}
 			}
 		}
-		panic(errors.New(`Network port does not have an IP address that falls within the given CIDR range`))
+		panic(merr.WrapErrServiceInternalMsg(`Network port does not have an IP address that falls within the given CIDR range`))
 	}
 
 	netIP := net.ParseIP(ip)

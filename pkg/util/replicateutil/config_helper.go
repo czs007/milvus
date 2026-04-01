@@ -33,8 +33,8 @@ const (
 )
 
 var (
-	ErrWrongConfiguration     = errors.New("wrong replicate configuration")
-	ErrCurrentClusterNotFound = errors.New("current cluster not found")
+	ErrWrongConfiguration     = merr.WrapErrParameterInvalidMsg("wrong replicate configuration")
+	ErrCurrentClusterNotFound = merr.WrapErrParameterInvalidMsg("current cluster not found")
 )
 
 func (r Role) String() string {

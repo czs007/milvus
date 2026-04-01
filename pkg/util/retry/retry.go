@@ -211,7 +211,7 @@ func Handle(ctx context.Context, fn func() (bool, error), opts ...Option) error 
 }
 
 // errUnrecoverable is error instance for unrecoverable.
-var errUnrecoverable = errors.New("unrecoverable error")
+var errUnrecoverable = merr.WrapErrServiceInternalMsg("unrecoverable error")
 
 // Unrecoverable method wrap an error to unrecoverableError. This will make retry
 // quick return.

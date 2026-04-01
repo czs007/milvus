@@ -19,4 +19,4 @@ const (
 	msgInvalidSystemInfosMetricCache = "system infos metric is invalid"
 )
 
-var errInvalidSystemInfosMetricCache = errors.New(msgInvalidSystemInfosMetricCache)
+var errInvalidSystemInfosMetricCache = merr.WrapErrServiceInternalMsg(msgInvalidSystemInfosMetricCache)
