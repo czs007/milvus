@@ -1221,7 +1221,7 @@ func checkNullableVectorAlignWithDim(offsets []int32, listReader *array.List, di
 	for i := 1; i < len(offsets); i++ {
 		length := offsets[i] - offsets[i-1]
 		if !listReader.IsNull(i-1) && length != dim {
-			return fmt.Errorf("expected %d but got %d", dim, length)
+			return merr.WrapErrParameterInvalidMsg("expected %d but got %d", dim, length)
 		}
 	}
 	return nil
@@ -1250,7 +1250,7 @@ func checkVectorAligned(offsets []int32, dim int, dataType schemapb.DataType) er
 
 func checkNullableVectorAligned(offsets []int32, listReader *array.List, dim int, dataType schemapb.DataType) error {
 	if len(offsets) < 1 {
-		return errors.New("empty offsets")
+		return merr.WrapErrParameterInvalidMsg("empty offsets")
 	}
 	switch dataType {
 	case schemapb.DataType_BinaryVector:

@@ -142,7 +142,7 @@ func (c *GRPCClientBase[T]) ReCall(ctx context.Context, caller func(client T) (a
 		return ret, nil
 	}
 
-	traceErr := fmt.Errorf("err: %s\n, %s", err.Error(), tracer.StackTrace())
+	traceErr := merr.WrapErrServiceInternalMsg("err: %s\n, %s", err.Error(), tracer.StackTrace())
 	log.Warn("GRPCClientBase[T] client grpc first call get error ", zap.Error(traceErr))
 
 	if !funcutil.CheckCtxValid(ctx) {
@@ -151,7 +151,7 @@ func (c *GRPCClientBase[T]) ReCall(ctx context.Context, caller func(client T) (a
 
 	ret, err = c.callOnce(ctx, caller)
 	if err != nil {
-		traceErr = fmt.Errorf("err: %s\n, %s", err.Error(), tracer.StackTrace())
+		traceErr = merr.WrapErrServiceInternalMsg("err: %s\n, %s", err.Error(), tracer.StackTrace())
 		log.Error("GRPCClientBase[T] client grpc second call get error ", zap.Error(traceErr))
 		return nil, traceErr
 	}

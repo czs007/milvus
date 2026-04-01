@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	errExhausted      = errors.New("exhausted")
-	errFastPathFailed = errors.New("fast path failed")
+	errExhausted      = merr.WrapErrServiceInternalMsg("exhausted")
+	errFastPathFailed = merr.WrapErrServiceInternalMsg("fast path failed")
 )
 
 // newLocalAllocator creates a new local allocator.

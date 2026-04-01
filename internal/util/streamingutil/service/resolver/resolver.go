@@ -12,8 +12,8 @@ import (
 type VersionedState = discoverer.VersionedState
 
 var (
-	ErrCanceled    = errors.New("canceled")
-	ErrInterrupted = errors.New("interrupted")
+	ErrCanceled    = merr.WrapErrServiceInternalMsg("canceled")
+	ErrInterrupted = merr.WrapErrServiceInternalMsg("interrupted")
 )
 
 // Builder is the interface for the grpc resolver builder.

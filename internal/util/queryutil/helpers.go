@@ -23,6 +23,7 @@ import (
 
 	"github.com/milvus-io/milvus-proto/go-api/v2/schemapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/internalpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
@@ -70,7 +71,7 @@ func buildMergedRetrieveResults(results []*internalpb.RetrieveResults, selectedR
 	for _, ref := range selectedRows {
 		refFields := len(results[ref.resultIdx].GetFieldsData())
 		if refFields != numFields {
-			return nil, fmt.Errorf(
+			return nil, merr.WrapErrServiceInternalMsg(
 				"FieldsData count mismatch: result[%d] has %d fields, expected %d",
 				ref.resultIdx, refFields, numFields)
 		}
@@ -129,7 +130,7 @@ func validateElementLevelConsistency(results []*internalpb.RetrieveResults, _ []
 
 	for i, r := range results {
 		if r.GetElementLevel() != isElementLevel {
-			return fmt.Errorf(
+			return merr.WrapErrServiceInternalMsg(
 				"inconsistent element-level flag: result[%d] has ElementLevel=%v, expected %v",
 				i, r.GetElementLevel(), isElementLevel)
 		}
@@ -137,7 +138,7 @@ func validateElementLevelConsistency(results []*internalpb.RetrieveResults, _ []
 			idsLen := typeutil.GetSizeOfIDs(r.GetIds())
 			indicesLen := len(r.GetElementIndices())
 			if indicesLen != idsLen {
-				return fmt.Errorf(
+				return merr.WrapErrServiceInternalMsg(
 					"element_indices length (%d) does not match ids length (%d) in result[%d]",
 					indicesLen, idsLen, i)
 			}

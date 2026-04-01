@@ -61,7 +61,7 @@ const (
 	serverVersionKey = "version"
 )
 
-var errSessionVersionCheckFailure = errors.New("session version check failure")
+var errSessionVersionCheckFailure = merr.WrapErrServiceInternalMsg("session version check failure")
 
 // isNotSessionVersionCheckFailure checks if the error is not a session version check failure.
 func isNotSessionVersionCheckFailure(err error) bool {
@@ -628,7 +628,7 @@ func (s *Session) processKeepAliveResponse() {
 
 // checkKeepaliveTTL checks the TTL of the lease and returns the error if the lease is not found or expired.
 func (s *Session) checkKeepaliveTTL(nextKeepaliveInstant time.Time) error {
-	errSessionExpiredAtClientSide := errors.New("session expired at client side")
+	errSessionExpiredAtClientSide := merr.WrapErrServiceInternalMsg("session expired at client side")
 	ctx, cancel := context.WithDeadlineCause(s.ctx, nextKeepaliveInstant, errSessionExpiredAtClientSide)
 	defer cancel()
 
