@@ -47,7 +47,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
-var ErrForwardDisabled = errors.New("forward disabled")
+var ErrForwardDisabled = merr.WrapErrServiceInternalMsg("forward disabled")
 
 // newForwardService creates a new forward service.
 func newForwardService(streamingCoordClient client.Client) *forwardServiceImpl {

@@ -1,14 +1,14 @@
 package errs
 
 import (
-	"github.com/cockroachdb/errors"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // All error in streamingservice package should be marked by streamingservice/errs package.
 var (
-	ErrClosed                   = errors.New("closed")
-	ErrCanceledOrDeadlineExceed = errors.New("canceled or deadline exceed")
-	ErrUnrecoverable            = errors.New("unrecoverable")
-	ErrFenced                   = errors.New("fenced")
-	ErrIgnoredOperation         = errors.New("ignored operation")
+	ErrClosed                   = merr.WrapErrServiceInternalMsg("closed")
+	ErrCanceledOrDeadlineExceed = merr.WrapErrServiceInternalMsg("canceled or deadline exceed")
+	ErrUnrecoverable            = merr.WrapErrServiceInternalMsg("unrecoverable")
+	ErrFenced                   = merr.WrapErrServiceInternalMsg("fenced")
+	ErrIgnoredOperation         = merr.WrapErrServiceInternalMsg("ignored operation")
 )

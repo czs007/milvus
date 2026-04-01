@@ -16,7 +16,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/syncutil"
 )
 
-var errGracefulShutdown = errors.New("graceful shutdown")
+var errGracefulShutdown = merr.WrapErrServiceInternalMsg("graceful shutdown")
 
 // NewResumableConsumer creates a new resumable consumer.
 func NewResumableConsumer(factory factory, opts *ConsumerOptions) ResumableConsumer {

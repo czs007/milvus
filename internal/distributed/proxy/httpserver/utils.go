@@ -178,7 +178,7 @@ func checkGetPrimaryKey(coll *schemapb.CollectionSchema, idResult gjson.Result) 
 // based on the primary key field type
 func convertIDsToSchemapbIDs(ids []interface{}, pkField *schemapb.FieldSchema) (*schemapb.IDs, error) {
 	if len(ids) == 0 {
-		return nil, errors.New("ids array cannot be empty")
+		return nil, merr.WrapErrParameterInvalidMsg("ids array cannot be empty")
 	}
 
 	switch pkField.DataType {
@@ -195,18 +195,18 @@ func convertIDsToSchemapbIDs(ids []interface{}, pkField *schemapb.FieldSchema) (
 				// JSON numbers are decoded as float64
 				// Check if the float has a fractional part
 				if v != math.Trunc(v) {
-					return nil, fmt.Errorf("invalid int64 id at index %d: %v has fractional part", i, v)
+					return nil, merr.WrapErrParameterInvalidMsg("invalid int64 id at index %d: %v has fractional part", i, v)
 				}
 				int64ID = int64(v)
 			case string:
 				// Try to parse string as int64
 				parsed, err := strconv.ParseInt(v, 10, 64)
 				if err != nil {
-					return nil, fmt.Errorf("invalid int64 id at index %d: %v, error: %v", i, id, err)
+					return nil, merr.WrapErrParameterInvalidMsg("invalid int64 id at index %d: %v, error: %v", i, id, err)
 				}
 				int64ID = parsed
 			default:
-				return nil, fmt.Errorf("invalid id type at index %d: expected int64, got %T", i, id)
+				return nil, merr.WrapErrParameterInvalidMsg("invalid id type at index %d: expected int64, got %T", i, id)
 			}
 			int64IDs = append(int64IDs, int64ID)
 		}
@@ -229,10 +229,10 @@ func convertIDsToSchemapbIDs(ids []interface{}, pkField *schemapb.FieldSchema) (
 				// Convert number to string
 				stringID = fmt.Sprintf("%v", v)
 			default:
-				return nil, fmt.Errorf("invalid id type at index %d: expected string, got %T", i, id)
+				return nil, merr.WrapErrParameterInvalidMsg("invalid id type at index %d: expected string, got %T", i, id)
 			}
 			if stringID == "" {
-				return nil, fmt.Errorf("empty string id at index %d", i)
+				return nil, merr.WrapErrParameterInvalidMsg("empty string id at index %d", i)
 			}
 			stringIDs = append(stringIDs, stringID)
 		}
@@ -245,7 +245,7 @@ func convertIDsToSchemapbIDs(ids []interface{}, pkField *schemapb.FieldSchema) (
 		}, nil
 
 	default:
-		return nil, fmt.Errorf("unsupported primary key type: %s", pkField.DataType.String())
+		return nil, merr.WrapErrParameterInvalidMsg("unsupported primary key type: %s", pkField.DataType.String())
 	}
 }
 

@@ -55,7 +55,7 @@ func NewClient(ctx context.Context, addr string, nodeID int64) (types.ProxyClien
 	}
 	sess := sessionutil.NewSession(context.Background())
 	if sess == nil {
-		err := errors.New("new session error, maybe can not connect to etcd")
+		err := merr.WrapErrServiceInternalMsg("new session error, maybe can not connect to etcd")
 		log.Ctx(ctx).Debug("Proxy client new session failed", zap.Error(err))
 		return nil, err
 	}

@@ -20,7 +20,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
-var errGracefulShutdown = errors.New("graceful shutdown")
+var errGracefulShutdown = merr.WrapErrServiceInternalMsg("graceful shutdown")
 
 // ProducerOptions is the options for creating a producer.
 type ProducerOptions struct {

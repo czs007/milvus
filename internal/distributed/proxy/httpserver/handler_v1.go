@@ -43,7 +43,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
-var RestRequestInterceptorErr = errors.New("interceptor error placeholder")
+var RestRequestInterceptorErr = merr.WrapErrServiceInternalMsg("interceptor error placeholder")
 
 func checkAuthorization(ctx context.Context, c *gin.Context, req interface{}) error {
 	username, ok := c.Get(ContextUsername)
