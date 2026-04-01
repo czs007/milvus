@@ -27,7 +27,6 @@ package storagev2
 import "C"
 
 import (
-	"fmt"
 	"unsafe"
 
 	"go.uber.org/zap"
@@ -35,6 +34,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/metrics"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 )
 
@@ -62,7 +62,7 @@ func GetCachedFilesystemMetrics(key string) (*FilesystemMetrics, error) {
 	if key == "" {
 		result := C.loon_get_filesystem_singleton_handle(&cFilesystem)
 		if err := HandleLoonFFIResult(result); err != nil {
-			return nil, fmt.Errorf("failed to get filesystem singleton: %w", err)
+			return nil, merr.WrapErrServiceInternalErr(err, "failed to get filesystem singleton")
 		}
 	} else {
 		cKey := C.CString(key)
@@ -76,7 +76,7 @@ func GetCachedFilesystemMetrics(key string) (*FilesystemMetrics, error) {
 
 		result := C.loon_filesystem_get(&properties, cKey, keyLen, &cFilesystem)
 		if err := HandleLoonFFIResult(result); err != nil {
-			return nil, fmt.Errorf("failed to get cached filesystem for key %q: %w", key, err)
+			return nil, merr.WrapErrServiceInternalErr(err, "failed to get cached filesystem")
 		}
 	}
 
@@ -91,7 +91,7 @@ func getMetricsFromHandle(cFilesystem C.FileSystemHandle) (*FilesystemMetrics, e
 	if err := HandleLoonFFIResult(metricsResult); err != nil {
 		// Clean up filesystem handle
 		C.loon_filesystem_destroy(cFilesystem)
-		return nil, fmt.Errorf("failed to get filesystem metrics: %w", err)
+		return nil, merr.WrapErrServiceInternalErr(err, "failed to get filesystem metrics")
 	}
 
 	// Extract the 8 metrics from C struct
@@ -121,7 +121,7 @@ func HandleLoonFFIResult(ffiResult C.LoonFFIResult) error {
 		if errMsg != nil {
 			errStr = C.GoString(errMsg)
 		}
-		return fmt.Errorf("loon FFI error: %s", errStr)
+		return merr.WrapErrServiceInternalMsg("loon FFI error: %s", errStr)
 	}
 	return nil
 }

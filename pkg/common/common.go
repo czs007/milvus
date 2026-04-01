@@ -380,7 +380,7 @@ func IsCollectionWarmupKey(key string) bool {
 // ValidateWarmupPolicy validates that the warmup policy value is valid
 func ValidateWarmupPolicy(value string) error {
 	if value != WarmupDisable && value != WarmupSync && value != WarmupAsync {
-		return fmt.Errorf("invalid warmup policy: %s, must be '%s', '%s' or '%s'", value, WarmupDisable, WarmupSync, WarmupAsync)
+		return merr.WrapErrParameterInvalidMsg("invalid warmup policy: %s, must be '%s', '%s' or '%s'", value, WarmupDisable, WarmupSync, WarmupAsync)
 	}
 	return nil
 }
@@ -508,7 +508,7 @@ func ValidateQueryMode(kvs ...*commonpb.KeyValuePair) error {
 		if kv.Key == QueryModeKey {
 			mode := strings.ToLower(strings.TrimSpace(kv.Value))
 			if mode != QueryModeLargeTopK {
-				return fmt.Errorf("invalid query_mode value %q, valid values: [%s]", kv.Value, ValidQueryModes)
+				return merr.WrapErrParameterInvalidMsg("invalid query_mode value %q, valid values: [%s]", kv.Value, ValidQueryModes)
 			}
 			return nil
 		}

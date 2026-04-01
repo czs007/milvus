@@ -498,7 +498,7 @@ func (rmq *rocksmq) CreateTopic(topicName string) error {
 	// Check if topicName contains "/"
 	if strings.Contains(topicName, "/") {
 		log.Warn("rocksmq failed to create topic for topic name contains \"/\"", zap.String("topic", topicName))
-		return retry.Unrecoverable(fmt.Errorf("topic name = %s contains \"/\"", topicName))
+		return retry.Unrecoverable(merr.WrapErrParameterInvalidMsg("topic name = %s contains \"/\"", topicName))
 	}
 
 	// topicIDKey is the only identifier of a topic
@@ -1184,7 +1184,7 @@ func (rmq *rocksmq) updateAckedInfo(topicName, groupName string, firstID UniqueI
 			if c.GroupName != groupName {
 				beginID, ok := rmq.getCurrentID(c.Topic, c.GroupName)
 				if !ok {
-					err = fmt.Errorf("currentID of topicName=%s, groupName=%s not exist", c.Topic, c.GroupName)
+					err = merr.WrapErrServiceInternalMsg("currentID of topicName=%s, groupName=%s not exist", c.Topic, c.GroupName)
 					return false
 				}
 				if beginID < minBeginID {

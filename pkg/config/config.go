@@ -32,7 +32,7 @@ import (
 
 var (
 	ErrNotInitial   = merr.WrapErrServiceInternalMsg("config is not initialized")
-	ErrIgnoreChange = errors.New("ignore change")
+	ErrIgnoreChange = merr.WrapErrServiceInternalMsg("ignore change")
 	ErrKeyNotFound  = merr.ErrIoKeyNotFound
 )
 
