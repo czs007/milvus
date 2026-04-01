@@ -18,7 +18,6 @@ package importv2
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/indexpb"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // SegmentFiles organizes source files by type for copy operations.
@@ -108,12 +108,12 @@ func transformManifestPath(
 ) (string, error) {
 	basePath, version, err := packed.UnmarshalManifestPath(manifestPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to unmarshal manifest path: %w", err)
+		return "", merr.WrapErrImportSysFailedErr(err, "failed to unmarshal manifest path")
 	}
 
 	targetBasePath, err := generateTargetPath(basePath, source, target)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate target base path: %w", err)
+		return "", merr.WrapErrImportSysFailedErr(err, "failed to generate target base path")
 	}
 
 	targetManifestPath := packed.MarshalManifestPath(targetBasePath, version)
@@ -211,18 +211,18 @@ func collectSegmentFiles(
 		// StorageV3+: binlog paths MUST come from manifest
 		manifestPath := source.GetManifestPath()
 		if manifestPath == "" {
-			return nil, fmt.Errorf("storage_version=%d requires manifest_path but it is empty (segmentID=%d)",
+			return nil, merr.WrapErrImportSysFailedMsg("storage_version=%d requires manifest_path but it is empty (segmentID=%d)",
 				source.GetStorageVersion(), source.GetSegmentId())
 		}
 
 		basePath, _, err := packed.UnmarshalManifestPath(manifestPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal manifest path %q for segment %d: %w", manifestPath, source.GetSegmentId(), err)
+			return nil, merr.WrapErrImportSysFailedErr(err, "failed to unmarshal manifest path %q for segment %d", manifestPath, source.GetSegmentId())
 		}
 
 		allFiles, listErr := listAllFiles(ctx, cm, basePath)
 		if listErr != nil {
-			return nil, fmt.Errorf("failed to list files from manifest base path %q for segment %d: %w", basePath, source.GetSegmentId(), listErr)
+			return nil, merr.WrapErrImportSysFailedErr(listErr, "failed to list files from manifest base path %q for segment %d", basePath, source.GetSegmentId())
 		}
 
 		// Empty file list is OK for V3 — segment may have only deltas and no insert binlogs
@@ -274,7 +274,7 @@ func generateMappingsFromFiles(
 			}
 
 			if err != nil {
-				return fmt.Errorf("failed to generate target path for %s file %s: %w", fileType, srcPath, err)
+				return merr.WrapErrImportSysFailedErr(err, "failed to generate target path for %s file %s", fileType, srcPath)
 			}
 			mappings[srcPath] = dstPath
 		}
@@ -328,13 +328,13 @@ func CopySegmentAndIndexFiles(
 	// Step 1: Collect all files to copy
 	files, err := collectSegmentFiles(ctx, cm, source)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to collect segment files: %w", err)
+		return nil, nil, merr.WrapErrImportSysFailedErr(err, "failed to collect segment files")
 	}
 
 	// Step 2: Generate src->dst mappings for file copying
 	mappings, err := generateMappingsFromFiles(files, source, target)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate file mappings: %w", err)
+		return nil, nil, merr.WrapErrImportSysFailedErr(err, "failed to generate file mappings")
 	}
 
 	// Step 3: Execute all copy operations
@@ -349,7 +349,7 @@ func CopySegmentAndIndexFiles(
 			fields = append(fields, logFields...)
 			fields = append(fields, zap.String("src", src), zap.String("dst", dst), zap.Error(err))
 			log.Warn("failed to copy file", fields...)
-			return nil, copiedFiles, fmt.Errorf("failed to copy file from %s to %s: %w", src, dst, err)
+			return nil, copiedFiles, merr.WrapErrImportSysFailedErr(err, "failed to copy file from %s to %s", src, dst)
 		}
 		copiedFiles = append(copiedFiles, dst)
 	}
@@ -367,7 +367,7 @@ func CopySegmentAndIndexFiles(
 			if _, exists := mappings[srcPath]; !exists {
 				dstPath, pathErr := generateTargetPath(srcPath, source, target)
 				if pathErr != nil {
-					return nil, copiedFiles, fmt.Errorf("failed to generate target path for pb insert binlog %s: %w", srcPath, pathErr)
+					return nil, copiedFiles, merr.WrapErrImportSysFailedErr(pathErr, "failed to generate target path for pb insert binlog %s", srcPath)
 				}
 				mappings[srcPath] = dstPath
 			}
@@ -379,20 +379,20 @@ func CopySegmentAndIndexFiles(
 	// Step 4: Build index metadata from source
 	indexInfos, textIndexInfos, jsonKeyIndexInfos, err := buildIndexInfoFromSource(source, target, mappings)
 	if err != nil {
-		return nil, copiedFiles, fmt.Errorf("failed to build index info: %w", err)
+		return nil, copiedFiles, merr.WrapErrImportSysFailedErr(err, "failed to build index info")
 	}
 
 	// Step 5: Generate segment metadata with path mappings
 	segmentInfo, err := generateSegmentInfoFromSource(source, target, mappings)
 	if err != nil {
-		return nil, copiedFiles, fmt.Errorf("failed to generate segment info: %w", err)
+		return nil, copiedFiles, merr.WrapErrImportSysFailedErr(err, "failed to generate segment info")
 	}
 
 	// Step 6: Compress paths
 	err = binlog.CompressBinLogs(segmentInfo.GetBinlogs(), segmentInfo.GetStatslogs(),
 		segmentInfo.GetDeltalogs(), segmentInfo.GetBm25Logs())
 	if err != nil {
-		return nil, copiedFiles, fmt.Errorf("failed to compress binlog paths: %w", err)
+		return nil, copiedFiles, merr.WrapErrImportSysFailedErr(err, "failed to compress binlog paths")
 	}
 
 	for _, indexInfo := range indexInfos {
@@ -423,7 +423,7 @@ func CopySegmentAndIndexFiles(
 	if useManifest {
 		targetManifestPath, err := transformManifestPath(source.GetManifestPath(), source, target)
 		if err != nil {
-			return nil, copiedFiles, fmt.Errorf("failed to transform manifest path: %w", err)
+			return nil, copiedFiles, merr.WrapErrImportSysFailedErr(err, "failed to transform manifest path")
 		}
 		result.ManifestPath = targetManifestPath
 	}

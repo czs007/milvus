@@ -843,7 +843,7 @@ func computeStatsBasePath(req *workerpb.CreateStatsRequest, manifestPath string,
 			req.GetTaskID(), req.GetTaskVersion(),
 			req.GetCollectionID(), req.GetPartitionID(), req.GetTargetSegmentID(), fieldID), nil
 	}
-	return "", fmt.Errorf("unknown stats type: %s", statsType)
+	return "", merr.WrapErrParameterInvalidMsg("unknown stats type: %s", statsType)
 }
 
 func buildIndexParams(

@@ -608,7 +608,7 @@ func (t *sortCompactionTask) createTextIndex(ctx context.Context,
 			if segment.GetManifest() != "" {
 				basePath, _, err := packed.UnmarshalManifestPath(segment.GetManifest())
 				if err != nil {
-					return fmt.Errorf("failed to unmarshal manifest path for text_index basePath: %w", err)
+					return merr.WrapErrServiceInternalErr(err, "failed to unmarshal manifest path for text_index basePath")
 				}
 				statsBasePath = fmt.Sprintf("%s/_stats/text_index.%d", basePath, field.GetFieldID())
 			}

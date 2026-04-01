@@ -227,22 +227,22 @@ func (t *UpdateExternalTask) PreExecute(ctx context.Context) error {
 		zap.Int64("collectionID", t.req.GetCollectionID()))
 
 	if t.req == nil {
-		return fmt.Errorf("request is nil")
+		return merr.WrapErrParameterMissing("request")
 	}
 	if t.req.GetSchema() == nil {
-		return fmt.Errorf("schema is nil in request")
+		return merr.WrapErrParameterMissing("schema")
 	}
 	if t.req.GetStorageConfig() == nil {
-		return fmt.Errorf("storage config is nil in request")
+		return merr.WrapErrParameterMissing("storage config")
 	}
 	if t.req.GetExternalSource() == "" {
-		return fmt.Errorf("external source is empty in request")
+		return merr.WrapErrParameterMissing("external source")
 	}
 
 	// Parse and cache external spec for reuse during Execute
 	spec, err := ParseExternalSpec(t.req.GetExternalSpec())
 	if err != nil {
-		return fmt.Errorf("failed to parse external spec: %w", err)
+		return merr.WrapErrParameterInvalidErr(err, "failed to parse external spec")
 	}
 	t.parsedSpec = spec
 	t.columns = packed.GetColumnNamesFromSchema(t.req.GetSchema())
@@ -261,7 +261,7 @@ func (t *UpdateExternalTask) Execute(ctx context.Context) error {
 
 	// Initialize pre-allocated segment IDs from request
 	if t.req.GetPreAllocatedSegmentIds() == nil {
-		return fmt.Errorf("pre-allocated segment IDs not provided in request")
+		return merr.WrapErrParameterMissing("pre-allocated segment IDs")
 	}
 
 	t.preallocatedIDRange = t.req.GetPreAllocatedSegmentIds()
@@ -275,13 +275,13 @@ func (t *UpdateExternalTask) Execute(ctx context.Context) error {
 	// Fetch fragments from external source
 	newFragments, err := t.fetchFragmentsFromExternalSource(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to fetch fragments: %w", err)
+		return merr.WrapErrServiceInternalErr(err, "failed to fetch fragments")
 	}
 
 	// Build current segment -> fragments mapping
 	currentSegmentFragments, err := t.buildCurrentSegmentFragments()
 	if err != nil {
-		return fmt.Errorf("failed to build current segment fragments: %w", err)
+		return merr.WrapErrServiceInternalErr(err, "failed to build current segment fragments")
 	}
 
 	// Compare and organize segments
@@ -552,7 +552,7 @@ func (t *UpdateExternalTask) balanceFragmentsToSegments(ctx context.Context, fra
 
 		// Allocate segment ID from pre-allocated range
 		if t.nextAllocID >= t.preallocatedIDRange.End {
-			return nil, fmt.Errorf("insufficient pre-allocated segment IDs: need more but only have %d IDs in range [%d, %d)",
+			return nil, merr.WrapErrServiceInternalMsg("insufficient pre-allocated segment IDs: need more but only have %d IDs in range [%d, %d)",
 				t.preallocatedIDRange.End-t.preallocatedIDRange.Begin,
 				t.preallocatedIDRange.Begin,
 				t.preallocatedIDRange.End)
@@ -569,7 +569,7 @@ func (t *UpdateExternalTask) balanceFragmentsToSegments(ctx context.Context, fra
 		// Create manifest for this segment
 		manifestPath, err := t.createManifestForSegment(ctx, segmentID, bin.fragments)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create manifest for segment %d: %w", segmentID, err)
+			return nil, merr.WrapErrServiceInternalErr(err, "failed to create manifest for segment %d", segmentID)
 		}
 
 		seg := &datapb.SegmentInfo{

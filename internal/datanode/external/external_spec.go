@@ -19,6 +19,8 @@ package external
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 )
 
 // ExternalSpec represents the parsed external collection specification
@@ -42,7 +44,7 @@ func ParseExternalSpec(specStr string) (*ExternalSpec, error) {
 
 	var spec ExternalSpec
 	if err := json.Unmarshal([]byte(specStr), &spec); err != nil {
-		return nil, fmt.Errorf("invalid external spec JSON: %w", err)
+		return nil, merr.WrapErrParameterInvalidErr(err, "invalid external spec JSON")
 	}
 
 	if spec.Format == "" {
@@ -50,7 +52,7 @@ func ParseExternalSpec(specStr string) (*ExternalSpec, error) {
 	}
 
 	if !supportedFormats[spec.Format] {
-		return nil, fmt.Errorf("unsupported format %q, supported formats: parquet, lance-table, vortex", spec.Format)
+		return nil, merr.WrapErrParameterInvalidMsg("unsupported format %q, supported formats: parquet, lance-table, vortex", spec.Format)
 	}
 
 	return &spec, nil

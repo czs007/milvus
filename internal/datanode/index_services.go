@@ -614,6 +614,6 @@ func (node *DataNode) DropJobsV2(ctx context.Context, req *workerpb.DropJobsV2Re
 		return merr.Success(), nil
 	default:
 		log.Warn("DataNode receive dropping unknown type jobs")
-		return merr.Status(errors.New("DataNode receive dropping unknown type jobs")), nil
+		return merr.Status(merr.WrapErrParameterInvalidMsg("DataNode receive dropping unknown type jobs")), nil
 	}
 }

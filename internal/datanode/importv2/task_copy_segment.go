@@ -18,8 +18,6 @@ package importv2
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -30,6 +28,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/log"
 	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/util/conc"
+	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
 )
 
@@ -305,14 +304,13 @@ func (t *CopySegmentTask) Execute() []*conc.Future[any] {
 
 	// Step 2: Validate input
 	if len(sources) == 0 {
-		reason := "no source segments to copy"
-		t.manager.Update(t.GetTaskID(), UpdateState(datapb.ImportTaskStateV2_Failed), UpdateReason(reason))
+		err := merr.WrapErrParameterInvalidMsg("no source segments to copy")
+		t.manager.Update(t.GetTaskID(), UpdateState(datapb.ImportTaskStateV2_Failed), UpdateReason(err.Error()))
 		return nil
 	}
 	if len(sources) != len(targets) {
-		reason := fmt.Sprintf("source segments count (%d) does not match target segments count (%d)",
-			len(sources), len(targets))
-		t.manager.Update(t.GetTaskID(), UpdateState(datapb.ImportTaskStateV2_Failed), UpdateReason(reason))
+		err := merr.WrapErrParameterInvalid(len(targets), len(sources), "source segments count does not match target segments count")
+		t.manager.Update(t.GetTaskID(), UpdateState(datapb.ImportTaskStateV2_Failed), UpdateReason(err.Error()))
 		return nil
 	}
 
@@ -379,10 +377,10 @@ func (t *CopySegmentTask) copySingleSegment(source *datapb.CopySegmentSource, ta
 
 	// Step 1: Validate source has required binlogs
 	if len(source.GetInsertBinlogs()) == 0 && len(source.GetDeltaBinlogs()) == 0 {
-		reason := "no insert/delete binlogs for segment"
-		log.Error(reason, logFields...)
-		t.manager.Update(t.GetTaskID(), UpdateState(datapb.ImportTaskStateV2_Failed), UpdateReason(reason))
-		return nil, errors.New(reason)
+		err := merr.WrapErrParameterInvalidMsg("no insert/delete binlogs for segment")
+		log.Error(err.Error(), logFields...)
+		t.manager.Update(t.GetTaskID(), UpdateState(datapb.ImportTaskStateV2_Failed), UpdateReason(err.Error()))
+		return nil, err
 	}
 
 	// Step 2: Copy all segment files (binlogs + indexes) together
@@ -400,9 +398,9 @@ func (t *CopySegmentTask) copySingleSegment(source *datapb.CopySegmentSource, ta
 	}
 
 	if err != nil {
-		reason := fmt.Sprintf("failed to copy segment files: %v", err)
-		log.Error(reason, logFields...)
-		t.manager.Update(t.GetTaskID(), UpdateState(datapb.ImportTaskStateV2_Failed), UpdateReason(reason))
+		err = merr.WrapErrImportFailedErr(err, "failed to copy segment files")
+		log.Error(err.Error(), logFields...)
+		t.manager.Update(t.GetTaskID(), UpdateState(datapb.ImportTaskStateV2_Failed), UpdateReason(err.Error()))
 		return nil, err
 	}
 

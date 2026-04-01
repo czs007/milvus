@@ -233,7 +233,7 @@ func (m *ExternalCollectionManager) SubmitTask(
 	}
 
 	if oldInfo := m.LoadOrStore(clusterID, taskID, info); oldInfo != nil {
-		return fmt.Errorf("task already exists: taskID=%d", taskID)
+		return merr.WrapErrParameterInvalidMsg("task already exists: taskID=%d", taskID)
 	}
 
 	// Submit to pool

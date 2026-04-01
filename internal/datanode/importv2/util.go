@@ -571,28 +571,28 @@ func RunMinHashFunction(task *ImportTask, data *storage.InsertData) error {
 
 		// Sanity check: ensure BatchRun returned at least one output
 		if len(output) == 0 {
-			return errors.New("MinHash embedding failed: runner.BatchRun returned empty output")
+			return merr.WrapErrImportFailedMsg("MinHash embedding failed: runner.BatchRun returned empty output")
 		}
 
 		// MinHash function has only one output field
 		fieldData, ok := output[0].(*schemapb.FieldData)
 		if !ok {
-			return errors.New("MinHash embedding failed: MinHash runner output not FieldData")
+			return merr.WrapErrImportFailedMsg("MinHash embedding failed: MinHash runner output not FieldData")
 		}
 
 		vectorField := fieldData.GetVectors()
 		if vectorField == nil {
-			return errors.New("MinHash embedding failed: output is not a vector field")
+			return merr.WrapErrImportFailedMsg("MinHash embedding failed: output is not a vector field")
 		}
 
 		binaryVector := vectorField.GetBinaryVector()
 		if binaryVector == nil {
-			return errors.New("MinHash embedding failed: output is not a binary vector")
+			return merr.WrapErrImportFailedMsg("MinHash embedding failed: output is not a binary vector")
 		}
 
 		outputFields := runner.GetOutputFields()
 		if len(outputFields) == 0 {
-			return errors.New("MinHash embedding failed: runner has no output fields")
+			return merr.WrapErrImportFailedMsg("MinHash embedding failed: runner has no output fields")
 		}
 
 		outputFieldId := outputFields[0].GetFieldID()
