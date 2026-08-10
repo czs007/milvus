@@ -366,7 +366,7 @@ JsonKeyStats::CollectSingleJsonStatsInfo(
                 tokens.resize(token_capacity);
                 continue;
             } else {
-                ThrowInfo(ErrorCode::UnexpectedError,
+                ThrowInfo(ErrorCode::DataFormatBroken,
                           "Failed to parse Json: {}, error: {}",
                           json_str,
                           int(r));
@@ -570,7 +570,7 @@ JsonKeyStats::TraverseJsonForBuildStats(
         try {
             type = getType(value);
         } catch (const std::exception& e) {
-            ThrowInfo(ErrorCode::UnexpectedError,
+            ThrowInfo(ErrorCode::DataFormatBroken,
                       "failed to get json type for value: {} with error: {}",
                       value,
                       e.what());
@@ -658,7 +658,7 @@ JsonKeyStats::BuildKeyStatsForRow(std::string_view json_str, uint32_t row_id) {
                 tokens.resize(token_capacity);
                 continue;
             } else {
-                ThrowInfo(ErrorCode::UnexpectedError,
+                ThrowInfo(ErrorCode::DataFormatBroken,
                           "Failed to parse Json: {}, error: {}",
                           json_str,
                           int(r));
@@ -1435,7 +1435,7 @@ JsonKeyStats::Load(milvus::tracer::TraceContext ctx, const Config& config) {
         } else if (file.find(JSON_STATS_META_FILE_NAME) != std::string::npos) {
             meta_files.emplace_back(abs_path);
         } else {
-            ThrowInfo(ErrorCode::UnexpectedError,
+            ThrowInfo(ErrorCode::DataFormatBroken,
                       "unknown file path: {} for segment {}",
                       file,
                       segment_id_);
