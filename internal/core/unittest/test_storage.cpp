@@ -18,7 +18,9 @@
 #include <thread>
 #include <cstdlib>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
+#include <new>
 #include <iosfwd>
 #include <memory>
 #include <optional>
@@ -122,6 +124,39 @@ class StorageTest : public testing::Test {
 TEST_F(StorageTest, InitLocalChunkManagerSingleton) {
     auto status = InitLocalChunkManagerSingleton("tmp");
     EXPECT_EQ(status.error_code, Success);
+}
+
+TEST_F(StorageTest, DefaultConstructedFileManagerContextIsZeroInitialized) {
+    // FileManagerContext has a user-provided default constructor that only
+    // mentions chunkManagerPtr, so fieldDataMeta / indexMeta are
+    // default-initialized -- their integer members are indeterminate unless the
+    // structs carry default member initializers. DiskFileManagerImpl::
+    // GetIndexIdentifier() and FileManagerImpl::GetRemoteIndexObjectPrefix()
+    // build paths out of build_id / index_version, so leftover bytes end up as
+    // directory names.
+    //
+    // Construct in place over a poisoned buffer so any member the constructor
+    // leaves untouched keeps the 0xAB pattern, instead of relying on whatever
+    // the stack happened to hold.
+    using Ctx = FileManagerContext;
+    alignas(Ctx) unsigned char buffer[sizeof(Ctx)];
+    std::memset(buffer, 0xAB, sizeof(buffer));
+    auto* ctx = new (buffer) Ctx();
+
+    EXPECT_EQ(ctx->indexMeta.segment_id, 0);
+    EXPECT_EQ(ctx->indexMeta.field_id, 0);
+    EXPECT_EQ(ctx->indexMeta.build_id, 0);
+    EXPECT_EQ(ctx->indexMeta.index_version, 0);
+    EXPECT_EQ(ctx->indexMeta.dim, 0);
+    EXPECT_EQ(ctx->indexMeta.field_type, DataType::NONE);
+    EXPECT_FALSE(ctx->indexMeta.index_non_encoding);
+
+    EXPECT_EQ(ctx->fieldDataMeta.collection_id, 0);
+    EXPECT_EQ(ctx->fieldDataMeta.partition_id, 0);
+    EXPECT_EQ(ctx->fieldDataMeta.segment_id, 0);
+    EXPECT_EQ(ctx->fieldDataMeta.field_id, 0);
+
+    ctx->~FileManagerContext();
 }
 
 TEST_F(StorageTest, S3ErrorClassification) {

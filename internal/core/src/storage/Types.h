@@ -67,10 +67,10 @@ enum class EventType : int8_t {
 
 // segment/field meta information corresponding to binlog file data
 struct FieldDataMeta {
-    int64_t collection_id;
-    int64_t partition_id;
-    int64_t segment_id;
-    int64_t field_id;
+    int64_t collection_id{0};
+    int64_t partition_id{0};
+    int64_t segment_id{0};
+    int64_t field_id{0};
     proto::schema::FieldSchema field_schema;
 };
 
@@ -92,15 +92,15 @@ enum CodecType {
 
 // index meta information corresponding to index file data
 struct IndexMeta {
-    int64_t segment_id;
-    int64_t field_id;
-    int64_t build_id;
-    int64_t index_version;
+    int64_t segment_id{0};
+    int64_t field_id{0};
+    int64_t build_id{0};
+    int64_t index_version{0};
     std::string key;
     std::string field_name;
-    DataType field_type;
-    int64_t dim;
-    bool index_non_encoding;
+    DataType field_type{DataType::NONE};
+    int64_t dim{0};
+    bool index_non_encoding{false};
     // Path format version used by the worker/loader to assemble the object-storage prefix.
     // See milvus.proto.index.IndexStorePathVersion.
     milvus::proto::index::IndexStorePathVersion index_store_path_version{
