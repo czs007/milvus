@@ -11,6 +11,7 @@ from ml_dtypes import bfloat16
 from pymilvus import DataType
 from pymilvus.client.embedding_list import EmbeddingList
 from utils.util_log import test_log as log
+from utils.poll import poll_intervals
 
 prefix = "snapshot"
 default_dim = 128
@@ -19,24 +20,26 @@ default_dim = 128
 def wait_for_restore_complete(testcase, client, job_id, timeout=60):
     """Wait for restore snapshot job to complete"""
     start_time = time.time()
+    poll = poll_intervals(1)
     while time.time() - start_time < timeout:
         state, _ = testcase.get_restore_snapshot_state(client, job_id)
         if state.state == "RestoreSnapshotCompleted":
             return
         if state.state == "RestoreSnapshotFailed":
             raise Exception(f"Restore snapshot failed: {state.reason}")
-        time.sleep(1)
+        time.sleep(next(poll))
     raise TimeoutError(f"Restore snapshot job {job_id} did not complete within {timeout}s")
 
 
 def wait_for_restore_terminal(testcase, client, job_id, timeout=60):
     """Wait for restore snapshot job to reach a terminal state."""
     start_time = time.time()
+    poll = poll_intervals(1)
     while time.time() - start_time < timeout:
         state, _ = testcase.get_restore_snapshot_state(client, job_id)
         if state.state in ("RestoreSnapshotCompleted", "RestoreSnapshotFailed"):
             return state
-        time.sleep(1)
+        time.sleep(next(poll))
     raise TimeoutError(f"Restore snapshot job {job_id} did not reach terminal state within {timeout}s")
 
 

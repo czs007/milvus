@@ -10,6 +10,7 @@ from common import common_func as cf
 from common import common_type as ct
 from utils.api_request import api_request
 from utils.util_log import test_log as log
+from utils.poll import poll_intervals
 from utils.wrapper import trace
 
 TIMEOUT = 120
@@ -859,21 +860,23 @@ class TestMilvusClientV2Base(Base):
     def wait_for_index_ready(self, client, collection_name, index_name, timeout=None, **kwargs):
         timeout = TIMEOUT if timeout is None else timeout
         start_time = time.time()
+        poll = poll_intervals(2)
         while start_time + timeout > time.time():
             index_info, _ = self.describe_index(client, collection_name, index_name, **kwargs)
             if index_info.get("pending_index_rows", 1) == 0:
                 return True
-            time.sleep(2)
+            time.sleep(next(poll))
         return False
 
     def wait_for_compaction_ready(self, client, compact_id, timeout=None, **kwargs):
         timeout = TIMEOUT if timeout is None else timeout
         start_time = time.time()
+        poll = poll_intervals(2)
         while start_time + timeout > time.time():
             res = self.get_compaction_state(client, compact_id, **kwargs)[0]
             if res == "Completed":
                 return True
-            time.sleep(2)
+            time.sleep(next(poll))
         return False
 
     @trace()

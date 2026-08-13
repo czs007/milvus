@@ -10,6 +10,7 @@ from pymilvus import BulkInsertState
 from pymilvus.orm.role import Role
 from utils.api_request import api_request
 from utils.util_log import test_log as log
+from utils.poll import poll_intervals
 
 TIMEOUT = 20
 
@@ -140,11 +141,12 @@ class ApiUtilityWrapper:
         log.info(f"wait bulk load timeout is {task_timeout}")
         pending_tasks = self.get_bulk_insert_pending_list()
         log.info(f"before waiting, there are {len(pending_tasks)} pending tasks")
+        poll = poll_intervals(2)
         while (
             len(tasks_state_distribution["success"]) + len(tasks_state_distribution["failed"]) < len(task_ids)
             and end - start <= task_timeout
         ):
-            time.sleep(2)
+            time.sleep(next(poll))
 
             for task_id in task_ids:
                 if task_id in tasks_state_distribution["success"] or task_id in tasks_state_distribution["failed"]:
@@ -205,9 +207,11 @@ class ApiUtilityWrapper:
         )
         time_cnt = 0
         pending_task_ids = set()
+        poll = poll_intervals(5)
         while len(pending_tasks) > 0:
-            time.sleep(5)
-            time_cnt += 5
+            interval = next(poll)
+            time.sleep(interval)
+            time_cnt = round(time_cnt + interval, 1)
             pending_tasks = self.get_bulk_insert_pending_list()
             working_tasks = self.get_bulk_insert_working_list()
             cur_pending_task_ids = []
@@ -231,8 +235,9 @@ class ApiUtilityWrapper:
         else:
             task_timeout = TIMEOUT
         end = time.time()
+        poll = poll_intervals(0.5)
         while end - start <= task_timeout:
-            time.sleep(0.5)
+            time.sleep(next(poll))
             index_states, _ = self.index_building_progress(collection_name)
             log.debug(f"index states: {index_states}")
             if index_states["total_rows"] == index_states["indexed_rows"]:
