@@ -20,7 +20,7 @@ import (
 // The initialized checkpoint carries the time tick of the AlterReplicateConfig
 // that created the task, so anything at or before it predates the task itself.
 // A zero value means the field is absent (task written by an older version), in
-// which case no ordering is enforced and the previous behaviour is kept.
+// which case no ordering is enforced and the previous behavior is kept.
 func IsStaleTopologyChange(msg message.ImmutableMessage, replicateInfo *streamingpb.ReplicatePChannelMeta) bool {
 	initTimeTick := replicateInfo.GetInitializedCheckpoint().GetTimeTick()
 	return initTimeTick != 0 && msg.TimeTick() <= initTimeTick
