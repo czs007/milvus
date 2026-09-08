@@ -586,7 +586,7 @@ present".
 | `group_size` / `strict_group_size` | key present | yes |
 | `rank_group_scorer` | key present | yes |
 | `group_by_fields` (query path) | key present | yes |
-| `iterator` | `iterator=true` | yes — old iterator protocol |
+| `iterator` | `iterator=true` **and** `search_iter_v2` absent | yes — old iterator protocol. pymilvus's v2 search iterator sends both keys, so without the exclusion every v2 page would also count as the old protocol |
 | `search_iter_v2` | key present | yes — new protocol; keep separate to watch migration |
 | `radius` / `range_filter` | key present | yes |
 | `ignore_growing` | `== true` | yes |
@@ -628,7 +628,7 @@ present".
 
 | Entry | Signal | Recommend |
 |---|---|---|
-| `strategy=rrf`, `strategy=weighted`, `strategy=_other` | recognized `rank_params.strategy` value; anything else folds to `_other` | yes |
+| `strategy=rrf`, `strategy=weighted`, `strategy=_other` | recognized `strategy` value in the legacy rank params (`RRFRanker` / `WeightedRanker`); anything else folds to `_other`; absent key counts nothing | yes |
 | `norm_score` | key present in `rank_params` | yes |
 | `function_score=rrf` / `weighted` / `decay` / `model` / `boost` / `_other` | recognized function name in `function_score`; anything else folds to `_other` | yes |
 | `highlighter=Lexical`, `highlighter=Semantic` | `SearchRequest.highlighter.type` | yes — **decision:** Semantic maturity; if not GA, the consumer should label it |
