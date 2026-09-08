@@ -699,6 +699,62 @@ wrong password; 200 for root.
 Adding a role or a group later changes nothing on the consumer side; the protocol is the same for every
 node.
 
+## Local Verification
+
+Run on 2026-09-08 against a standalone instance built from the implementation branch
+(`feat/feature-usage-report`, master `d6179da4f7`; woodpecker WAL with local storage; pymilvus 3.1.0rc8),
+with `common.security.featureUsageEnabled=true`. The workload created two collections and issued a fixed
+set of requests, then read `GET /management/feature_usage` on the Proxy management port.
+
+**Workload.**
+
+- `fu_a`: auto-id primary key, VarChar partition key, nullable VarChar, Int32 array (`max_capacity=32`),
+  8-dim float vector with `HNSW`/`COSINE` (`M=8, efConstruction=64`), dynamic field enabled, 16 partitions,
+  properties `mmap.enabled=true`, `collection.ttl.seconds=86400` and a custom key `my.custom.key`.
+- `fu_b`: two float vectors (`IVF_FLAT`/`L2` with `nlist=8`, `FLAT`/`IP`), a VarChar with
+  `enable_analyzer`/`enable_match`, a sparse vector fed by a `BM25` function with `SPARSE_INVERTED_INDEX`,
+  consistency level `Strong`, one alias.
+- Requests: 2 `group_by_field` searches; 1 range search (`radius`); 3 searches with explicit `Strong` plus
+  1 with the default consistency; one v2 search iterator (3 pages + probe); one query iterator; one
+  hybrid search with `RRFRanker`; one query per expression feature (`like`, `is null`, `array_contains`,
+  `array_length`, `exists $meta[..]`, `$meta[..] > n`, `random_sample`, `text_match`, `phrase_match`); one
+  search with `filter_params`; one delete with a `like` filter; then one search each with `Strong`,
+  `Bounded`, `Eventually`, `Session` and one query with `Strong`.
+
+**Gate and auth.** No credentials: `401`. Wrong root password: `401`. Root: `200`.
+
+**Report** (non-zero entries; `build_version` and `deploy_mode=STANDALONE` present; three nodes, all `reachable=true`):
+
+| node | group | entries |
+|---|---|---|
+| mixcoord | `declared` | `is_partition_key=1`, `enable_dynamic_field=1`, `nullable=1`, `auto_id=1`, `multi_vector_field=1`, `consistency_level=Bounded=1`, `consistency_level=Strong=1` |
+| mixcoord | `field_types` | `Int64=2`, `VarChar=2`, `FloatVector=2`, `Array=1`, `SparseFloatVector=1` (23 other types present at 0; the dynamic `$meta` field is not counted as `JSON`) |
+| mixcoord | `functions` | `BM25=1` |
+| mixcoord | `index_types` / `metric_types` | `HNSW=1`, `IVF_FLAT=1`, `FLAT=1`, `SPARSE_INVERTED_INDEX=1` / `COSINE=1`, `L2=1`, `IP=1`, `BM25=1` |
+| mixcoord | `index_params` | `M=1`, `efConstruction=1`, `nlist=1` (opened from the `params` JSON) |
+| mixcoord | `field_params` | `dim=2`, `max_length=2`, `max_capacity=1`, `enable_analyzer=true=1`, `enable_match=true=1` |
+| mixcoord | `properties` | `mmap.enabled=true=1`, `collection.ttl.seconds=1`, `_custom=1`, `timezone=2`, `namespace.sharding.enabled=false=2` |
+| mixcoord | `dist` | `partition_count|2-16=1`, `partition_count|1=1`, `shards_num|1=2`, `dim|<=128=2`, `max_length|257-4096=2`, `max_capacity|<=64=1`, `replica_number|1=2` |
+| mixcoord | `objects` | `aliases=1`, `grants=3` |
+| mixcoord | `segment` | `storage_version=2=2`, `is_sorted=2`, `text_stats=1`, `bm25_stats=1` |
+| proxy | `request` | `group_by_field=2`, `radius=1`, `search_iter_v2=4`, `iterator=6`, `consistency_level=Strong=5`, `=Session=1`, `=Bounded=1`, `=Eventually=1`, `strategy=rrf=1`, `like=2`, `is_null=1`, `exists=1`, `json_identifier=3`, `array_contains=1`, `array_length=1`, `random_sample=1`, `text_match=1`, `phrase_match=1`, `expr_template_values=1` (31 other counters present at 0) |
+| datanode | `request` | `compaction=SortCompaction=5` (12 other counters present at 0) |
+
+Every request counter matches the workload: `iterator=6` is the query iterator's pages only (the v2 search
+iterator's pages count under `search_iter_v2`), `consistency_level=Strong=5` is 3 + 1 search + 1 query,
+`like=2` is one query and one delete, `json_identifier=3` is the two `$meta` queries plus the dynamic-field
+output query, and the default-consistency search moved nothing. `function_score=*` stayed at 0 because
+`RRFRanker` uses the legacy `strategy` path. The five sort compactions are the post-flush compactions of
+the two collections.
+
+**Sanitization.** The serialized report contains none of: the collection names, the alias name, the custom
+property key or its value, the partition key values, or the inserted text.
+
+**Observations for the consumer.** `grants=3` on an otherwise empty instance are the built-in role
+policies. `timezone` and `namespace.sharding.enabled=false` are written by the server on every collection
+and show `N/N`; they are official keys and are reported as designed, but they do not indicate a user
+choice. `max_field_id` is server-managed and excluded.
+
 ## Design Decisions
 
 ### D1. A dedicated RPC, not a new `metric_type` on `GetMetrics`
