@@ -563,14 +563,17 @@ All official keys are counted by the open-key mechanism; the table lists the one
 | Entry | Note |
 |---|---|
 | `storage_version=<n>` | collections with at least one segment on storage format version n; the direct measure of columnar-storage migration |
-| `is_sorted`, `is_partition_key_sorted`, `text_stats`, `json_key_stats`, `bm25_stats` (named after `SegmentInfo.is_sorted`, `is_partition_key_sorted`, `textStatsLogs`, `jsonKeyStats`, `bm25statslogs`) | collections with at least one segment carrying the trait |
+| `is_sorted`, `is_sorted_by_namespace`, `text_stats`, `json_key_stats`, `bm25_stats` (named after `SegmentInfo.is_sorted`, `is_sorted_by_namespace` — `is_partition_key_sorted` on 2.6 — `textStatsLogs`, `jsonKeyStats`, `bm25statslogs`) | collections with at least one live segment (not dropped, not invisible) carrying the trait |
 
 These differ in kind from the rest: they report what was **materialized**, not what the user declared.
 They require a pass over segment metadata, which is why they are a separate phase.
 
-Not in this design: import file types and compaction types. Neither is present in coordinator metadata
-after the job is garbage-collected; they would be DataNode / DataCoord counters and are deferred until
-the counter side exists.
+Import file types and compaction types are not coordinator metadata (the job records are
+garbage-collected), so they are **DataNode request-group counters**, reported by the DataNode's own
+`GetFeatureUsage`: `import_file_type=<JSON|JSONLines|Numpy|Parquet|CSV>` counted where the import task
+opens each file, `compaction=<CompactionType>` counted where the compaction executor starts a task
+(unrecognized types fold to `compaction=_other`). Counters carry a role tag, and each role's RPC returns
+only its own slots, so a standalone process (one shared counter array) never reports a slot twice.
 
 ### Request-level features (`request`) — **decision per row**
 
@@ -615,11 +618,12 @@ present".
 | `json_identifier` (named; access to a JSON path) | yes |
 | `array_contains` (incl. `_all`, `_any`) | yes |
 | `array_length` | yes |
-| `st_contains`, `st_within`, `st_intersects`, `st_crosses`, `st_overlaps`, `st_touches`, `st_equals`, `st_dwithin` | yes — eight bits; **decision:** report separately or collapse to `geospatial` |
+| `st_contains`, `st_within`, `st_intersects`, `st_crosses`, `st_overlaps`, `st_touches`, `st_equals`, `st_dwithin`, `st_isvalid` | yes — nine bits (one per `GISOp`); **decision:** report separately or collapse to `geospatial` on the consumer side |
 | `timestamptz_compare` (named) | yes |
 | `like` | yes |
 | `exists` | yes |
 | `is_null` / `is_not_null` (named) | yes |
+| `regex_match`, `element_filter`, `struct_match` (named) | yes — added in implementation: the regex operator and the struct-array element filter / match predicates are distinct capabilities the walk sees for free |
 | `expr_template_values` | yes — excluding the `expr_use_json_stats` key |
 | `expr_use_json_stats` | yes — passed through `expr_template_values`; this is a request-level hint, not metadata |
 | arithmetic, comparison, logical operators | no — basic syntax |
@@ -690,7 +694,7 @@ wrong password; 200 for root.
 |---|---|
 | P0 | Protos, `internal/featureusage/` static statistics and the counter array, MixCoord merge and Proxy fan-out, HTTP endpoint with gate and auth, and the Proxy hooks for the starter counters that are plain request fields or `search_params` keys (`group_by_field`, `iterator`, `search_iter_v2`, `radius`, `search_by_primary_keys`, `namespace`, `not_return_all_meta`, `deprecated_travel_timestamp`, `consistency_level=*`, `function_score=*`, `highlighter=*`) |
 | P1 | The expression AST walk (`random_sample`, `phrase_match`, `text_match`, `json_contains`, geospatial, …) and any further rows the product selects |
-| P2 | Segment traits from DataCoord meta; DataNode counters (import file types, compaction types) |
+| P2 | Segment traits from DataCoord meta; DataNode `GetFeatureUsage` RPC with the import-file-type and compaction-type counters; DataCoord fan-out to DataNodes merged into the report |
 
 Adding a role or a group later changes nothing on the consumer side; the protocol is the same for every
 node.
@@ -864,8 +868,11 @@ it is still in use"; `last_used_at` answers that without destroying data or addi
 | Index-side static entries | `internal/datacoord/server.go` — `Server.FeatureUsageEntries`; `index_meta.go` — `indexMeta.ListAllIndexes` |
 | MixCoord merge and Proxy fan-out | `internal/coordinator/feature_usage.go` — `GetFeatureUsage`, `collectProxyFeatureUsage` |
 | Proxy RPC and HTTP handler | `internal/proxy/impl.go` — `GetFeatureUsage`; `internal/proxy/management.go` — `FeatureUsage` (route registered only when enabled); `internal/http/router.go` — `RouteFeatureUsage` |
-| Proxy counter hooks | `internal/proxy/feature_usage_hooks.go`, called from `parseSearchInfo`, `searchTask.PreExecute`, `queryTask.PreExecute`, `parseQueryParams` |
-| QueryNode / DataNode RPC | deferred to P2 (see "Internal RPC") |
+| Proxy counter hooks | `internal/proxy/feature_usage_hooks.go`, called from `parseSearchInfo`, `searchTask.PreExecute`, `queryTask.PreExecute`, `parseQueryParams`; expression walk via `recordPlanExprFeatures` at the three plan-creation sites (`tryGeneratePlan`, query, delete) |
+| Expression walk | `internal/featureusage/exprwalk.go` — `CollectExprFeatures`, `RecordExpr` |
+| Segment traits | `internal/featureusage/segment.go` — `ComputeSegmentEntries`; `internal/datacoord/feature_usage.go` — `FeatureUsageEntries`, `CollectDataNodeFeatureUsage` |
+| DataNode RPC and counters | `pkg/proto/data_coord.proto` (`DataNode.GetFeatureUsage`); `internal/datanode/services.go`; hooks in `internal/datanode/importv2/task_import.go` and `internal/datanode/compactor/executor.go` |
+| QueryNode RPC | not added: nothing to return yet |
 | Config | `pkg/util/paramtable/component_param.go` — `common.security.featureUsageEnabled`; `proxy.featureUsage.enabled`; `configs/milvus.yaml` regenerated |
 | Tests | as in Test Plan |
 
