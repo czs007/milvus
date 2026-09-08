@@ -24,8 +24,14 @@ internal RPC `GetFeatureUsage`, merges them with its own metadata statistics, an
 the Proxy management port as `GET /management/feature_usage`.
 
 Nothing is persisted, no timer runs, no log line is written, and the request hot path gains exactly one
-branch and one atomic add per counted feature. The response contains only counts and values drawn from
+branch and one atomic add per counted feature. Each request counter also carries the time it was last
+hit, so a consumer reading the report once a day can tell "used today" from "used once, months ago"
+without keeping history of its own. The response contains only counts, timestamps, and values drawn from
 closed, code-defined sets — never a user-supplied string.
+
+The in-memory footprint is fixed at compile time: the set of counters is a constant, nothing is keyed by
+collection, user, or time, and no structure outlives a single request except the counter array itself.
+Consequently there is no cleanup, no eviction, and no reset — on read, on a timer, or otherwise.
 
 The document has two parts. The first defines the mechanism: interfaces, value semantics, where counters
 live, what the response may contain. The second is the initial feature catalog, which is the input to a
@@ -62,6 +68,13 @@ The three uses impose the constraints the design is built around:
   feature been used since the process started, and roughly how much", not "what is the QPS".
 - **Per-collection detail.** The report is aggregated counts only. A per-collection breakdown would carry
   collection identifiers and needs a separate authorization design.
+- **Per-collection attribution of request-level usage** ("which collections issued `group_by_field`
+  searches"). A raw counter cannot answer it: ten million hits may come from one collection or ten
+  thousand. Answering it requires state keyed by collection, which in turn requires a `DropCollection`
+  hook (the pattern `CleanupProxyCollectionMetrics` already implements, `internal/proxy/impl.go:241`),
+  alias handling, a time window, and a memory bound. That is a different design with a different cost
+  model and, if wanted, gets its own MEP. This design deliberately keeps the request counters unkeyed so
+  that none of that machinery is needed.
 - **Capability discovery** ("can this build do X"). Build version and deploy mode are included for
   correlation; everything else is usage.
 - **Changes to `milvus-proto` or any SDK.** All new messages live in the in-repo `pkg/proto`.
@@ -96,6 +109,7 @@ message FeatureEntry {
   string name   = 2;   // feature identifier, see catalog
   int64  value  = 3;   // count
   string bucket = 4;   // only for group = "dist"
+  int64  last_used_at = 5;  // unix seconds of the most recent hit; only for group = "request", 0 otherwise
 }
 
 // Response of a single node.
@@ -146,7 +160,7 @@ schema.
 | `objects` | MixCoord | count of objects of this kind in the instance (databases, aliases, roles, grants, privilege groups) |
 | `dist` | MixCoord | collections falling into `bucket` for this quantity |
 | `segment` | MixCoord (DataCoord meta) | collections with at least one segment having this materialized trait — phase 2 |
-| `request` | Proxy | monotonic count of requests using this feature since `node_start_time` |
+| `request` | Proxy | monotonic count of requests using this feature since `node_start_time`; `last_used_at` is the unix time of the most recent hit, `0` if never hit in this process |
 
 Rules that apply across groups:
 
@@ -273,25 +287,68 @@ Reflection over `FieldSchema` / `CollectionSchema` booleans is **not** used. It 
 predicate list names the booleans that are features.
 
 Cost: one pass over collections plus one over indexes. Thousands of collections take milliseconds. Every
-query recomputes; there is no cache. If protection against a misbehaving consumer is wanted, a minimum
-interval (return the previous result if queried again within N seconds) can be added as configuration
-later; it is not in the first version.
+query recomputes; there is no cache and no result is retained between calls. The expected consumer calls
+once a day (see "Consumer contract"), so a cache would protect nothing and would be the only structure in
+the design that outlives a request. It is deliberately not provided.
 
 ### Dynamic counters (Proxy)
 
 **Hot-path rule: one branch and one atomic add per counted feature. No allocation, no I/O, no lock.**
 
-Counters are `atomic.Int64` values in a fixed-size array indexed by a feature id; a `map` lookup is not on
-the path. They increase monotonically from process start and are **never reset by a query**. Resetting
-would make two consumers interfere with each other and would lose data on any failed query. The consumer
-takes the difference between two reads; a change in `node_start_time` means the process restarted and
-the baseline must be rebuilt. This is the standard Prometheus counter contract.
+Each counter is a pair of `atomic.Int64` — `value` and `last_used_at` — in a fixed-size array indexed
+by a feature id; a `map` lookup is not on the path. On a hit, `value` is incremented and `last_used_at`
+is set to the current unix second, the latter only if the stored second differs from the current one, so
+under load each counter takes at most one timestamp store per second and the extra cache-line traffic
+is negligible. `time.Now()` goes through the vDSO and costs tens of nanoseconds.
 
-Usage accumulated between the last query and a process restart is lost. That is accepted: dynamic
-counters inform adoption, deprecation decisions rest on static statistics, and static statistics are
-recomputed from metadata on every query.
+#### The key space is closed at compile time
 
-Counters are **per Proxy**. The report lists one `FeatureUsageNode` per Proxy; the consumer sums them.
+**Invariant: the set of counter ids is a compile-time constant. No request field, parameter value,
+collection, database, user, or time period may create a counter.** This is the property that makes the
+memory footprint fixed for the life of the process and makes cleanup unnecessary, and it must be stated
+because two natural counter definitions violate it:
+
+- `rank_params.strategy` is a raw user string. On master the Proxy does not read `RankTypeKey` at all;
+  legacy rank parameters are passed through `newRerankMetaFromLegacy` unvalidated. A counter named by
+  the value would grow with whatever clients send.
+- `function_score` function names come from `rerank.GetRerankName()`, which returns
+  `strings.ToLower(param.Value)` — also a user string at the point of counting.
+
+Both are therefore counted only for the values the code recognizes (`rrf`, `weighted`, and for
+`function_score` also `decay`, `model`, `boost`); any other value increments a single `_other` slot in
+that family. The same rule applies to every future per-value counter: enumerate the recognized values,
+fold the rest.
+
+The repository already carries the cost of not having this invariant. Proxy Prometheus metrics are
+labeled by `db_name` and `collection_name`, so they need `CleanupProxyCollectionMetrics` on
+`DropCollection`, and the comment above `proxyCollectionScopedMetrics()` in `pkg/metrics/proxy_metrics.go`
+records that hybrid search and upsert each leaked series once because a cleanup enumerated label values
+that later grew. A counter keyed by user input inherits that whole problem; a counter over a closed id
+set has none of it.
+
+#### No reset, of any kind
+
+Counters increase monotonically from process start. Three forms of clearing were considered and all are
+rejected:
+
+| Clearing | Why not |
+|---|---|
+| Reset on read | A failed read or a retry loses data permanently; a second consumer (an operator with `curl`) silently steals the first one's delta |
+| Reset on a timer (e.g. daily) | The server's reset instant and the consumer's poll instant must be aligned or a window is lost or double-counted; restarted nodes drift out of phase; and it turns "on demand" back into server-side windowed sampling with a timer |
+| Reset to bound memory | Unnecessary — the array is fixed size. `int64` at one million hits per second overflows after roughly 292,000 years |
+
+`last_used_at` is what replaces clearing for the question clearing was meant to answer. "Is this feature
+still in use" is read off one response: `collected_at - last_used_at` within the consumer's period means
+yes, larger means no, `0` means never in this process. `value` remains available for magnitude and for
+consumers that do want to difference two reads.
+
+Usage accumulated between the last query and a process restart is lost, and a Proxy that disappears
+takes its counters with it. That is accepted: dynamic counters inform adoption, deprecation decisions
+rest on static statistics, and static statistics are recomputed from metadata on every query. The
+consequence for interpretation is stated in "Consumer contract".
+
+Counters are **per Proxy**. The report lists one `FeatureUsageNode` per Proxy; MixCoord does not merge
+them, so the consumer can apply per-node reasoning (restart detection, node disappearance) before summing.
 
 #### Where the counting hooks live
 
@@ -331,7 +388,7 @@ fires on "field present" for such a field measures request volume, not feature u
 | Do **not** count `guarantee_timestamp` | pymilvus sets it on every search and query (`ts_utils.construct_guarantee_ts`: the cached write timestamp, `1`, or `0` for Strong); `SearchIterator` pins it as well. There is no request-side signal for "the user chose a timestamp" |
 | `request_consistency_level` counts `use_default_consistency == false` and records the level as the entry name (`consistency_level=Strong`, ...) | It is the only field that distinguishes a per-request override. Clients that predate `use_default_consistency` leave it `false`; the catalog notes this bias |
 | Do **not** count `reduce_stop_for_best` separately | pymilvus sets it only inside `QueryIterator`; the Proxy parses it only on the query path. It is the old iterator, which `iterator` already counts |
-| `rank_params.strategy` is counted per value (`strategy=rrf`, `strategy=weighted`); `function_score` is counted per function type (`function_score=rrf`, `weighted`, `decay`, `model`, `boost`) | The two are distinct client paths (`RRFRanker`/`WeightedRanker` versus a `Function` object). Neither is deprecated. Counting "rrf" or "weights" on their own would double-count across the two paths |
+| `rank_params.strategy` is counted per **recognized** value (`strategy=rrf`, `strategy=weighted`, else `strategy=_other`); `function_score` is counted per **recognized** function type (`function_score=rrf`, `weighted`, `decay`, `model`, `boost`, else `function_score=_other`) | The two are distinct client paths (`RRFRanker`/`WeightedRanker` versus a `Function` object). Neither is deprecated. Counting "rrf" or "weights" on their own would double-count across the two paths. Both values are user strings at the counting point, hence the `_other` fold (see "The key space is closed at compile time") |
 | `expr_template_values` counts only when the map contains a key other than `expr_use_json_stats` | The JSON-stats hint travels in the same map |
 | `travel_timestamp` counts `> 0`, and is named `deprecated_travel_timestamp` | The Proxy no longer reads it for semantics; the counter measures how many clients still send a removed field, which is what the decision to drop the proto field needs |
 | `highlighter` counts per `HighlightType` (`highlighter=Lexical`, `highlighter=Semantic`) | The two have different dependencies and adoption meaning |
@@ -373,12 +430,59 @@ Nothing in the design reads `FunctionSchema.params` values except the provider n
 
 | Path | Cost |
 |---|---|
-| Request hot path, per counted feature | one branch + one `atomic.Add` |
+| Request hot path, per counted feature | one branch + one `atomic.Add`; plus one atomic store of the timestamp at most once per second per counter |
 | Request hot path, expressions | one walk of the parsed `planpb.Expr` |
+| Resident memory per Proxy | number of counters × 16 bytes (`value` + `last_used_at`); on the order of one kilobyte, constant for the life of the process |
 | `GetFeatureUsage` on a node | copy of a fixed-size counter array |
 | Static statistics | one pass over collections + one over indexes; milliseconds at thousands of collections |
 | Segment traits (phase 2) | one pass over segment meta; tens of milliseconds at tens of thousands of segments |
 | Steady state with no queries | zero |
+
+### Consumer contract
+
+The expected consumer polls each instance on a fixed period (once a day for the cloud collector) and
+stores the response in its own database. The instance keeps no history and makes no judgment; the
+consumer does both. The rules below are what the consumer must implement for the data to mean what the
+three motivating questions need it to mean.
+
+**What to store.** Every entry, verbatim, with its node context:
+`(instance, node_id, node_start_time, group, name, bucket, value, last_used_at, collected_at)`. Static
+and dynamic entries are stored the same way.
+
+**Static groups** (`field_types` … `segment`) are a complete recomputation on every read. Store them as
+a snapshot and overwrite; do not difference them. Absence rules differ by group and matter for
+"nobody uses this":
+
+| Group kind | Entry with `value = 0` | Entry absent |
+|---|---|---|
+| enum walk (`field_types`, `functions`) | emitted — this enum value exists in the build and no collection uses it | the enum value does not exist in this build |
+| open value / open key (`index_types`, `metric_types`, `providers`, `properties`, …) | never emitted | not present in any metadata |
+| predicate (`declared`, `objects`, `dist`) | emitted | the predicate does not exist in this build |
+
+**The `request` group** is per-node cumulative. Two readings are supported:
+
+- *Is it in use?* — from a single response: `collected_at - last_used_at <= period` means used within
+  the last period on that node; larger means not; `last_used_at = 0` means never since that process
+  started. No history needed.
+- *How much?* — per node: if `node_start_time` is unchanged since the previous read, usage in the period
+  is `value(now) - value(prev)`; if it changed, the process restarted and usage is `value(now)`. Sum over
+  nodes after the per-node step, never before. This is the Prometheus counter contract.
+
+A `node_id` present in the previous read and absent now took its final period of usage with it. An entry
+absent from the `request` group means this build has no such counter, **not** that its value is zero.
+
+**What the dynamic data can and cannot prove.** A non-zero delta or a recent `last_used_at` proves the
+feature was used. The absence of either proves non-use only for the nodes that were alive and reachable
+for the whole period. A node that restarted or vanished between reads leaves a gap that reads as "not
+used". Deprecation decisions on request-level features must therefore be made on a run of consecutive
+periods with stable node membership, or treated as weaker evidence than the static groups, which are
+authoritative on every read. The catalog lists both under deprecation; this asymmetry is why request
+counters are the smaller half of the design.
+
+**Polling period.** One read a day is sufficient for the static groups. For the request group the
+maximum loss on a node restart equals the polling period, and Proxies restart routinely under
+autoscaling and rolling upgrades; a consumer that cares about dynamic counters should poll hourly. The
+call costs milliseconds, so the period is a consumer choice, not a server constraint.
 
 ## Feature Catalog (initial)
 
@@ -519,9 +623,9 @@ present".
 
 | Entry | Signal | Recommend |
 |---|---|---|
-| `strategy=rrf`, `strategy=weighted` | `rank_params.strategy` value | yes |
+| `strategy=rrf`, `strategy=weighted`, `strategy=_other` | recognized `rank_params.strategy` value; anything else folds to `_other` | yes |
 | `norm_score` | key present in `rank_params` | yes |
-| `function_score=rrf` / `weighted` / `decay` / `model` / `boost` | function type in `function_score` | yes |
+| `function_score=rrf` / `weighted` / `decay` / `model` / `boost` / `_other` | recognized function name in `function_score`; anything else folds to `_other` | yes |
 | `highlighter=Lexical`, `highlighter=Semantic` | `SearchRequest.highlighter.type` | yes — **decision:** Semantic maturity; if not GA, the consumer should label it |
 | `fragment_size` / `num_of_fragments` | key present in highlighter params | optional |
 | `sub_reqs` | — | no — Proxy-internal; use `milvus_proxy_req_count` |
@@ -548,6 +652,15 @@ asserts the sentinel does not occur anywhere in the serialized report.
 increments; a request with pymilvus's default `search_params` (`ignore_growing=False`,
 `round_decimal=-1`, `guarantee_timestamp` set) increments nothing. The expression walk is tested with a
 repeated expression string to prove the count is unaffected by `exprCache`.
+
+**Closed key space.** A test asserts that the counter id set is a package-level constant and that the
+counter array length equals it. A request with `strategy=<random string>` and one with a
+`function_score` naming an unknown function each increment the corresponding `_other` slot and create
+nothing else; the test checks the array length before and after.
+
+**`last_used_at`.** A hit sets it to the current second; a second hit within the same second does not
+store again (asserted with a mocked clock); it is `0` for every non-`request` entry; a fresh process
+reports `0` until the first hit. A read does not modify either `value` or `last_used_at`.
 
 **Fan-out.** A mocked cluster with one Proxy returning an error and one QueryNode timing out: the report
 has `reachable=false` and `error` set for those two, `reachable=true` and entries for the rest, and the
@@ -593,10 +706,20 @@ splitting a purpose-specific RPC out of it.
 precedent: the catalog will change across releases and the consumer should get schema evolution from
 proto rather than from a documented JSON convention.
 
-### D3. Monotonic counters, never reset by a read
+### D3. Monotonic counters with `last_used_at`; no reset of any kind
 
-Reset-on-read breaks with two consumers and loses data when a read fails. Monotonic counters plus
-`node_start_time` is the counter contract every metrics consumer already implements.
+Reset-on-read breaks with two consumers and loses data when a read fails. Reset-on-timer needs the
+server and the consumer to agree on a phase and turns an on-demand design into a sampled one. Neither is
+needed for memory, which is fixed. The consumer's actual question — "still in use?" — is answered by
+`last_used_at` from a single read, and "how much?" by differencing `value` with `node_start_time` as the
+reset signal, which is the counter contract every metrics consumer already implements.
+
+### D3a. The counter id set is a compile-time constant
+
+Stated as an invariant because it is what makes cleanup unnecessary, and because the two per-value
+counters in the catalog (`strategy`, `function_score`) are named by user strings at the counting point
+and had to be given an `_other` fold to satisfy it. The precedent for what happens without this
+invariant is `CleanupProxyCollectionMetrics` and the leak history recorded next to it.
 
 ### D4. Partial reports with per-node `reachable`, never a whole-report failure
 
@@ -640,6 +763,26 @@ report that, while sanitized, describes an instance's shape.
 It would carry collection identifiers, which conflicts with the sanitization rule, and would need its
 own authorization design. Aggregates answer the three motivating questions.
 
+### D12. Request counters are not attributed to collections
+
+Attribution is the one extension that would force periodic cleanup: state keyed by collection needs a
+drop hook, alias handling, a time window and a memory bound. The static groups already attribute
+declared features to collections exactly; request-level attribution is deferred to its own MEP rather
+than admitted here in a reduced form.
+
+### D13. The v1 record shape is not adopted
+
+An earlier draft modeled each feature as a thirteen-field record (`stage`, `since`, `deprecated_in`,
+`available`, `currently_used`, `first/last_detected_at`, `detected/total_samples`, `usage_count`,
+`detail`, …) persisted to etcd and refreshed by a sampler. This design keeps `value` and adds only
+`last_used_at`. Of the rest: `layer` is `group`; `currently_used` is derived by the consumer from
+`last_used_at` or `value > 0`; `first_detected_at` and the sample ratios are consumer-side history or
+artefacts of a sampler this design does not have; `stage` / `since` / `deprecated_in` are properties of
+a release, keyed by the `build_version` already in the report, and belong in the consumer's tables;
+`available` is capability discovery, a non-goal; `detail` is an open structure and conflicts with the
+sanitization rule. The complexity of the earlier model came from the instance owning history and
+judgment; moving both to the consumer is what lets the record stay at five fields.
+
 ## Rejected Alternatives
 
 ### Prometheus metrics
@@ -675,6 +818,20 @@ Considered for `declared`. Rejected because it emits internal and deprecated fla
 `is_dynamic`, `is_function_output`, collection-level `autoID`) and misses the property-based second
 declaration path for dynamic fields and namespaces. The explicit predicate list is ten entries.
 
+### Server-side usage windows (ring buffer of hourly buckets per counter)
+
+Would let a single read answer "how many hits in each of the last 24 hours" without consumer history.
+Rejected: it needs bucket rotation (lazy on write is possible, but it is still a clock-driven state
+machine per counter), multiplies resident memory by the window length, fixes the window length in the
+server while the consumer's period is the consumer's choice, and the consumer already gets the same
+series by polling hourly and differencing `value`. `last_used_at` covers the single-read "still in use"
+question at a cost of eight bytes.
+
+### Reset on read, or on a timer
+
+See D3. Both were the natural first answer to "the value is still there tomorrow, the consumer will think
+it is still in use"; `last_used_at` answers that without destroying data or adding a timer.
+
 ## Open Questions
 
 1. Which rows of the request catalog are in P1? The 13-counter subset above is the proposed start.
@@ -685,6 +842,9 @@ declaration path for dynamic fields and namespaces. The explicit predicate list 
 6. Is the `_custom` fold sufficient for non-official keys, or is a prefix-level breakdown wanted?
 7. Naming: `GetFeatureUsage` / `/management/feature_usage` (proposed) versus `GetFeatureStats`; `Stats`
    collides with segment statistics terminology in the repo.
+8. Should `last_used_at` be second-granular (proposed) or coarser (minute)? Second granularity costs
+   at most one store per second per counter; a coarser grain buys nothing measurable and loses
+   resolution for consumers that poll hourly.
 
 ## Implementation Map (P0)
 
@@ -693,7 +853,7 @@ declaration path for dynamic fields and namespaces. The explicit predicate list 
 | Messages | `pkg/proto/internal.proto` — `GetFeatureUsageRequest/Response`, `FeatureEntry`, `FeatureUsageNode`, `FeatureUsageReport` |
 | RPCs | `pkg/proto/proxy.proto`, `pkg/proto/query_coord.proto` (`QueryNode`), `pkg/proto/data_coord.proto` (`DataNode`) |
 | Static statistics | new `internal/featureusage/` — enum walk, open-value, open-key, predicate table, `dist` buckets, sanitization allowlist |
-| Counter array and feature ids | `internal/featureusage/counters.go` |
+| Counter array (`value` + `last_used_at` per slot), the constant feature id set, `_other` folding | `internal/featureusage/counters.go` |
 | MixCoord merge and fan-out | `internal/coordinator/mix_coord.go` — `CollectFeatureUsage` |
 | Proxy RPC and HTTP handler | `internal/proxy/` — `GetFeatureUsage`; `internal/http/router.go` — `RouteFeatureUsage = "/management/feature_usage"` |
 | QueryNode / DataNode RPC (empty in P0) | respective service files |
@@ -711,7 +871,9 @@ declaration path for dynamic fields and namespaces. The explicit predicate list 
 - `internal/rootcoord/meta_table.go` — `ListAllAvailCollections`, `ListDatabases`, `ListAliases`, `SelectRole`, `SelectGrant`, `ListPrivilegeGroups`
 - `internal/proxy/search_util.go` — `parseSearchInfo`, `parseGroupByInfo`, `parseRankParams`; `internal/proxy/util.go` — `translateOutputFields`
 - `internal/parser/planparserv2/plan_parser_v2.go:30` — `exprCache`
-- `internal/util/function/rerank/function_score.go` — built-in rerank function names
+- `internal/util/function/rerank/function_score.go` — built-in rerank function names; `GetRerankName` returns a lowercased user string
+- `internal/proxy/rerank_meta.go:62`, `internal/proxy/task_search.go:506` — legacy `rank_params` passed through unvalidated
+- `pkg/metrics/proxy_metrics.go` — `proxyCollectionScopedMetrics`, `CleanupProxyCollectionMetrics`, and the leak history recorded above them; `internal/proxy/impl.go:241` — the `DropCollection` cleanup hook
 - `internal/util/function/embedding/text_embedding_function.go` — provider switch
 - `pymilvus/client/ts_utils.py` — `construct_guarantee_ts`; `pymilvus/client/prepare.py` — default `search_params`
 - `configs/milvus.yaml:1275` — `quotaCenterCollectInterval`
