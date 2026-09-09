@@ -774,9 +774,13 @@ node.
 ## Local Verification
 
 Run on 2026-09-08 against a standalone instance built from the implementation branch
-(`feat/feature-usage-report`, master `d6179da4f7`; woodpecker WAL with local storage; pymilvus 3.1.0rc8),
-with `common.security.featureUsageEnabled=true`. The workload created two collections and issued a fixed
-set of requests, then read `GET /management/feature_usage` on the Proxy management port.
+(`feat/feature-usage-report`, master `d6179da4f7`; woodpecker WAL with local storage; pymilvus 2.6.14rc1),
+with `common.security.featureUsageEnabled=true`. To make the configuration-gated QueryNode paths reachable
+on a small dataset the instance also set `queryNode.enableSegmentPrune=true`,
+`autoIndex.twoStageSearch.enabled=true` with `minTopk=1` and `minNumSegments=1`, and
+`dataCoord.segment.maxSize=4` with `dataCoord.compaction.clustering.preferSegmentSizeRatio=0.5` so
+clustering compaction emits more than one segment. The workload created four collections and issued a
+fixed set of requests, then read `GET /management/feature_usage` on the Proxy management port.
 
 **Workload.**
 
@@ -786,12 +790,16 @@ set of requests, then read `GET /management/feature_usage` on the Proxy manageme
 - `fu_b`: two float vectors (`IVF_FLAT`/`L2` with `nlist=8`, `FLAT`/`IP`), a VarChar with
   `enable_analyzer`/`enable_match`, a sparse vector fed by a `BM25` function with `SPARSE_INVERTED_INDEX`,
   consistency level `Strong`, one alias.
+- `fu_qn`: partition key, analyzer-enabled VarChar and an 8-dim vector, six flushed batches, loaded with
+  `load_fields=[pk, tenant, vec]` so the load is a strict subset of the schema.
+- `fu_clust`: Int64 clustering key and an 8-dim vector, 100k rows in 20 flushed batches, then a clustering
+  compaction, which produced four result segments.
 - Requests: 2 `group_by_field` searches; 1 range search (`radius`); 3 searches with explicit `Strong` plus
-  1 with the default consistency; one v2 search iterator (3 pages + probe); one query iterator; one
-  hybrid search with `RRFRanker`; one query per expression feature (`like`, `is null`, `array_contains`,
-  `array_length`, `exists $meta[..]`, `$meta[..] > n`, `random_sample`, `text_match`, `phrase_match`); one
-  search with `filter_params`; one delete with a `like` filter; then one search each with `Strong`,
-  `Bounded`, `Eventually`, `Session` and one query with `Strong`.
+  1 with the default consistency; one v2 search iterator; one query iterator; one hybrid search with
+  `RRFRanker`; one query per expression feature; one search with `filter_params`; one delete with a `like`
+  filter. Then, against `fu_qn`: 3 searches over freshly inserted growing data, 4 filtered searches, 2
+  filtered pure-ANN searches, one `run_analyzer`. Then, against `fu_clust`: 5 searches and 3 queries
+  filtered on the clustering key.
 
 **Gate and auth.** No credentials: `401`. Wrong root password: `401`. Root: `200`.
 
@@ -799,42 +807,48 @@ set of requests, then read `GET /management/feature_usage` on the Proxy manageme
 
 | node | group | entries |
 |---|---|---|
-| mixcoord | `declared` | `is_partition_key=1`, `enable_dynamic_field=1`, `nullable=1`, `auto_id=1`, `multi_vector_field=1`, `consistency_level=Bounded=1`, `consistency_level=Strong=1` |
-| mixcoord | `field_types` | `Int64=2`, `VarChar=2`, `FloatVector=2`, `Array=1`, `SparseFloatVector=1` (23 other types present at 0; the dynamic `$meta` field is not counted as `JSON`) |
+| mixcoord | `declared` | `auto_id=3`, `consistency_level=Bounded=3`, `consistency_level=Strong=1`, `enable_dynamic_field=1`, `is_clustering_key=1`, `is_partition_key=2`, `multi_vector_field=1`, `nullable=1` |
+| mixcoord | `field_types` | `Int64=4`, `VarChar=3`, `FloatVector=4`, `Array=1`, `SparseFloatVector=1` (23 other types present at 0; the dynamic `$meta` field is not counted as `JSON`) |
 | mixcoord | `functions` | `BM25=1` |
-| mixcoord | `index_types` / `metric_types` | `HNSW=1`, `IVF_FLAT=1`, `FLAT=1`, `SPARSE_INVERTED_INDEX=1` / `COSINE=1`, `L2=1`, `IP=1`, `BM25=1` |
-| mixcoord | `index_params` | `M=1`, `efConstruction=1`, `nlist=1` (opened from the `params` JSON) |
-| mixcoord | `field_params` | `dim=2`, `max_length=2`, `max_capacity=1`, `enable_analyzer=true=1`, `enable_match=true=1` |
-| mixcoord | `properties` | `mmap.enabled=true=1`, `collection.ttl.seconds=1`, `_custom=1`, `timezone=2`, `namespace.sharding.enabled=false=2` |
-| mixcoord | `dist` | `partition_count|2-16=1`, `partition_count|1=1`, `shards_num|1=2`, `dim|<=128=2`, `max_length|257-4096=2`, `max_capacity|<=64=1`, `replica_number|1=2` |
+| mixcoord | `index_types` / `metric_types` | `HNSW=3`, `IVF_FLAT=1`, `FLAT=1`, `SPARSE_INVERTED_INDEX=1` / `COSINE=1`, `L2=3`, `IP=1`, `BM25=1` |
+| mixcoord | `index_params` | `M=3`, `efConstruction=3`, `nlist=1` (opened from the `params` JSON) |
+| mixcoord | `field_params` | `dim=4`, `max_length=3`, `max_capacity=1`, `enable_analyzer=true=2`, `enable_match=true=1` |
+| mixcoord | `properties` | `mmap.enabled=true=1`, `collection.ttl.seconds=1`, `_custom=1`, `timezone=4`, `namespace.sharding.enabled=false=4` |
+| mixcoord | `dist` | `partition_count\|2-16=2`, `partition_count\|1=2`, `shards_num\|1=4`, `dim\|<=128=4`, `max_length\|257-4096=2`, `max_length\|<=256=1`, `max_capacity\|<=64=1`, `replica_number\|1=4`, `loaded_replica_number\|1=4` |
+| mixcoord | `loaded` | `collections=4`, `load_fields_subset=1`, `custom_resource_groups=0` |
 | mixcoord | `objects` | `aliases=1`, `grants=3` |
-| mixcoord | `segment` | `storage_version=2=2`, `is_sorted=2`, `text_stats=1`, `bm25_stats=1` |
-| proxy | `request` | `group_by_field=2`, `radius=1`, `search_iter_v2=4`, `iterator=6`, `consistency_level=Strong=5`, `=Session=1`, `=Bounded=1`, `=Eventually=1`, `strategy=rrf=1`, `like=2`, `is_null=1`, `exists=1`, `json_identifier=3`, `array_contains=1`, `array_length=1`, `random_sample=1`, `text_match=1`, `phrase_match=1`, `expr_template_values=1` (31 other counters present at 0) |
-| datanode | `request` | `compaction=SortCompaction=5` (12 other counters present at 0) — counted on the DataNode in the build under test; these counters have since moved to DataCoord and now appear on the mixcoord node |
+| mixcoord | `segment` | `storage_version=2=4`, `is_sorted=4`, `text_stats=1`, `json_key_stats=1`, `bm25_stats=1` |
+| mixcoord | `request` | `compaction=SortCompaction=77`, `compaction=MixCompaction=24`, `compaction=ClusteringCompaction=1` (10 other counters present at 0) |
+| proxy | `request` | `group_by_field=2`, `radius=1`, `search_iter_v2=4`, `iterator=6`, `output_dynamic_field=1`, `consistency_level=Strong=6`, `strategy=rrf=1`, `like=2`, `is_null=1`, `exists=1`, `json_identifier=3`, `array_contains=1`, `array_length=1`, `random_sample=1`, `text_match=1`, `phrase_match=1`, `expr_template_values=1` (44 other counters present at 0) |
+| querynode | `config` | all 20 boolean switches, each at exactly one of `key=true` / `key=false`; the three the run enabled read back as enabled (`queryNode.enableSegmentPrune=true`, `queryNode.segcore.interimIndex.enableIndex=true`, `queryNode.enableSegmentFilter=true`) |
+| querynode | `request` | `two_stage_search=16`, `brute_force_search=28`, `segment_prune=8`, `run_analyzer=1` |
 
 Every request counter matches the workload: `iterator=6` is the query iterator's pages only (the v2 search
-iterator's pages count under `search_iter_v2`), `consistency_level=Strong=5` is 3 + 1 search + 1 query,
-`like=2` is one query and one delete, `json_identifier=3` is the two `$meta` queries plus the dynamic-field
-output query, and the default-consistency search moved nothing. `function_score=*` stayed at 0 because
-`RRFRanker` uses the legacy `strategy` path. The five sort compactions are the post-flush compactions of
-the two collections.
+iterator's pages count under `search_iter_v2`), `like=2` is one query and one delete, `json_identifier=3`
+is the two `$meta` queries plus the dynamic-field output query, and the default-consistency search moved
+nothing. `function_score=*` stayed at 0 because `RRFRanker` uses the legacy `strategy` path.
+`segment_prune=8` is exactly the 5 searches and 3 queries filtered on the clustering key.
+`two_stage_search` and `brute_force_search` exceed the number of requests that named them because every
+filtered pure-ANN search takes the two-stage branch and every search that reaches growing data runs brute
+force; both are per-search-execution counts, which is what the counter is defined to report.
 
-**Sanitization.** The serialized report contains none of: the collection names, the alias name, the custom
-property key or its value, the partition key values, or the inserted text.
+**Two configuration-gated paths.** `segment_prune` stays at 0 until three things hold: the collection has a
+**clustering key** (a partition key does not reach the pruner), clustering compaction has produced more
+than one segment, and the leader checker has pushed the resulting partition statistics to the delegator.
+The first run of this workload recorded 0 for exactly that reason. `two_stage_search` is off by default
+(`autoIndex.twoStageSearch.enabled=false`, `minTopk=2000`, `minNumSegments=5`). Both are worth knowing
+when reading a report from a default-configured instance: a zero there means "not enabled", not "not used",
+and the `config` group is what tells the two apart.
+
+**Sanitization.** The serialized report contains none of: the four collection names, the alias name, the
+custom property key or its value, the partition key values, the clustering key field name, or the inserted
+text.
 
 **Observations for the consumer.** `grants=3` on an otherwise empty instance are the built-in role
 policies. `timezone` and `namespace.sharding.enabled=false` are written by the server on every collection
 and show `N/N`; they are official keys and are reported as designed, but they do not indicate a user
-choice. `max_field_id` is server-managed and excluded.
-
-**What this run does not cover.** It was taken before the DataNode counters moved to DataCoord and before
-the QueryNode role existed, so it shows a `datanode` node and no `querynode` node, no `config` group and
-no `loaded` group. Those three additions are covered by unit tests
-(`internal/featureusage/loaded_test.go`, `internal/querynodev2/feature_usage_test.go`,
-`internal/querycoordv2/feature_usage_test.go`, `internal/datacoord/feature_usage_test.go`), which assert
-the entry sets, the role partition of the counter array and the fan-out behaviour on an unreachable node.
-A second end-to-end run that also drives the QueryNode counters is pending; the record here will be
-replaced when it is taken.
+choice. `max_field_id` is server-managed and excluded. The compaction counts are inflated by the small
+`dataCoord.segment.maxSize` this run used.
 
 ## Design Decisions
 
