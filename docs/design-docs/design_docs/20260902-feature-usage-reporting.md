@@ -708,49 +708,99 @@ A starting subset that covers the deprecation and migration questions currently 
 
 ## Test Plan
 
-**Static statistics.** Unit tests construct an in-memory `MetaTable` and `indexMeta` and assert the
-exact entry set: every `DataType`, every `FunctionType`, an index of each type present, boolean
-properties at both values, a custom key folded into `_custom`, `enable_dynamic_field` declared via the
-property only, `enable_namespace` via the property only, each `dist` bucket boundary, and a collection
-with no fields of a type contributing zero (the entry is still present with `value=0` for enum-walk
-groups, absent for open-value groups).
+Three layers, each answering a different question: unit tests for "does this
+compute the right thing", a checked-in surface file for "did the report change
+under the consumer", and an integration suite for "does a real request move the
+right counter".
 
-**Sanitization.** A test builds a collection whose name, description, field names, function model name,
-`cipher.key`, resource group name and a custom property key are all the same sentinel string, then
-asserts the sentinel does not occur anywhere in the serialized report.
+### Unit tests
 
-**Counters.** Table-driven tests send one request per catalog row and assert exactly that counter
-increments; a request with pymilvus's default `search_params` (`ignore_growing=False`,
-`round_decimal=-1`, `guarantee_timestamp` set) increments nothing. The expression walk is tested with a
-repeated expression string to prove the count is unaffected by `exprCache`.
+**Static statistics.** Tests construct an in-memory `MetaTable` and `indexMeta`
+and assert the exact entry set: every `DataType`, every `FunctionType`, an index
+of each type present, boolean properties at both values, a custom key folded
+into `_custom`, `enable_dynamic_field` declared via the property only,
+`enable_namespace` via the property only, each `dist` bucket boundary, and a
+collection with no fields of a type contributing zero (the entry is still
+present with `value=0` for enum-walk groups, absent for open-value groups).
 
-**Closed key space.** A test asserts that the counter id set is a package-level constant and that the
-counter array length equals it. A request with `strategy=<random string>` and one with a
-`function_score` naming an unknown function each increment the corresponding `_other` slot and create
-nothing else; the test checks the array length before and after.
+**Loaded state and node configuration.** Tests put collections into QueryCoord's
+`CollectionManager` and `ReplicaManager` and assert the `loaded` entries: a full
+load and a partial load, a replica in the default resource group and one outside
+it, and the `loaded_replica_number` buckets. A test asserts the resource group
+name never appears in the produced entries. For the `config` group, a test
+asserts exactly one of `key=true` / `key=false` is present per item and that it
+matches the paramtable value.
 
-**`last_used_at`.** A hit sets it to the current second; a second hit within the same second does not
-store again (asserted with a mocked clock); it is `0` for every non-`request` entry; a fresh process
-reports `0` until the first hit. A read does not modify either `value` or `last_used_at`.
+**Counters.** `last_used_at` is set to the current second on a hit and not
+stored again within the same second; it is `0` for every non-`request` entry and
+for a counter never hit in this process; a read modifies neither `value` nor
+`last_used_at`. Role-scoped snapshots partition the array with no overlap, so a
+standalone process never reports a slot twice.
 
-**Fan-out.** A mocked cluster with one Proxy returning an error and one QueryNode timing out: the report
-has `reachable=false` and `error` set for those two, `reachable=true` and entries for the rest, and the
-HTTP status is 200. The QueryNode fan-out is covered the same way, with one node erroring at the
-transport, one returning a non-success status and the rest returning entries, asserting node-id ordering
-and that no node is omitted.
+**Fan-out.** A mocked cluster with one Proxy erroring at the transport, one
+returning a non-success status and the rest returning entries: every node is
+present, the failures carry `reachable=false` and an `error`, and node ids come
+back in order. The QueryNode fan-out is covered the same way.
 
-**Loaded state and node configuration.** Tests put collections into QueryCoord's `CollectionManager` and
-`ReplicaManager` and assert the `loaded` entries: a full load and a partial load, a replica in the default
-resource group and one outside it, and the `loaded_replica_number` buckets. A test asserts that the
-resource group name never appears anywhere in the produced entries. For the `config` group, a test asserts
-that exactly one of `key=true` / `key=false` is present for each reported item and that it matches the
-paramtable value.
+### The report surface is a checked-in file
 
-**Gate and auth.** Endpoint absent when `featureUsageEnabled=false` (404); 401 for a non-root user or a
-wrong password; 200 for root.
+Renaming a group, renaming a counter or dropping one breaks the consumer while
+nothing in Milvus fails to compile. `internal/featureusage/testdata/report_surface.golden`
+lists every group and every counter with its role; `TestReportSurfaceIsStable`
+compares the code against it and prints the added and removed lines. Adding a
+counter is expected and cheap:
 
-**Cost.** A benchmark of `parseSearchInfo` with and without counters, and of the expression walk on a
-100-term predicate, with the numbers recorded in the PR that adds the hooks.
+```
+go test ./internal/featureusage/ -run TestReportSurfaceIsStable -update-surface
+```
+
+and the updated file is committed with the change. The set of reported QueryNode
+configuration keys is pinned the same way, in the QueryNode test.
+
+### Integration suite
+
+`tests/integration/featureusage` runs against a real cluster. Its core
+assertion is a delta, not a threshold: it snapshots the Proxy counters, issues
+**one** request, snapshots again, and asserts that **exactly** the expected
+counters moved, by exactly the expected amounts. A hook that fires on the wrong
+request fails as loudly as one that stops firing.
+
+| Test | What it pins |
+|---|---|
+| `TestSearchCounters` | 18 search-side counters one request at a time, including that a default-consistency search moves nothing, that `ignore_growing=false` is not counted, that iterator v2 excludes the old `iterator` counter, and that an unknown rerank function folds into `function_score=_other` |
+| `TestQueryCounters` | the query-path hooks: the old iterator protocol, `group_by_fields`, `output_dynamic_field`, expression template values, an explicit consistency level |
+| `TestExpressionCounters` | one query per expression kind, each asserting only its own counter moved |
+| `TestExpressionCounterIsNotCached` | five queries with the same expression string count five, proving the counter sits on the parser's output rather than inside it |
+| `TestUnknownRankStrategyFoldsToOther` | an unknown `strategy` value increments `_other` and creates no new slot: the key space stays closed |
+| `TestStaticGroupsAndSanitization` | the declared, properties and dist groups on a freshly created collection, and that a sentinel used as the collection name, a field name, a property key and a property value appears nowhere in the serialized report |
+| `TestLoadedGroup` | a collection loaded with a subset of its fields is counted as a partial load |
+| `TestQueryNodeGroups` | every config entry is `key=true`/`key=false` with value 1 per node, a search over unflushed data moves `brute_force_search`, and `RunAnalyzer` moves its counter |
+| `TestUnreachableNodeIsReported` | a QueryNode killed without deregistering is still listed, with `reachable=false` and an error |
+| `TestImportFileTypesAreCounted` | one import job per file format moves that format's DataCoord counter |
+| `TestProvidersAndCustomResourceGroup` | a text-embedding function reports its provider while its endpoint never appears, and a collection loaded into a named resource group is counted without the group's name leaving the node |
+
+The suite reads the report through `MixCoord.GetFeatureUsage`, the same call the
+HTTP endpoint makes; the endpoint's gate and auth are covered by a unit test
+(404 when disabled, 401 for a non-root user or a wrong password, 200 for root).
+
+### Cost
+
+Measured on the implementation branch, `-benchtime 500000x`, three runs, median:
+
+| Benchmark | Result |
+|---|---|
+| `parseSearchInfo`, counters off | 19140 ns/op, 6725 B/op, 96 allocs/op |
+| `parseSearchInfo`, counters on | 19452 ns/op, 6725 B/op, 96 allocs/op |
+| expression walk, 1 term | 4.2 ns/op, 0 allocs |
+| expression walk, 10 terms | 54.8 ns/op, 0 allocs |
+| expression walk, 100 terms | 693 ns/op, 0 allocs |
+
+The counters add about 1.6% to a search parameter parse that already costs 19
+microseconds, and no allocation: the allocation counts are identical with the
+counters on and off. The per-counter cost is above a bare atomic add because a
+hit also stores `last_used_at`, which is bounded to one store per counter per
+second. The expression walk is linear in the size of the predicate the request
+already parsed, at roughly 7 ns per term, and allocates nothing.
 
 ## Rollout
 
@@ -1026,7 +1076,10 @@ it is still in use"; `last_used_at` answers that without destroying data or addi
 | QueryNode RPC, `config` group and execution counters | `pkg/proto/query_coord.proto` (`QueryNode.GetFeatureUsage`); `internal/querynodev2/services.go` — `GetFeatureUsage`, `queryNodeConfigEntries`; hooks in `delegator.go`, `segment_pruner.go`, `segments/search.go` and `RunAnalyzer` |
 | QueryNode fan-out and the `loaded` group | `internal/querycoordv2/feature_usage.go` — `CollectQueryNodeFeatureUsage`, `FeatureUsageEntries`; `internal/querycoordv2/session/cluster.go` — `Cluster.GetFeatureUsage`; `internal/featureusage/loaded.go` — `ComputeLoadedEntries`, `BoolConfigEntry` |
 | Config | `pkg/util/paramtable/component_param.go` — `common.security.featureUsageEnabled`, `common.featureUsage.countersEnabled`; `configs/milvus.yaml` regenerated |
-| Tests | as in Test Plan |
+| Report surface guard | `internal/featureusage/surface_test.go` + `internal/featureusage/testdata/report_surface.golden` — `TestReportSurfaceIsStable`, regenerated with `-update-surface` |
+| Hot-path benchmarks | `internal/proxy/feature_usage_bench_test.go` — `BenchmarkFeatureUsageParseSearchInfo`, `BenchmarkFeatureUsageExprWalk` |
+| Integration suite | `tests/integration/featureusage/` — `counters_test.go` (one request per counter, exact delta), `groups_test.go` (static, loaded, config, import, provider, resource group, reachability), `helper_test.go` |
+| Other tests | as in Test Plan |
 
 ## References
 
