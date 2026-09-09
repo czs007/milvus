@@ -506,6 +506,22 @@ periods with stable node membership, or treated as weaker evidence than the stat
 authoritative on every read. The catalog lists both under deprecation; this asymmetry is why request
 counters are the smaller half of the design.
 
+**Counters that are structurally zero.** Three entries in the `request` group can never be non-zero in
+this build, and a consumer must not read them as "nobody uses this":
+
+| Entry | Why it is always zero |
+|---|---|
+| `compaction=_other` | the fold slot for an unrecognized `CompactionType`; nothing produces one |
+| `compaction=PartitionKeySortCompaction` | no code path assigns this type. The seven places in DataCoord that construct a compaction task write only level-zero delete, mix, clustering, sort and schema-version bump, and a partition-key collection is sorted as a plain `SortCompaction` |
+| `compaction=ClusteringPartitionKeySortCompaction` | the same |
+
+The last two are declared in `data_coord.proto` and handled by the large-object compaction strategy
+downstream, but nothing constructs a task carrying them. Sorting a partition-key collection is therefore
+indistinguishable from sorting any other collection in this report. The entries are kept rather than
+removed because a counter name is part of the consumer's schema: dropping one and re-adding it if the
+type is ever produced would be two breaking changes instead of none. Whether the type should be produced
+at all is a question for the compaction owners, not for this report.
+
 **Polling period.** One read a day is sufficient for the static groups. For the request group the
 maximum loss on a node restart equals the polling period, and Proxies restart routinely under
 autoscaling and rolling upgrades; a consumer that cares about dynamic counters should poll hourly. The
