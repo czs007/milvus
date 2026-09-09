@@ -779,9 +779,46 @@ request fails as loudly as one that stops firing.
 | `TestImportFileTypesAreCounted` | one import job per file format moves that format's DataCoord counter |
 | `TestProvidersAndCustomResourceGroup` | a text-embedding function reports its provider while its endpoint never appears, and a collection loaded into a named resource group is counted without the group's name leaving the node |
 
+| `TestGeoAndTimeExpressions` | the nine geospatial predicates and the timestamp-with-timezone comparison, on a collection with a Geometry and a Timestamptz field |
+| `TestStructArrayExpressions` | `element_filter` and `struct_match` on a struct array field |
+| `TestMoreSearchCounters` | the remaining consistency levels, the null predicates, the regex operator and the JSON-stats hint |
+| `TestRerankCounters` | both rerank client paths: the legacy `strategy` values with `norm_score`, and a `FunctionScore` naming each recognized reranker |
+| `TestCompactionTypesAreCounted` | sort, level-zero delete and schema-version-bump compactions, each triggered by the user action that produces it |
+| `TestClusteringCompactionAndSegmentPrune` | clustering compaction, and the QueryNode `segment_prune` counter it makes reachable |
+| `TestBinaryImportFileTypesAreCounted` | the Parquet and Numpy import formats |
+| `TestZZCoverage` | the acceptance gate, below |
+
 The suite reads the report through `MixCoord.GetFeatureUsage`, the same call the
 HTTP endpoint makes; the endpoint's gate and auth are covered by a unit test
 (404 when disabled, 401 for a non-root user or a wrong password, 200 for root).
+
+### The acceptance gate
+
+The last thing the suite does is read the golden surface file, take the report,
+and require that **every counter it lists has a non-zero value**. A counter that
+no test drove fails the run by name. This is what makes the catalog verifiable
+rather than aspirational: adding a row to the catalog without exercising it does
+not compile past CI.
+
+Three entries cannot be driven and are listed in the test with their reasons:
+
+| Entry | Why |
+|---|---|
+| `compaction=_other` | the fold slot for an unrecognized `CompactionType`; no request can produce one |
+| `compaction=PartitionKeySortCompaction` | no DataCoord path constructs this type. `CompactionTriggerType.GetCompactionType` emits only level-zero delete, mix, clustering, sort and schema-version bump, and a partition-key collection is sorted as a plain `SortCompaction` |
+| `compaction=ClusteringPartitionKeySortCompaction` | the same: declared in the proto and handled defensively downstream, but nothing in this tree produces it |
+
+The last two are worth acting on separately. They are catalog rows that can
+never be non-zero, so a consumer would read them as "this never happens" when
+the truth is "this cannot happen". They should either be removed from the
+catalog or kept with that note.
+
+Two counters read zero on a default-configured instance for a different reason,
+and the suite turns their switches on so they can be exercised:
+`segment_prune` needs `queryNode.enableSegmentPrune`, a clustering key, more
+than one segment out of clustering compaction and the partition statistics
+delivered to the delegator; `two_stage_search` needs
+`autoIndex.twoStageSearch.enabled` and a top-k above its threshold.
 
 ### Cost
 
