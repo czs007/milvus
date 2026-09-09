@@ -947,6 +947,24 @@ and the `config` group is what tells the two apart.
 custom property key or its value, the partition key values, the clustering key field name, or the inserted
 text.
 
+**The integration suite run.** The manual run above and `tests/integration/featureusage` verify different
+things and both are kept. The manual run is the only place the HTTP endpoint, its gate and its Basic Auth
+are exercised against a real Proxy management port; the suite reads the report over
+`MixCoord.GetFeatureUsage` and is the one that proves every catalog row is reachable. The suite's latest
+full run on the same branch:
+
+| | |
+|---|---|
+| Test methods | 19, all passing |
+| Wall clock | 155 s for the package, one cluster |
+| Counters exercised | every entry in the surface file except the three listed under "The acceptance gate" |
+| Groups present | all 16 |
+
+Two entries in the report need state that outlives the test that created it, so those tests deliberately
+leave it behind: the collection carrying a text-embedding function, because `providers` is an open-value
+group that disappears when no collection has a function, and a database carrying a property, for
+`db_properties`. Everything else is cleaned up.
+
 **Observations for the consumer.** `grants=3` on an otherwise empty instance are the built-in role
 policies. `timezone` and `namespace.sharding.enabled=false` are written by the server on every collection
 and show `N/N`; they are official keys and are reported as designed, but they do not indicate a user
@@ -1131,7 +1149,7 @@ it is still in use"; `last_used_at` answers that without destroying data or addi
 | Config | `pkg/util/paramtable/component_param.go` — `common.security.featureUsageEnabled`, `common.featureUsage.countersEnabled`; `configs/milvus.yaml` regenerated |
 | Report surface guard | `internal/featureusage/surface_test.go` + `internal/featureusage/testdata/report_surface.golden` — `TestReportSurfaceIsStable`, regenerated with `-update-surface` |
 | Hot-path benchmarks | `internal/proxy/feature_usage_bench_test.go` — `BenchmarkFeatureUsageParseSearchInfo`, `BenchmarkFeatureUsageExprWalk` |
-| Integration suite | `tests/integration/featureusage/` — `counters_test.go` (one request per counter, exact delta), `groups_test.go` (static, loaded, config, import, provider, resource group, reachability), `helper_test.go` |
+| Integration suite | `tests/integration/featureusage/` — `helper_test.go` (suite, report accessors, the exact-delta assertion), `counters_test.go` and `extra_counters_test.go` (one request per Proxy counter), `expressions_test.go` (geospatial, timestamptz, struct array), `compaction_test.go` (compaction types, clustering, segment pruning), `groups_test.go` (static, loaded, config, provider, resource group, reachability), `import_files_test.go` (Parquet, Numpy), `coverage_test.go` (the acceptance gate) |
 | Other tests | as in Test Plan |
 
 ## References
