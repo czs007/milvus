@@ -4887,6 +4887,38 @@ func TestSearchTask_SearchShardRecordsNodeHint(t *testing.T) {
 	assert.Equal(t, nodeID, recordedNodeID)
 }
 
+// TestSearchShardCancelledContextKeepsShardLeaderCache: a QueryNode error
+// observed after the request's own ctx is done is a consequence of the
+// cancellation, so the shard leader cache must stay intact. The mock manager
+// has no expectation for InvalidateShardLeaderCache; a call would fail the test.
+func TestSearchShardCancelledContextKeepsShardLeaderCache(t *testing.T) {
+	const nodeID int64 = 101
+	channel := "ch-cancelled"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	qn := mocks.NewMockQueryNodeClient(t)
+	qn.EXPECT().Search(mock.Anything, mock.Anything).RunAndReturn(
+		func(ctx context.Context, req *querypb.SearchRequest, opts ...grpc.CallOption) (*internalpb.SearchResults, error) {
+			cancel()
+			return nil, context.Canceled
+		})
+
+	task := &searchTask{
+		ctx: ctx,
+		SearchRequest: &internalpb.SearchRequest{
+			Base: &commonpb.MsgBase{MsgType: commonpb.MsgType_Search},
+		},
+		request:           &milvuspb.SearchRequest{DbName: "default", CollectionName: "c"},
+		Condition:         NewTaskCondition(ctx),
+		shardClientMgr:    shardclient.NewMockShardClientManager(t),
+		resultBuf:         typeutil.NewConcurrentSet[*internalpb.SearchResults](),
+		queryChannelsNode: typeutil.NewConcurrentMap[string, int64](),
+	}
+
+	err := task.searchShard(ctx, nodeID, qn, channel)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 type GetPartitionIDsSuite struct {
 	suite.Suite
 
