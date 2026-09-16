@@ -32,6 +32,7 @@ import (
 	internalhttp "github.com/milvus-io/milvus/internal/http"
 	"github.com/milvus-io/milvus/internal/proxy/channelmgr"
 	"github.com/milvus-io/milvus/internal/proxy/connection"
+	"github.com/milvus-io/milvus/internal/proxy/reqregistry"
 	"github.com/milvus-io/milvus/internal/proxy/scheduler"
 	"github.com/milvus-io/milvus/internal/proxy/shardclient"
 	"github.com/milvus-io/milvus/internal/types"
@@ -128,6 +129,10 @@ type Proxy struct {
 	enableComplexDeleteLimit bool
 
 	slowQueries *expirable.LRU[Timestamp, *metricsinfo.SlowQuery]
+
+	// requests holds the DQL requests this proxy is currently serving, for
+	// ListRunningRequests / CancelRequests.
+	requests *reqregistry.Registry
 }
 
 // NewProxy returns a Proxy struct.
@@ -146,6 +151,7 @@ func NewProxy(ctx context.Context, factory dependency.Factory) (*Proxy, error) {
 		// lbPolicy:        lbPolicy,
 		resourceManager: resourceManager,
 		slowQueries:     expirable.NewLRU[Timestamp, *metricsinfo.SlowQuery](20, nil, time.Minute*15),
+		requests:        reqregistry.New(),
 	}
 	node.UpdateStateCode(commonpb.StateCode_Abnormal)
 	hookutil.SetHook(connection.GetManager())
