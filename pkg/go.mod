@@ -258,3 +258,4 @@ replace (
 )
 
 replace github.com/hamba/avro/v2 => github.com/iskorotkov/avro/v2 v2.33.0
+replace github.com/milvus-io/milvus-proto/go-api/v3 => /home/czs/milvus-proto/go-api
