@@ -293,6 +293,10 @@ KnowhereStatusToErrorCode(knowhere::Status status) {
         case knowhere::Status::aisaq_error:
         case knowhere::Status::knowhere_inner_error:
             return ErrorCode::KnowhereError;
+        // The caller cancelled: not a failure of the index, and the shared
+        // registry already has the code the Go retry policy reads for it.
+        case knowhere::Status::cancelled:
+            return ErrorCode::FollyCancel;
     }
     return ErrorCode::KnowhereError;
 }
