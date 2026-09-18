@@ -102,21 +102,21 @@ func TestClientAddrFromContext(t *testing.T) {
 	assert.Equal(t, "10.0.0.1:12345", clientAddrFromContext(ctx))
 }
 
-func TestStatusIfCancelled(t *testing.T) {
+func TestStatusIfCanceled(t *testing.T) {
 	ok := merr.Success()
-	assert.Same(t, ok, statusIfCancelled(context.Background(), ok), "a live ctx leaves the status alone")
+	assert.Same(t, ok, statusIfCanceled(context.Background(), ok), "a live ctx leaves the status alone")
 
 	// a client-side cancellation is not an operator cancel
 	clientCtx, clientCancel := context.WithCancel(context.Background())
 	clientCancel()
 	timeout := merr.Status(context.Canceled)
-	assert.Same(t, timeout, statusIfCancelled(clientCtx, timeout))
+	assert.Same(t, timeout, statusIfCanceled(clientCtx, timeout))
 
 	// an operator cancel replaces whatever status the inner layers produced
 	ctx, cancel := context.WithCancelCause(context.Background())
-	cancel(merr.WrapErrRequestCancelled("root", "heavy"))
-	status := statusIfCancelled(ctx, merr.Status(context.Canceled))
-	assert.ErrorIs(t, merr.Error(status), merr.ErrRequestCancelled)
+	cancel(merr.WrapErrRequestCanceled("root", "heavy"))
+	status := statusIfCanceled(ctx, merr.Status(context.Canceled))
+	assert.ErrorIs(t, merr.Error(status), merr.ErrRequestCanceled)
 	assert.False(t, status.GetRetriable())
 }
 
@@ -139,12 +139,12 @@ func TestRegisterAndCancelRequestOnProxy(t *testing.T) {
 	assert.Equal(t, reqregistry.StateQueued, listed[0].State)
 	assert.Empty(t, node.listRunningRequests(reqregistry.Filter{DBName: "other"}))
 
-	cancelled, notFound := node.cancelRequests(context.Background(), []int64{4242, 1}, "root", "test")
-	require.Len(t, cancelled, 1)
+	canceled, notFound := node.cancelRequests(context.Background(), []int64{4242, 1}, "root", "test")
+	require.Len(t, canceled, 1)
 	assert.Equal(t, []int64{1}, notFound)
-	assert.Equal(t, int64(4242), cancelled[0].RequestID)
-	assert.ErrorIs(t, reqregistry.CancelCause(ctx), merr.ErrRequestCancelled)
-	assert.True(t, cancelled[0].ElapsedMS >= 0)
+	assert.Equal(t, int64(4242), canceled[0].RequestID)
+	assert.ErrorIs(t, reqregistry.CancelCause(ctx), merr.ErrRequestCanceled)
+	assert.True(t, canceled[0].ElapsedMS >= 0)
 
 	node.unregisterRequest(entry)
 	assert.Empty(t, node.listRunningRequests(reqregistry.Filter{}))
@@ -158,8 +158,8 @@ func TestRegisterRequestIsBestEffort(t *testing.T) {
 		ctx, entry := node.registerRequest(context.Background(), reqregistry.Info{})
 		assert.Nil(t, entry)
 		assert.Nil(t, reqregistry.FromContext(ctx))
-		cancelled, notFound := node.cancelRequests(context.Background(), []int64{1}, "root", "")
-		assert.Empty(t, cancelled)
+		canceled, notFound := node.cancelRequests(context.Background(), []int64{1}, "root", "")
+		assert.Empty(t, canceled)
 		assert.Equal(t, []int64{1}, notFound)
 		assert.Nil(t, node.listRunningRequests(reqregistry.Filter{}))
 	})
@@ -192,14 +192,14 @@ func TestUnregisterReleasesContextWithoutOperatorCause(t *testing.T) {
 	assert.Nil(t, reqregistry.CancelCause(ctx))
 }
 
-// TestCancelCountsOnlyWhatItActuallyCancelled locks the counter to the number
+// TestCancelCountsOnlyWhatItActuallyCanceled locks the counter to the number
 // of requests that were really stopped, not to the number of ids asked for or
 // to the number of API calls: an operator reading it must not be misled by a
 // cancel that found nothing, or by one that named several ids at once.
-func TestCancelCountsOnlyWhatItActuallyCancelled(t *testing.T) {
+func TestCancelCountsOnlyWhatItActuallyCanceled(t *testing.T) {
 	paramtable.Init()
 	nodeID := strconv.FormatInt(paramtable.GetNodeID(), 10)
-	counter := metrics.ProxyRequestCancelledTotal.WithLabelValues(nodeID, reqregistry.TypeSearch)
+	counter := metrics.ProxyRequestCanceledTotal.WithLabelValues(nodeID, reqregistry.TypeSearch)
 	before := testutil.ToFloat64(counter)
 
 	cache := NewMockCache(t)
@@ -214,13 +214,13 @@ func TestCancelCountsOnlyWhatItActuallyCancelled(t *testing.T) {
 	defer node.unregisterRequest(e2)
 
 	// one call, two real cancellations and one id nobody holds
-	cancelled, notFound := node.cancelRequests(context.Background(), []int64{11, 12, 99}, "root", "test")
-	require.Len(t, cancelled, 2)
+	canceled, notFound := node.cancelRequests(context.Background(), []int64{11, 12, 99}, "root", "test")
+	require.Len(t, canceled, 2)
 	assert.Equal(t, []int64{99}, notFound)
 	assert.Equal(t, float64(2), testutil.ToFloat64(counter)-before)
 
-	// cancelling the same requests again reports and counts nothing
-	cancelled, _ = node.cancelRequests(context.Background(), []int64{11, 12}, "root", "test")
-	assert.Empty(t, cancelled)
+	// canceling the same requests again reports and counts nothing
+	canceled, _ = node.cancelRequests(context.Background(), []int64{11, 12}, "root", "test")
+	assert.Empty(t, canceled)
 	assert.Equal(t, float64(2), testutil.ToFloat64(counter)-before)
 }
