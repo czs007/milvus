@@ -616,6 +616,25 @@ func (node *QueryNode) ReleasePartitions(ctx context.Context, req *querypb.Relea
 		}
 	}
 
+	// Release the partitions from every delegator of the collection on this node, so their rows
+	// stop being served now rather than when the delegator is next synced to a target without
+	// them -- which a delegator lagging behind the current target may never be. A delegator that
+	// fails is reported, and QueryCoord falls back to waiting for the target sync as before.
+	var errs []error
+	node.delegators.Range(func(channel string, sd delegator.ShardDelegator) bool {
+		if sd.Collection() != req.GetCollectionID() {
+			return true
+		}
+		if err := sd.ReleasePartitions(ctx, req.GetPartitionIDs()); err != nil {
+			log.Warn("delegator failed to release partitions", zap.String("channel", channel), zap.Error(err))
+			errs = append(errs, err)
+		}
+		return true
+	})
+	if err := merr.Combine(errs...); err != nil {
+		return merr.Status(err), nil
+	}
+
 	log.Info("release partitions done")
 	return merr.Success(), nil
 }

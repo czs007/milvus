@@ -19,14 +19,20 @@ package job
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/bytedance/mockey"
 	"github.com/cockroachdb/errors"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus-proto/go-api/v2/milvuspb"
 	"github.com/milvus-io/milvus/internal/metastore/mocks"
 	"github.com/milvus-io/milvus/internal/querycoordv2/meta"
+	"github.com/milvus-io/milvus/internal/querycoordv2/observers"
+	"github.com/milvus-io/milvus/internal/querycoordv2/session"
+	"github.com/milvus-io/milvus/pkg/v2/proto/datapb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/messagespb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/querypb"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
@@ -81,7 +87,7 @@ func (suite *LoadCollectionJobSuite) TestDescribeCollectionNotFound() {
 		Return(nil, merr.WrapErrCollectionNotFound(collectionID))
 
 	result := suite.buildBroadcastResult(collectionID, []int64{100, 101})
-	job := NewLoadCollectionJob(ctx, result, nil, nil, broker, nil, nil, nil, nil, nil, nil)
+	job := NewLoadCollectionJob(ctx, result, nil, nil, broker, nil, nil, nil, nil, nil, nil, nil)
 
 	err := job.Execute()
 	suite.NoError(err)
@@ -98,7 +104,7 @@ func (suite *LoadCollectionJobSuite) TestDescribeCollectionOtherError() {
 		Return(nil, expectedErr)
 
 	result := suite.buildBroadcastResult(collectionID, []int64{200, 201})
-	job := NewLoadCollectionJob(ctx, result, nil, nil, broker, nil, nil, nil, nil, nil, nil)
+	job := NewLoadCollectionJob(ctx, result, nil, nil, broker, nil, nil, nil, nil, nil, nil, nil)
 
 	err := job.Execute()
 	suite.Error(err)
@@ -121,7 +127,7 @@ func (suite *LoadCollectionJobSuite) TestDescribeCollectionSuccess() {
 	result := suite.buildBroadcastResult(collectionID, []int64{300, 301})
 	// We pass nil for meta to test that DescribeCollection is called before SpawnReplicasWithReplicaConfig.
 	// SpawnReplicasWithReplicaConfig will panic on nil meta, proving that DescribeCollection was called first.
-	job := NewLoadCollectionJob(ctx, result, nil, nil, broker, nil, nil, nil, nil, nil, nil)
+	job := NewLoadCollectionJob(ctx, result, nil, nil, broker, nil, nil, nil, nil, nil, nil, nil)
 
 	// This should panic at SpawnReplicasWithReplicaConfig because meta is nil,
 	// but this proves DescribeCollection was called and returned successfully first.
@@ -191,7 +197,7 @@ func (suite *LoadCollectionJobSuite) TestUseLocalReplicaConfigWithLocalConfigSet
 
 	// Will panic at SpawnReplicasWithReplicaConfig (nil catalog in ReplicaManager.SpawnWithReplicaConfig),
 	// proving that getLocalReplicaConfig was called and produced replicas.
-	job := NewLoadCollectionJob(ctx, result, nil, m, broker, nil, nil, nil, nil, nil, nil)
+	job := NewLoadCollectionJob(ctx, result, nil, m, broker, nil, nil, nil, nil, nil, nil, nil)
 	suite.Panics(func() {
 		job.Execute()
 	})
@@ -229,7 +235,7 @@ func (suite *LoadCollectionJobSuite) TestUseLocalReplicaConfigWithoutLocalConfig
 
 	// Will panic at SpawnReplicasWithReplicaConfig (nil catalog in ReplicaManager.SpawnWithReplicaConfig),
 	// proving that getLocalReplicaConfig was called and produced default replicas (1 replica in default RG).
-	job := NewLoadCollectionJob(ctx, result, nil, m, broker, nil, nil, nil, nil, nil, nil)
+	job := NewLoadCollectionJob(ctx, result, nil, m, broker, nil, nil, nil, nil, nil, nil, nil)
 	suite.Panics(func() {
 		job.Execute()
 	})
@@ -259,7 +265,7 @@ func (suite *LoadCollectionJobSuite) TestUseLocalReplicaConfigFlagFalse() {
 	result := suite.buildBroadcastResultWithLocalReplicaConfig(collectionID, []int64{402}, false)
 
 	// Will panic at SpawnReplicasWithReplicaConfig with nil meta (using primary's replicas)
-	job := NewLoadCollectionJob(ctx, result, nil, nil, broker, nil, nil, nil, nil, nil, nil)
+	job := NewLoadCollectionJob(ctx, result, nil, nil, broker, nil, nil, nil, nil, nil, nil, nil)
 	suite.Panics(func() {
 		job.Execute()
 	})
@@ -416,6 +422,116 @@ func (suite *LoadCollectionJobSuite) TestGetLocalReplicaConfig_AllocIDError() {
 	replicas, err := getLocalReplicaConfig(context.Background(), m, 0)
 	suite.Error(err)
 	suite.Nil(replicas)
+}
+
+// A partition release reaches the delegators before the job waits for the target sync: every
+// node hosting a delegator of the collection is asked once, with the released partitions, and a
+// node that cannot be reached does not fail the job -- the wait that follows covers it.
+func (suite *LoadCollectionJobSuite) TestReleasedPartitionsAreReleasedOnDelegators() {
+	const (
+		collectionID        = int64(5000)
+		keptPartitionID     = int64(50)
+		releasedPartitionID = int64(51)
+		channel             = "5000-dmc0"
+	)
+	ctx := context.Background()
+
+	catalog := mocks.NewQueryCoordCatalog(suite.T())
+	catalog.EXPECT().SaveCollection(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	catalog.EXPECT().SaveCollection(mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	catalog.EXPECT().SaveCollection(mock.Anything, mock.Anything).Return(nil).Maybe()
+	catalog.EXPECT().SavePartition(mock.Anything, mock.Anything).Return(nil).Maybe()
+	catalog.EXPECT().SaveReplica(mock.Anything, mock.Anything).Return(nil).Maybe()
+	catalog.EXPECT().ReleasePartition(mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	nodeMgr := session.NewNodeManager()
+	idAlloc := int64(9000)
+	m := meta.NewMeta(func() (int64, error) { idAlloc++; return idAlloc, nil }, catalog, nodeMgr)
+	dist := meta.NewDistributionManager(nodeMgr)
+
+	loaded := func(partitionID int64) *meta.Partition {
+		return &meta.Partition{
+			PartitionLoadInfo: &querypb.PartitionLoadInfo{
+				CollectionID:  collectionID,
+				PartitionID:   partitionID,
+				ReplicaNumber: 1,
+				Status:        querypb.LoadStatus_Loaded,
+			},
+			LoadPercentage: 100,
+			CreatedAt:      time.Now().Add(-time.Hour),
+		}
+	}
+	suite.Require().NoError(m.PutCollection(ctx, &meta.Collection{
+		CollectionLoadInfo: &querypb.CollectionLoadInfo{
+			CollectionID:  collectionID,
+			ReplicaNumber: 1,
+			Status:        querypb.LoadStatus_Loaded,
+			LoadType:      querypb.LoadType_LoadCollection,
+		},
+		LoadPercentage: 100,
+		CreatedAt:      time.Now().Add(-time.Hour),
+	}, loaded(keptPartitionID), loaded(releasedPartitionID)))
+	suite.Require().NoError(m.Put(ctx, meta.NewReplica(&querypb.Replica{
+		ID:            1,
+		CollectionID:  collectionID,
+		ResourceGroup: meta.DefaultResourceGroupName,
+		Nodes:         []int64{1, 2},
+	})))
+	for _, nodeID := range []int64{1, 2} {
+		dist.ChannelDistManager.Update(nodeID, &meta.DmChannel{
+			VchannelInfo: &datapb.VchannelInfo{CollectionID: collectionID, ChannelName: channel},
+			Node:         nodeID,
+			Version:      1,
+			View:         &meta.LeaderView{ID: nodeID, CollectionID: collectionID, Channel: channel},
+		})
+	}
+
+	broker := meta.NewMockBroker(suite.T())
+	broker.EXPECT().DescribeCollection(mock.Anything, collectionID).
+		Return(&milvuspb.DescribeCollectionResponse{CollectionID: collectionID, VirtualChannelNames: []string{channel}}, nil)
+
+	released := typeutil.NewConcurrentMap[int64, []int64]()
+	cluster := session.NewMockCluster(suite.T())
+	cluster.EXPECT().ReleasePartitions(mock.Anything, mock.Anything, mock.Anything).
+		RunAndReturn(func(_ context.Context, nodeID int64, req *querypb.ReleasePartitionsRequest) (*commonpb.Status, error) {
+			suite.Equal(collectionID, req.GetCollectionID())
+			suite.Equal(nodeID, req.GetNodeID())
+			released.Insert(nodeID, req.GetPartitionIDs())
+			if nodeID == 2 {
+				return nil, merr.WrapErrNodeNotFound(nodeID)
+			}
+			return merr.Success(), nil
+		}).Times(2)
+
+	releaseMock := mockey.Mock((*observers.TargetObserver).ReleasePartition).
+		To(func(ob *observers.TargetObserver, collectionID int64, partitionIDs ...int64) {}).Build()
+	defer releaseMock.UnPatch()
+	targetMock := mockey.Mock((*observers.TargetObserver).UpdateNextTarget).
+		To(func(ob *observers.TargetObserver, ctx context.Context, collectionID int64) (chan struct{}, error) {
+			return nil, nil
+		}).Build()
+	defer targetMock.UnPatch()
+	loadMock := mockey.Mock((*observers.CollectionObserver).LoadPartitions).
+		To(func(ob *observers.CollectionObserver, ctx context.Context, collectionID int64, partitionIDs []int64) {
+		}).Build()
+	defer loadMock.UnPatch()
+	waitTargetMock := mockey.Mock(WaitCurrentTargetUpdated).Return(nil).Build()
+	defer waitTargetMock.UnPatch()
+	waitReleasedMock := mockey.Mock(WaitCollectionReleased).Return(nil).Build()
+	defer waitReleasedMock.UnPatch()
+
+	result := suite.buildBroadcastResult(collectionID, []int64{keptPartitionID})
+	job := NewLoadCollectionJob(ctx, result, dist, m, broker,
+		nil, &observers.TargetObserver{}, &observers.CollectionObserver{}, nil, nil, nil, cluster)
+	suite.NoError(job.Execute())
+
+	suite.Equal(2, released.Len())
+	for _, nodeID := range []int64{1, 2} {
+		partitionIDs, ok := released.Get(nodeID)
+		suite.True(ok)
+		suite.Equal([]int64{releasedPartitionID}, partitionIDs)
+	}
+	suite.Nil(m.GetPartition(ctx, releasedPartitionID))
+	suite.NotNil(m.GetPartition(ctx, keptPartitionID))
 }
 
 func TestLoadCollectionJob(t *testing.T) {

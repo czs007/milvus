@@ -19,6 +19,7 @@ package job
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -27,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/milvus-io/milvus-proto/go-api/v2/commonpb"
 	"github.com/milvus-io/milvus/internal/querycoordv2/checkers"
 	"github.com/milvus-io/milvus/internal/querycoordv2/meta"
 	"github.com/milvus-io/milvus/internal/querycoordv2/observers"
@@ -40,6 +42,7 @@ import (
 	"github.com/milvus-io/milvus/pkg/v2/proto/proxypb"
 	"github.com/milvus-io/milvus/pkg/v2/proto/querypb"
 	"github.com/milvus-io/milvus/pkg/v2/streaming/util/message"
+	"github.com/milvus-io/milvus/pkg/v2/util/commonpbutil"
 	"github.com/milvus-io/milvus/pkg/v2/util/merr"
 	"github.com/milvus-io/milvus/pkg/v2/util/paramtable"
 	"github.com/milvus-io/milvus/pkg/v2/util/typeutil"
@@ -59,6 +62,7 @@ type LoadCollectionJob struct {
 	checkerController  *checkers.CheckerController
 	nodeMgr            *session.NodeManager
 	proxyManager       proxyutil.ProxyClientManagerInterface
+	cluster            session.Cluster
 }
 
 func NewLoadCollectionJob(
@@ -73,6 +77,7 @@ func NewLoadCollectionJob(
 	checkerController *checkers.CheckerController,
 	nodeMgr *session.NodeManager,
 	proxyManager proxyutil.ProxyClientManagerInterface,
+	cluster session.Cluster,
 ) *LoadCollectionJob {
 	return &LoadCollectionJob{
 		BaseJob:            NewBaseJob(ctx, 0, result.Message.Header().GetCollectionId()),
@@ -87,6 +92,7 @@ func NewLoadCollectionJob(
 		checkerController:  checkerController,
 		nodeMgr:            nodeMgr,
 		proxyManager:       proxyManager,
+		cluster:            cluster,
 	}
 }
 
@@ -208,8 +214,9 @@ func (job *LoadCollectionJob) Execute() error {
 	// 6. register load task into collection observer
 	job.collectionObserver.LoadPartitions(ctx, req.GetCollectionId(), incomingPartitions.Collect())
 
-	// 7. wait for partition released if any partition is released
+	// 7. release the partitions on the delegators, then wait for the release to settle
 	if len(toReleasePartitions) > 0 {
+		job.releasePartitionsOnDelegators(ctx, req.GetCollectionId(), toReleasePartitions)
 		if err = WaitCurrentTargetUpdated(ctx, job.targetObserver, req.GetCollectionId()); err != nil {
 			log.Warn("failed to wait current target updated", zap.Error(err))
 			// return nil to avoid infinite retry on DDL callback
@@ -223,6 +230,50 @@ func (job *LoadCollectionJob) Execute() error {
 		log.Info("wait for partition released done", zap.Int64s("toReleasePartitions", toReleasePartitions))
 	}
 	return nil
+}
+
+// releasePartitionsOnDelegators asks every QueryNode that hosts a delegator of the collection to
+// release the partitions now. They have already left the meta, the next target and the load
+// config, so nothing loads them again; but the segment checker releases their segments only once
+// a delegator's readable view no longer holds them, and a delegator lagging behind the current
+// target -- because it cannot load a newer segment, say -- keeps serving the released rows, and
+// keeps their memory, until it catches up. The explicit call takes the partitions out of the
+// delegator's view and distribution and releases the segments on their workers, so the results
+// match the meta by the time this job returns. It is idempotent, as the DDL callback may run
+// again. A node that cannot be reached is left to the wait that follows, which releases through
+// the target sync as before.
+func (job *LoadCollectionJob) releasePartitionsOnDelegators(ctx context.Context, collectionID int64, partitionIDs []int64) {
+	log := log.Ctx(ctx).With(zap.Int64("collectionID", collectionID), zap.Int64s("partitionIDs", partitionIDs))
+	if job.cluster == nil || job.dist == nil {
+		log.Warn("no cluster to release partitions on, wait for the target sync to release them")
+		return
+	}
+	delegators := job.dist.ChannelDistManager.GetByFilter(meta.WithCollectionID2Channel(collectionID))
+	nodes := lo.Uniq(lo.Map(delegators, func(channel *meta.DmChannel, _ int) int64 { return channel.Node }))
+
+	var wg sync.WaitGroup
+	for _, nodeID := range nodes {
+		wg.Add(1)
+		go func(nodeID int64) {
+			defer wg.Done()
+			status, err := job.cluster.ReleasePartitions(ctx, nodeID, &querypb.ReleasePartitionsRequest{
+				Base: commonpbutil.NewMsgBase(
+					commonpbutil.WithMsgType(commonpb.MsgType_ReleasePartitions),
+					commonpbutil.WithTargetID(nodeID),
+				),
+				CollectionID: collectionID,
+				PartitionIDs: partitionIDs,
+				NodeID:       nodeID,
+			})
+			if err := merr.CheckRPCCall(status, err); err != nil {
+				log.Warn("failed to release partitions on query node, wait for the target sync to release them",
+					zap.Int64("nodeID", nodeID), zap.Error(err))
+				return
+			}
+			log.Info("released partitions on query node", zap.Int64("nodeID", nodeID))
+		}(nodeID)
+	}
+	wg.Wait()
 }
 
 // getLocalReplicaConfig reads the local cluster-level replica config and generates LoadReplicaConfig entries.

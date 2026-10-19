@@ -56,6 +56,9 @@ type IDFOracle interface {
 	UpdateGrowing(segmentID int64, stats bm25Stats)
 	// mark growing segment remove target version
 	LazyRemoveGrowings(targetVersion int64, segmentIDs ...int64)
+	// RemoveSegments drops the stats of segments that left the distribution without a target
+	// change (a partition release): sealed stats are deactivated and deleted, growing stats removed.
+	RemoveSegments(sealedIDs []int64, growingIDs []int64) error
 
 	RegisterGrowing(segmentID int64, stats bm25Stats)
 	// LoadSealed loads BM25 stats for a sealed segment from remote storage.
@@ -220,6 +223,9 @@ type idfOracle struct {
 	channel string
 
 	// for sync distribution
+	// syncMu serializes SyncDistribution and RemoveSegments: both move segments in and out of
+	// current, and each reads sealed stats outside the oracle lock based on their activate flag.
+	syncMu        sync.Mutex
 	next          idfTarget
 	targetVersion *atomic.Int64
 	syncNotify    chan struct{}
@@ -485,6 +491,96 @@ func (o *idfOracle) removeDroppedGrowings(targetVersion int64) {
 	})
 }
 
+// RemoveSegments takes the given segments out of current at once. SyncDistribution only moves a
+// segment out when a newer target no longer lists it, and a partition release changes no target
+// version on the delegator; without this, a released partition's documents would keep weighing
+// on the IDF until the next target sync.
+//
+// The stats of the active sealed segments are read from disk outside the oracle lock, as
+// SyncDistribution reads them; a segment that became active in between is read again under the
+// lock. Segments the oracle does not know are skipped.
+func (o *idfOracle) RemoveSegments(sealedIDs []int64, growingIDs []int64) error {
+	// serialize with SyncDistribution: both move segments in and out of current
+	o.syncMu.Lock()
+	defer o.syncMu.Unlock()
+
+	type sealedRemoval struct {
+		seg   *sealedBm25Stats
+		stats bm25Stats
+	}
+	removals := make([]sealedRemoval, 0, len(sealedIDs))
+	for _, segmentID := range sealedIDs {
+		seg, ok := o.sealed.Get(segmentID)
+		if !ok {
+			continue
+		}
+		removal := sealedRemoval{seg: seg}
+		if seg.activate.Load() {
+			stats, err := seg.FetchStats()
+			if err != nil {
+				return merr.Wrap(err, "fetch sealed bm25 stats for removal failed")
+			}
+			removal.stats = stats
+		}
+		removals = append(removals, removal)
+	}
+
+	diff := bm25Stats{}
+	o.Lock()
+	for _, removal := range removals {
+		seg := removal.seg
+		seg.RLock()
+		removed := seg.removed
+		diskSize := seg.diskSize
+		seg.RUnlock()
+		if removed {
+			continue
+		}
+		if seg.activate.Load() {
+			stats := removal.stats
+			if stats == nil {
+				latest, err := seg.FetchStats()
+				if err != nil {
+					o.Unlock()
+					return merr.Wrap(err, "fetch sealed bm25 stats for removal failed")
+				}
+				stats = latest
+			}
+			diff.Minus(stats)
+			seg.activate.Store(false)
+		}
+
+		o.sealedDiskSize.Add(-diskSize)
+		seg.Remove()
+		o.sealed.Remove(seg.segmentID)
+	}
+	for _, segmentID := range growingIDs {
+		stats, ok := o.growing[segmentID]
+		if !ok {
+			continue
+		}
+		o.current.Minus(stats)
+		delete(o.growing, segmentID)
+		o.growingDropVersions.Remove(segmentID)
+	}
+	// still under the write lock, so no reader sees current between the deactivations and this merge
+	o.current.Merge(diff)
+	numRow := o.current.NumRow()
+	growingLen := len(o.growing)
+	sealedLen := o.sealed.Len()
+	o.Unlock()
+
+	o.syncResource()
+	log.Info("removed segments from idf oracle",
+		zap.String("channel", o.channel),
+		zap.Int64s("sealed", sealedIDs),
+		zap.Int64s("growing", growingIDs),
+		zap.Int64("numrow", numRow),
+		zap.Int("growingLeft", growingLen),
+		zap.Int("sealedLeft", sealedLen))
+	return nil
+}
+
 // memSize estimates total in-memory size of current + all growing stats.
 // Caller must hold RLock or Lock.
 func (o *idfOracle) memSize() int64 {
@@ -642,6 +738,9 @@ func (o *idfOracle) syncloop() {
 // WARN: SyncDistribution not concurrent safe.
 // SyncDistribution sync current target to idf oracle.
 func (o *idfOracle) SyncDistribution() error {
+	o.syncMu.Lock()
+	defer o.syncMu.Unlock()
+
 	snapshot, snapshotTs := o.next.GetSnapshot()
 	if snapshot.targetVersion <= o.targetVersion.Load() {
 		return nil
