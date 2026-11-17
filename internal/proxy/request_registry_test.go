@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"context"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -303,6 +304,12 @@ func TestListLocalRunningRequests(t *testing.T) {
 	assert.Equal(t, testReqID(2), resp.GetRequests()[0].GetRequestId())
 
 	resp, err = node.ListLocalRunningRequests(context.Background(), &milvuspb.ListRunningRequestsRequest{MinElapsedMs: 1 << 40})
+	require.NoError(t, err)
+	assert.Empty(t, resp.GetRequests())
+
+	// a threshold whose nanosecond value overflows int64 must still exclude
+	// short-lived requests instead of wrapping and disabling the filter
+	resp, err = node.ListLocalRunningRequests(context.Background(), &milvuspb.ListRunningRequestsRequest{MinElapsedMs: math.MaxInt64})
 	require.NoError(t, err)
 	assert.Empty(t, resp.GetRequests())
 }

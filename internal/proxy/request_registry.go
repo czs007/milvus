@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"time"
 
@@ -354,12 +355,22 @@ func (node *Proxy) ListLocalRunningRequests(ctx context.Context, request *milvus
 		DBName:         request.GetDbName(),
 		CollectionName: request.GetCollectionName(),
 		User:           request.GetUser(),
-		MinElapsed:     time.Duration(request.GetMinElapsedMs()) * time.Millisecond,
+		MinElapsed:     minElapsedFromMs(request.GetMinElapsedMs()),
 	})
 	return &milvuspb.ListRunningRequestsResponse{
 		Status:   merr.Success(),
 		Requests: toRunningRequestInfos(infos),
 	}, nil
+}
+
+// minElapsedFromMs converts a millisecond threshold to a Duration, saturating
+// instead of overflowing: a threshold too large to represent excludes every
+// running request rather than wrapping to a value that disables the filter.
+func minElapsedFromMs(ms int64) time.Duration {
+	if ms > int64(math.MaxInt64/time.Millisecond) {
+		return time.Duration(math.MaxInt64)
+	}
+	return time.Duration(ms) * time.Millisecond
 }
 
 // CancelLocalRequests cancels, on this proxy alone, those of the given ids it
